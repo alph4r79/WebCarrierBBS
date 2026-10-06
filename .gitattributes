@@ -15,3 +15,6 @@
 *.woff2 binary
 *.zip binary
 *.sqlite binary
+
+# Not needed in release archives (git archive / GitHub downloads)
+.gitattributes export-ignore

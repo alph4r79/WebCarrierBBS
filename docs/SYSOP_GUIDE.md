@@ -1,6 +1,6 @@
 # WebCarrier BBS: Sysop-Handbuch
 
-Version 1.0.0
+Version 1.1.0
 
 Für Betreiber der Mailbox: Installation, Einrichtung, Backend, Menüs, Screens, Dateiimport, Doors und Betrieb.
 
@@ -46,13 +46,13 @@ Speicherplatz brauchst du vor allem für die Dateibereiche. Die Software selbst 
 
 ## 3. Installation
 
-1. Lade den Inhalt des Release-Archivs (oder des Repos) per FTP auf deinen Webspace, entweder in das Hauptverzeichnis der Domain oder in einen Unterordner wie `/bbs/`.
+1. Lade die gewünschte Version als ZIP herunter (GitHub unter „Releases“ oder [chrisscheel.de](https://chrisscheel.de)) und entpacke sie. Lade den Inhalt des Ordners `webcarrierbbs-<version>` per FTP auf deinen Webspace, entweder in das Hauptverzeichnis der Domain oder in einen Unterordner wie `/bbs/`.
 2. Stelle sicher, dass die Ordner `core/` und `data/` (mit allen Unterordnern) für PHP beschreibbar sind. Bei den meisten Hostern ist das automatisch so. Falls nicht, setze per FTP die Rechte auf 775 oder 755.
 3. Rufe im Browser `https://deine-domain.de/install/` auf (bzw. `/bbs/install/`).
-4. Der Installer prüft den Server. Alle Punkte außer ZipArchive müssen grün sein.
-5. Trag ein: Name der Mailbox, Ort, Sprache, deinen Sysop-Handle und ein Passwort mit mindestens 8 Zeichen.
+4. Der Installer startet auf Deutsch, wenn dein Browser Deutsch bevorzugt, sonst auf Englisch. Oben rechts kannst du die Sprache umschalten. Er prüft den Server, alle Punkte außer ZipArchive müssen grün sein.
+5. Trag ein: Name der Mailbox, Ort, Sprache, deinen Sysop-Handle und ein Passwort mit mindestens 8 Zeichen. Als Sprache der Mailbox ist die Sprache des Installers vorausgewählt.
 6. Wähle die Datenbank. **SQLite** ist die einfachste Wahl: Die Datenbank liegt dann als Datei mit Zufallsnamen in `data/`. **MySQL** brauchst du nur, wenn du lieber eine vorhandene Datenbank deines Hosters nutzt. Das Tabellenpräfix (Standard `cb_`) erlaubt mehrere Installationen in einer Datenbank.
-7. Klick auf „Install“. Der Installer legt Tabellen, Level, Bereiche, Menüs, Begrüßungsnachricht, Oneliner und die Standard-Screens an und schreibt `core/config.php`.
+7. Klick auf „Installieren“ bzw. „Install“. Der Installer legt Tabellen, Level, Bereiche, Menüs, Begrüßungsnachricht, Oneliner und die Standard-Screens an und schreibt `core/config.php`.
 
 Danach kannst du dich im Terminal mit deinem Sysop-Handle einloggen.
 
@@ -311,6 +311,8 @@ Eine weitere Sprache legst du an, indem du `lang/en.php` kopierst, übersetzt un
 **Sichern** musst du drei Dinge: `core/config.php`, den kompletten Ordner `data/` (bei SQLite liegt dort auch die Datenbank) und bei MySQL einen Export der Datenbank. Bei SQLite die Sicherung am besten machen, während niemand online ist.
 
 **Update auf eine neue Version:** Sicherung machen, dann alle Dateien der neuen Version hochladen, außer `core/config.php` und dem Ordner `data/`. Den Ordner `install/` danach wieder löschen.
+
+Bringt eine neue Version Änderungen an der Datenbank mit, werden sie beim ersten Aufruf nach dem Update automatisch angewendet, egal ob über das Terminal oder das Backend. Du musst dafür nichts tun. Welchen Stand die Datenbank hat, steht in der Einstellung `db_version`. Bricht ein Update mittendrin ab, wird der fehlende Schritt beim nächsten Aufruf wiederholt. Gerade deshalb vorher die Sicherung machen.
 
 ## 14. Sicherheit und Datenschutz
 

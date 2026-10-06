@@ -27,6 +27,7 @@ PHP 8.1 or newer with PDO (SQLite or MySQL) and mbstring. ZipArchive is optional
 
 - [Sysop Guide](docs/SYSOP_GUIDE.md) (German)
 - [User Guide](docs/USER_GUIDE.md) (German)
+- [Changelog](CHANGELOG.md)
 
 ## Deutsch
 

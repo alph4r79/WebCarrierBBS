@@ -52,6 +52,9 @@ p { margin: 0 0 12px; }
 .band .brand { font-weight: 700; letter-spacing: 0.02em; }
 .band .where { color: #aab; font-size: 13px; }
 .band a { color: #fff; }
+.band .langs { margin-left: 8px; white-space: nowrap; }
+.band .langs a { margin-left: 8px; color: #aab; }
+.band .langs a[aria-current] { color: #fff; font-weight: 700; text-decoration: none; }
 
 /* Navigation: a scrollable row on small screens */
 .nav {

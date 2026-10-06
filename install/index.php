@@ -10,29 +10,72 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/core/bootstrap.php';
 
+/** Installer language: ?lang=, else the browser's first choice (German or English). */
+function in_lang(): string
+{
+    $q = $_GET['lang'] ?? null;
+    if ($q === 'de' || $q === 'en') {
+        return $q;
+    }
+    $best = '';
+    $bestQ = -1.0;
+    foreach (explode(',', (string)($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '')) as $part) {
+        $p = explode(';', $part);
+        $tag = strtolower(trim($p[0]));
+        $weight = isset($p[1]) && preg_match('/q\s*=\s*([0-9.]+)/', $p[1], $m) ? (float)$m[1] : 1.0;
+        if ($tag !== '' && $weight > $bestQ) {
+            $best = $tag;
+            $bestQ = $weight;
+        }
+    }
+    return str_starts_with($best, 'de') ? 'de' : 'en';
+}
+
+define('CB_INSTALL_LANG', in_lang());
+
+/** Installer text, English source, German from lang_de.php. */
+function it(string $s, ...$a): string
+{
+    static $de = null;
+    if (CB_INSTALL_LANG === 'de') {
+        $de ??= require __DIR__ . '/lang_de.php';
+        $s = $de[$s] ?? $s;
+    }
+    foreach ($a as $i => $v) {
+        $s = str_replace('{' . ($i + 1) . '}', (string)$v, $s);
+    }
+    return $s;
+}
+
+/** Escaped installer text, {1}, {2} ... become <code> elements. */
+function ith(string $s, string ...$code): string
+{
+    $out = h(it($s));
+    foreach ($code as $i => $c) {
+        $out = str_replace('{' . ($i + 1) . '}', '<code>' . h($c) . '</code>', $out);
+    }
+    return $out;
+}
+
 $errors = [];
 $done = false;
-$checks = [
-    'PHP 8.1 or newer' => version_compare(PHP_VERSION, '8.1.0', '>='),
-    'PDO' => class_exists('PDO'),
-    'PDO SQLite or PDO MySQL' => class_exists('PDO') && (in_array('sqlite', PDO::getAvailableDrivers(), true) || in_array('mysql', PDO::getAvailableDrivers(), true)),
-    'mbstring' => function_exists('mb_strlen'),
-    'core/ writable' => is_writable(CB_ROOT . '/core'),
-    'data/ writable' => is_writable(CB_DATA),
-    'ZipArchive (optional, reads FILE_ID.DIZ)' => class_exists('ZipArchive'),
-];
 $drivers = class_exists('PDO') ? PDO::getAvailableDrivers() : [];
-
-if (cb_installed()) {
-    $locked = true;
-} else {
-    $locked = false;
-}
+// label, ok, required
+$checks = [
+    [it('PHP 8.1 or newer'), version_compare(PHP_VERSION, '8.1.0', '>='), true],
+    [it('PDO extension'), class_exists('PDO'), true],
+    [it('PDO SQLite or PDO MySQL'), in_array('sqlite', $drivers, true) || in_array('mysql', $drivers, true), true],
+    [it('mbstring extension'), function_exists('mb_strlen'), true],
+    [it('core/ writable'), is_writable(CB_ROOT . '/core'), true],
+    [it('data/ writable'), is_writable(CB_DATA), true],
+    [it('ZipArchive (optional, reads FILE_ID.DIZ)'), class_exists('ZipArchive'), false],
+];
+$locked = cb_installed();
 
 /** POST value, strings only (array input breaks trim() etc.) */
 $in = static fn(string $k, string $def = ''): string => is_string($_POST[$k] ?? null) ? $_POST[$k] : $def;
 $f = [
-    'lang' => $in('lang', 'de'),
+    'lang' => $in('bbs_lang', CB_INSTALL_LANG),
     'driver' => $in('driver', in_array('sqlite', $drivers, true) ? 'sqlite' : 'mysql'),
     'host' => $in('host', 'localhost'),
     'port' => $in('port'),
@@ -48,22 +91,22 @@ $f = [
 ];
 
 if (!$locked && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-    foreach ($checks as $name => $ok) {
-        if (!$ok && !str_contains($name, 'optional')) {
-            $errors[] = "Requirement missing: $name";
+    foreach ($checks as [$label, $ok, $required]) {
+        if (!$ok && $required) {
+            $errors[] = it('Requirement missing: {1}', $label);
         }
     }
     $f['prefix'] = preg_replace('/[^a-z0-9_]/', '', strtolower((string)$f['prefix'])) ?: 'cb_';
     if (mb_strlen(trim($f['bbs_name'])) < 2) {
-        $errors[] = 'Please enter a name for your BBS.';
+        $errors[] = it('Please enter a name for your BBS.');
     }
     if (!preg_match('/^[\p{L}\p{N}][\p{L}\p{N} ._\-]{1,18}[\p{L}\p{N}._\-]$/u', trim($f['sysop']))) {
-        $errors[] = 'Sysop handle: 3 to 20 letters, digits, spaces, dots, dashes or underscores.';
+        $errors[] = it('Sysop handle: 3 to 20 letters, digits, spaces, dots, dashes or underscores.');
     }
     if (mb_strlen($f['pass']) < 8) {
-        $errors[] = 'The sysop password needs at least 8 characters.';
+        $errors[] = it('The sysop password needs at least 8 characters.');
     } elseif ($f['pass'] !== $f['pass2']) {
-        $errors[] = 'The passwords do not match.';
+        $errors[] = it('The passwords do not match.');
     }
     if (!in_array($f['lang'], ['de', 'en'], true)) {
         $f['lang'] = 'en';
@@ -79,7 +122,7 @@ if (!$locked && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         try {
             DB::connect($db);
             if (DB::$driver === 'mysql' && DB::val('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?', [$f['prefix'] . 'settings'])) {
-                throw new RuntimeException('There are already WebCarrier BBS tables with this prefix in the database.');
+                throw new RuntimeException(it('There are already WebCarrier BBS tables with this prefix in the database.'));
             }
             $created = true;
             foreach (DB::schema() as $sql) {
@@ -88,12 +131,12 @@ if (!$locked && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             cb_install_defaults($f);
             $cfg = "<?php\n// WebCarrier BBS configuration, written by the installer.\nreturn " . var_export(['db' => $db], true) . ";\n";
             if (file_put_contents(CB_ROOT . '/core/config.php', $cfg) === false) {
-                throw new RuntimeException('Could not write core/config.php.');
+                throw new RuntimeException(it('Could not write core/config.php.'));
             }
             @chmod(CB_ROOT . '/core/config.php', 0640);
             $done = true;
         } catch (Throwable $e) {
-            $errors[] = 'Database error: ' . $e->getMessage();
+            $errors[] = it('Database error: {1}', $e->getMessage());
             // drop half created tables, else the next try fails with "tables exist"
             if ($created && DB::$driver === 'mysql') {
                 foreach (DB::schema() as $sql) {
@@ -124,7 +167,7 @@ function cb_install_defaults(array $f): void
         'baud' => '14400', 'sound' => '1', 'allow_new' => '1', 'new_level' => '10', 'sysop_level' => '255',
         'upload_max_kb' => '8192', 'upload_ext' => 'zip,arj,lzh,rar,7z,lha,txt,ans,asc,nfo,diz,gif,png,jpg',
         'upload_auto_approve' => '0', 'max_msg_lines' => '200', 'logon_oneliners' => '1', 'show_footer' => '1',
-        'noindex' => '0', 'legal_impressum' => '', 'legal_privacy' => '',
+        'noindex' => '0', 'legal_impressum' => '', 'legal_privacy' => '', 'db_version' => (string)CB_DB_VERSION,
     ];
     foreach ([[10, $de ? 'Neuer User' : 'New user', 30, 2048, 0], [20, $de ? 'Mitglied' : 'Member', 60, 10240, 0],
                  [50, $de ? 'Stammgast' : 'Regular', 120, 0, 0], [100, 'Co-Sysop', 240, 0, 0], [255, 'Sysop', 0, 0, 0]] as $l) {
@@ -232,79 +275,83 @@ function cb_install_defaults(array $f): void
 }
 
 ?><!DOCTYPE html>
-<html lang="en">
+<html lang="<?= CB_INSTALL_LANG ?>">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>WebCarrier BBS setup</title>
+<title><?= h(it('WebCarrier BBS setup')) ?></title>
 <link rel="stylesheet" href="../assets/sysop.css?v=<?= CB_VERSION ?>">
 </head>
 <body class="setup">
-<header class="band"><span class="brand">WebCarrier BBS</span><span class="where">Setup <?= CB_VERSION ?></span></header>
+<header class="band"><span class="brand">WebCarrier BBS</span>
+  <span class="where"><?= h(it('Setup {1}', CB_VERSION)) ?>
+    <span class="langs" aria-label="<?= h(it('Language')) ?>">
+      <a href="?lang=de"<?= CB_INSTALL_LANG === 'de' ? ' aria-current="true"' : '' ?>>Deutsch</a>
+      <a href="?lang=en"<?= CB_INSTALL_LANG === 'en' ? ' aria-current="true"' : '' ?>>English</a>
+    </span>
+  </span>
+</header>
 <main class="page narrow">
 <?php if ($locked): ?>
-  <h1>Already installed</h1>
-  <p>This BBS is already set up. To install again, delete <code>core/config.php</code> first.
-     For safety you can delete the <code>install</code> folder now.</p>
-  <p><a class="btn" href="../">Open the BBS</a> <a class="btn ghost" href="../sysop/">Sysop backend</a></p>
+  <h1><?= h(it('Already installed')) ?></h1>
+  <p><?= ith('This BBS is already set up. To install again, delete {1} first. You can delete the {2} folder now.', 'core/config.php', 'install') ?></p>
+  <p><a class="btn" href="../"><?= h(it('Open the BBS')) ?></a> <a class="btn ghost" href="../sysop/"><?= h(it('Sysop backend')) ?></a></p>
 <?php elseif ($done): ?>
-  <h1>Your BBS is online</h1>
-  <p>Everything is set up. Log in to the terminal with your sysop handle, or open the backend to fill in
-     imprint and privacy policy before you tell anyone about your box.</p>
-  <p class="note">Delete the <code>install</code> folder from your webspace now. It refuses to run again anyway,
-     but there is no reason to keep it online.</p>
-  <p><a class="btn" href="../">Dial in</a> <a class="btn ghost" href="../sysop/">Sysop backend</a></p>
+  <h1><?= h(it('Your BBS is online')) ?></h1>
+  <p><?= h(it('Everything is set up. Log in to the terminal with your sysop handle, or open the backend to fill in imprint and privacy policy before you tell anyone about your box.')) ?></p>
+  <p class="note"><?= ith('Delete the {1} folder from your webspace now. It refuses to run again anyway, but there is no reason to keep it online.', 'install') ?></p>
+  <p><a class="btn" href="../"><?= h(it('Dial in')) ?></a> <a class="btn ghost" href="../sysop/"><?= h(it('Sysop backend')) ?></a></p>
 <?php else: ?>
-  <h1>Set up your BBS</h1>
+  <h1><?= h(it('Set up your BBS')) ?></h1>
   <section class="panel">
-    <h2>Server check</h2>
+    <h2><?= h(it('Server check')) ?></h2>
     <ul class="checks">
-      <?php foreach ($checks as $name => $ok): ?>
-        <li class="<?= $ok ? 'ok' : (str_contains($name, 'optional') ? 'warn' : 'bad') ?>"><?= h($name) ?></li>
+      <?php foreach ($checks as [$label, $ok, $required]): ?>
+        <li class="<?= $ok ? 'ok' : ($required ? 'bad' : 'warn') ?>"><?= h($label) ?></li>
       <?php endforeach; ?>
     </ul>
   </section>
   <?php if ($errors): ?>
     <div class="flash bad"><?php foreach ($errors as $e): ?><p><?= h($e) ?></p><?php endforeach; ?></div>
   <?php endif; ?>
-  <form method="post" class="panel form" autocomplete="off">
-    <h2>Your box</h2>
-    <label>Name of the BBS<input name="bbs_name" required maxlength="60" value="<?= h($f['bbs_name']) ?>"></label>
-    <label>Location<input name="bbs_location" maxlength="40" value="<?= h($f['bbs_location']) ?>"></label>
-    <label>Language of the BBS
-      <select name="lang">
+  <form method="post" action="?lang=<?= CB_INSTALL_LANG ?>" class="panel form" autocomplete="off">
+    <h2><?= h(it('Your box')) ?></h2>
+    <label><?= h(it('Name of the BBS')) ?><input name="bbs_name" required maxlength="60" value="<?= h($f['bbs_name']) ?>"></label>
+    <label><?= h(it('Location')) ?><input name="bbs_location" maxlength="40" value="<?= h($f['bbs_location']) ?>"></label>
+    <label><?= h(it('Language of the BBS')) ?>
+      <select name="bbs_lang">
         <option value="de"<?= $f['lang'] === 'de' ? ' selected' : '' ?>>Deutsch</option>
         <option value="en"<?= $f['lang'] === 'en' ? ' selected' : '' ?>>English</option>
       </select>
     </label>
 
-    <h2>Sysop account</h2>
-    <label>Sysop handle<input name="sysop" required maxlength="20" value="<?= h($f['sysop']) ?>"></label>
-    <label>Password (at least 8 characters)<input type="password" name="pass" required minlength="8"></label>
-    <label>Repeat password<input type="password" name="pass2" required minlength="8"></label>
+    <h2><?= h(it('Sysop account')) ?></h2>
+    <label><?= h(it('Sysop handle')) ?><input name="sysop" required maxlength="20" value="<?= h($f['sysop']) ?>"></label>
+    <label><?= h(it('Password (at least 8 characters)')) ?><input type="password" name="pass" required minlength="8"></label>
+    <label><?= h(it('Repeat password')) ?><input type="password" name="pass2" required minlength="8"></label>
 
-    <h2>Database</h2>
+    <h2><?= h(it('Database')) ?></h2>
     <fieldset class="choice">
       <?php if (in_array('sqlite', $drivers, true)): ?>
-        <label class="inline"><input type="radio" name="driver" value="sqlite"<?= $f['driver'] === 'sqlite' ? ' checked' : '' ?>> SQLite (one file in data/, nothing to configure)</label>
+        <label class="inline"><input type="radio" name="driver" value="sqlite"<?= $f['driver'] === 'sqlite' ? ' checked' : '' ?>> <?= h(it('SQLite (one file in data/, nothing to configure)')) ?></label>
       <?php endif; ?>
       <?php if (in_array('mysql', $drivers, true)): ?>
-        <label class="inline"><input type="radio" name="driver" value="mysql"<?= $f['driver'] === 'mysql' ? ' checked' : '' ?>> MySQL or MariaDB</label>
+        <label class="inline"><input type="radio" name="driver" value="mysql"<?= $f['driver'] === 'mysql' ? ' checked' : '' ?>> <?= h(it('MySQL or MariaDB')) ?></label>
       <?php endif; ?>
     </fieldset>
     <div class="mysql">
-      <label>Host<input name="host" value="<?= h($f['host']) ?>"></label>
-      <label>Port (empty = default)<input name="port" value="<?= h($f['port']) ?>"></label>
-      <label>Database name<input name="dbname" value="<?= h($f['dbname']) ?>"></label>
-      <label>User<input name="dbuser" value="<?= h($f['dbuser']) ?>"></label>
-      <label>Password<input type="password" name="dbpass" value=""></label>
+      <label><?= h(it('Host')) ?><input name="host" value="<?= h($f['host']) ?>"></label>
+      <label><?= h(it('Port (empty = default)')) ?><input name="port" value="<?= h($f['port']) ?>"></label>
+      <label><?= h(it('Database name')) ?><input name="dbname" value="<?= h($f['dbname']) ?>"></label>
+      <label><?= h(it('User')) ?><input name="dbuser" value="<?= h($f['dbuser']) ?>"></label>
+      <label><?= h(it('Password')) ?><input type="password" name="dbpass" value=""></label>
     </div>
-    <label>Table prefix<input name="prefix" value="<?= h($f['prefix']) ?>" maxlength="12"></label>
-    <p><button class="btn" type="submit">Install</button></p>
+    <label><?= h(it('Table prefix')) ?><input name="prefix" value="<?= h($f['prefix']) ?>" maxlength="12"></label>
+    <p><button class="btn" type="submit"><?= h(it('Install')) ?></button></p>
   </form>
 <?php endif; ?>
 </main>
-<?= cb_credit() ?>
+<?= cb_credit(it('Source code')) ?>
 </body>
 </html>

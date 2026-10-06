@@ -2,7 +2,7 @@
 /**
  * Example door for WebCarrier BBS: Hi-Lo.
  * A door is a class implementing CarrierDoor. This file returns its registration.
- * Use it as a template for your own doors (see docs/SYSOP_GUIDE.md, section Doors).
+ * Can be used as a template for new doors (see docs/SYSOP_GUIDE.md, section Doors).
  *
  * Copyright (C) 2026 Christoph Scheel <https://chrisscheel.de>
  * SPDX-License-Identifier: AGPL-3.0-or-later

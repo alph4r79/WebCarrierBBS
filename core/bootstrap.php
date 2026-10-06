@@ -9,21 +9,22 @@ declare(strict_types=1);
 
 define('CB_ROOT', dirname(__DIR__));
 define('CB_DATA', CB_ROOT . '/data');
-define('CB_VERSION', '1.0.0');
+define('CB_VERSION', '1.1.0');
 define('CB_AUTHOR', 'Christoph Scheel');
 define('CB_AUTHOR_URL', 'https://chrisscheel.de');
 // AGPL section 13: users of a networked installation must be able to get the source.
-// Point this to your own repository if you run a modified version.
+// Modified versions must point this to their own repository.
 define('CB_SOURCE_URL', 'https://github.com/alph4r79/webcarrierbbs');
 
 require __DIR__ . '/db.php';
+require __DIR__ . '/migrate.php';
 
 function cb_installed(): bool
 {
     return is_file(CB_ROOT . '/core/config.php');
 }
 
-/** Connect to the database and start the session. */
+/** Connect to the database, apply pending migrations and start the session. */
 function cb_boot(): void
 {
     if (!cb_installed()) {
@@ -31,6 +32,7 @@ function cb_boot(): void
     }
     $cfg = require CB_ROOT . '/core/config.php';
     DB::connect($cfg['db']);
+    cb_migrate();
     date_default_timezone_set(Settings::get('timezone', 'Europe/Berlin'));
     cb_session();
 }
