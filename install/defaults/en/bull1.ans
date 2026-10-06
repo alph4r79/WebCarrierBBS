@@ -1,0 +1,13 @@
+[0;1;37;44m System information[K[0m
+
+  [0;36;40mUsers                     [0;1;37;40m@USERS@
+  [0;36;40mPublic messages           [0;1;37;40m@MSGS@
+  [0;36;40mFiles                     [0;1;37;40m@FILES@
+  [0;36;40mTotal calls               [0;1;37;40m@TOTALCALLS@
+  [0;36;40mNodes                     [0;1;37;40m@NODES@
+  [0;36;40mSoftware                  [0;1;37;40mWebCarrier BBS @VERSION@
+                            [0;1;30;40m(C) 2026 Christoph Scheel, chrisscheel.de
+                            Free software under the AGPL-3.0
+
+  [0;36;40mSysop                     [0;1;36;40m@SYSOP@
+  [0;36;40mLocation                  [0;1;36;40m@BBSLOC@

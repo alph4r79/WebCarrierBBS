@@ -1,0 +1,63 @@
+# Local configuration and runtime data
+core/config.php
+data/*.sqlite
+data/*.sqlite-*
+data/*.db
+data/files/*
+data/import/*
+data/tmp/*
+data/screens/*
+!data/**/.gitkeep
+
+# AI assistants (Claude Code and others)
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+**/CLAUDE.md
+**/CLAUDE.local.md
+.mcp.json
+.claudeignore
+.cursor/
+.cursorrules
+.cursorignore
+.aider*
+.copilot/
+.github/copilot-instructions.md
+.windsurfrules
+.codeium/
+.continue/
+AGENTS.md
+
+# Editors and IDEs
+.vscode/
+.idea/
+*.code-workspace
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+.history/
+
+# Operating systems
+.DS_Store
+._*
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Tooling, logs, temp files
+vendor/
+node_modules/
+composer.phar
+.phpunit.result.cache
+.php-cs-fixer.cache
+.env
+.env.*
+*.log
+*.tmp
+*.bak
+*.orig
+error_log
+php_errors.log

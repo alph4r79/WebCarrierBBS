@@ -1,0 +1,13 @@
+[0;1;37;44m Systeminformationen[K[0m
+
+  [0;36;40mUser                      [0;1;37;40m@USERS@
+  [0;36;40m™ffentliche Nachrichten   [0;1;37;40m@MSGS@
+  [0;36;40mDateien                   [0;1;37;40m@FILES@
+  [0;36;40mAnrufe gesamt             [0;1;37;40m@TOTALCALLS@
+  [0;36;40mNodes                     [0;1;37;40m@NODES@
+  [0;36;40mSoftware                  [0;1;37;40mWebCarrier BBS @VERSION@
+                            [0;1;30;40m(C) 2026 Christoph Scheel, chrisscheel.de
+                            Freie Software unter der AGPL-3.0
+
+  [0;36;40mSysop                     [0;1;36;40m@SYSOP@
+  [0;36;40mStandort                  [0;1;36;40m@BBSLOC@

@@ -1,0 +1,24 @@
+WebCarrier BBS
+Copyright (C) 2026 Christoph Scheel <https://chrisscheel.de>
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version. See the file LICENSE for the full text.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+
+Source code: https://github.com/alph4r79/webcarrierbbs
+
+
+Third party material
+--------------------
+
+IBM VGA 9x16 text mode font (assets/font.js)
+  Bitmap dump of the character ROM of the original IBM VGA adapter, taken from the
+  VGA text mode font collection compiled by VileR (int10h.org,
+  https://github.com/viler-int10h/vga-text-mode-fonts). The bitmaps are not covered
+  by the AGPL above. They are included for the authentic look of the terminal.
+  If you redistribute WebCarrier BBS, keep this notice.

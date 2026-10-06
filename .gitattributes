@@ -1,0 +1,17 @@
+# Source files: LF everywhere
+* text=auto eol=lf
+
+# ANSI screens are CP437 with CRLF, keep them byte for byte
+*.ans binary
+*.asc binary
+*.diz binary
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.zip binary
+*.sqlite binary
