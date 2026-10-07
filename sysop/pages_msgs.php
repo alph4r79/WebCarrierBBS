@@ -59,23 +59,61 @@ function page_msgareas(array $admin): void
     echo '</table></div><p><button class="btn" type="submit">' . h(t('Save areas')) . '</button></p></form>';
 }
 
+/** Select with all message areas except $skip, for moving. */
+function a_marea_move_select(array $names, int $skip): string
+{
+    $h = '<select name="move_to" aria-label="' . h(t('Move to')) . '"><option value="0">' . h(t('Move to')) . '</option>';
+    foreach ($names as $id => $n) {
+        if ($id !== $skip) {
+            $h .= '<option value="' . $id . '">' . h($n) . '</option>';
+        }
+    }
+    return $h . '</select>';
+}
+
 function page_messages(array $admin): void
 {
     $area = (int)($_GET['area'] ?? 0);
-    if (a_post() && isset($_POST['del'])) {
-        DB::q('DELETE FROM {messages} WHERE id=? AND private=0', [(int)$_POST['del']]);
-        cb_log((int)$admin['id'], $admin['handle'], 'Deleted message ' . (int)$_POST['del']);
-        a_flash(t('Message deleted.'));
-        a_go('messages', $area ? ['area' => $area] : []);
-    }
     $view = (int)($_GET['view'] ?? 0);
-    echo '<h1>' . h(t('Messages')) . '</h1>';
-    echo '<form method="get" class="form row-actions"><input type="hidden" name="p" value="messages"><select name="area" style="max-width:320px;margin:0">' .
-        '<option value="0">' . h(t('All areas')) . '</option>';
     $names = [];
     foreach (DB::all('SELECT id, name FROM {msg_areas} ORDER BY sort, id') as $a) {
         $names[(int)$a['id']] = $a['name'];
-        echo '<option value="' . (int)$a['id'] . '"' . ((int)$a['id'] === $area ? ' selected' : '') . '>' . h($a['name']) . '</option>';
+    }
+    if (a_post() && isset($_POST['bulk'])) {
+        $ids = array_values(array_unique(array_filter(array_map('intval', (array)($_POST['ids'] ?? [])))));
+        $op = (string)$_POST['bulk'];
+        $target = a_int('move_to');
+        $back = array_filter(['area' => $area, 'view' => $view]);
+        if (!$ids) {
+            a_flash(t('No messages selected.'), 'warn');
+        } elseif ($op === 'delete') {
+            $n = 0;
+            foreach ($ids as $mid) {
+                $n += DB::q('DELETE FROM {messages} WHERE id=? AND private=0', [$mid])->rowCount();
+            }
+            cb_log((int)$admin['id'], $admin['handle'], 'Deleted ' . $n . ' message(s)');
+            a_flash(t('{1} message(s) deleted.', $n));
+            unset($back['view']);
+        } elseif ($op === 'move') {
+            if (!isset($names[$target])) {
+                a_flash(t('Please choose a message area.'), 'bad');
+            } else {
+                $n = 0;
+                foreach ($ids as $mid) {
+                    $n += DB::q('UPDATE {messages} SET area_id=? WHERE id=? AND private=0', [$target, $mid])->rowCount();
+                }
+                cb_log((int)$admin['id'], $admin['handle'], 'Moved ' . $n . ' message(s) to area ' . $target);
+                a_flash(t('{1} message(s) moved to {2}.', $n, $names[$target]));
+            }
+        }
+        a_go('messages', $back);
+    }
+
+    echo '<h1>' . h(t('Messages')) . '</h1>';
+    echo '<form method="get" class="form row-actions"><input type="hidden" name="p" value="messages"><select name="area" style="max-width:320px;margin:0">' .
+        '<option value="0">' . h(t('All areas')) . '</option>';
+    foreach ($names as $aid => $n) {
+        echo '<option value="' . $aid . '"' . ($aid === $area ? ' selected' : '') . '>' . h($n) . '</option>';
     }
     echo '</select><button class="btn" type="submit">' . h(t('Show')) . '</button></form><br>';
     if ($view > 0) {
@@ -83,18 +121,32 @@ function page_messages(array $admin): void
         if ($m) {
             echo '<section class="panel"><h2>' . h($m['subject']) . '</h2><p class="note">' . h(t('From {1} to {2}, {3}, area {4}', $m['from_name'], $m['to_name'],
                     date('d.m.Y H:i', (int)$m['posted']), $names[(int)$m['area_id']] ?? '?')) . '</p><pre style="white-space:pre-wrap;font:14px/1.5 var(--mono)">' .
-                h($m['body']) . '</pre></section>';
+                h($m['body']) . '</pre>' .
+                '<form method="post" action="' . h(a_url('messages', array_filter(['area' => $area, 'view' => $view]))) . '" class="bulk">' . a_csrf() .
+                '<input type="hidden" name="ids[]" value="' . (int)$m['id'] . '"><span class="move">' . a_marea_move_select($names, (int)$m['area_id']) .
+                '<button class="btn small ghost" name="bulk" value="move">' . h(t('Move')) . '</button></span>' .
+                '<button class="btn small danger ghost" name="bulk" value="delete" onclick="return confirm(' . h(json_encode(t('Delete this message?'))) . ')">' .
+                h(t('Delete')) . '</button></form></section>';
         }
     }
     $rows = $area ? DB::all('SELECT * FROM {messages} WHERE private=0 AND area_id=? ORDER BY id DESC LIMIT 200', [$area])
         : DB::all('SELECT * FROM {messages} WHERE private=0 ORDER BY id DESC LIMIT 200');
-    echo '<div class="tablewrap"><table><tr><th>' . h(t('Date')) . '</th><th>' . h(t('Area')) . '</th><th>' . h(t('From')) . '</th><th>' . h(t('To')) .
-        '</th><th>' . h(t('Subject')) . '</th><th></th></tr>';
-    foreach ($rows as $m) {
-        echo '<tr><td class="num">' . date('d.m.y H:i', (int)$m['posted']) . '</td><td>' . h($names[(int)$m['area_id']] ?? '?') . '</td><td>' . h($m['from_name']) .
-            '</td><td>' . h($m['to_name']) . '</td><td><a href="' . h(a_url('messages', ['area' => $area, 'view' => $m['id']])) . '">' . h($m['subject']) . '</a></td>' .
-            '<td><form method="post"' . a_confirm(t('Delete this message?')) . '>' . a_csrf() . '<button class="btn small danger ghost" name="del" value="' . (int)$m['id'] . '">' .
-            h(t('Delete')) . '</button></form></td></tr>';
+    if (!$rows) {
+        echo '<div class="panel"><p>' . h(t('No messages.')) . '</p></div>';
+        return;
     }
-    echo '</table></div>';
+    $all = 'for(const c of this.form.querySelectorAll(\'input[name="ids[]"]\'))c.checked=this.checked';
+    echo '<form method="post" action="' . h(a_url('messages', array_filter(['area' => $area]))) . '">' . a_csrf() .
+        '<div class="tablewrap"><table><tr><th class="check"><input type="checkbox" onclick="' . h($all) . '" aria-label="' . h(t('Select all')) . '"></th><th>' .
+        h(t('Date')) . '</th><th>' . h(t('Area')) . '</th><th>' . h(t('From')) . '</th><th>' . h(t('To')) . '</th><th>' . h(t('Subject')) . '</th></tr>';
+    foreach ($rows as $m) {
+        echo '<tr><td class="check"><input type="checkbox" name="ids[]" value="' . (int)$m['id'] . '" aria-label="' . h($m['subject']) . '"></td>' .
+            '<td class="num">' . date('d.m.y H:i', (int)$m['posted']) . '</td><td>' . h($names[(int)$m['area_id']] ?? '?') . '</td><td>' . h($m['from_name']) .
+            '</td><td>' . h($m['to_name']) . '</td><td><a href="' . h(a_url('messages', array_filter(['area' => $area, 'view' => (int)$m['id']]))) . '">' .
+            h($m['subject']) . '</a></td></tr>';
+    }
+    echo '</table></div><div class="bulk"><span class="note">' . h(t('Selected messages:')) . '</span>' .
+        '<button class="btn small danger ghost" name="bulk" value="delete" onclick="return confirm(' . h(json_encode(t('Delete the selected messages?'))) . ')">' .
+        h(t('Delete')) . '</button><span class="move">' . a_marea_move_select($names, 0) .
+        '<button class="btn small ghost" name="bulk" value="move">' . h(t('Move')) . '</button></span></div></form>';
 }

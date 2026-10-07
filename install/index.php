@@ -100,7 +100,7 @@ if (!$locked && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if (mb_strlen(trim($f['bbs_name'])) < 2) {
         $errors[] = it('Please enter a name for your BBS.');
     }
-    if (!preg_match('/^[\p{L}\p{N}][\p{L}\p{N} ._\-]{1,18}[\p{L}\p{N}._\-]$/u', trim($f['sysop']))) {
+    if (!preg_match(CB_HANDLE_RE, trim($f['sysop']))) {
         $errors[] = it('Sysop handle: 3 to 20 letters, digits, spaces, dots, dashes or underscores.');
     }
     if (mb_strlen($f['pass']) < 8) {

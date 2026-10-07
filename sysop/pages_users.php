@@ -7,8 +7,44 @@
  */
 declare(strict_types=1);
 
+/** Error text for a handle, or null. Same rules as the registration in the terminal. */
+function a_handle_error(string $handle, int $exceptId = 0): ?string
+{
+    $err = cb_handle_check($handle, $exceptId);
+    if ($err === 'bad') {
+        return t('Handle: 3 to 20 letters, digits, spaces, dots, dashes or underscores.');
+    }
+    return $err === 'taken' ? t('This handle is already taken or reserved.') : null;
+}
+
 function page_users(array $admin): void
 {
+    $maxLevel = (int)$admin['level'];
+    if (a_post() && isset($_POST['create'])) {
+        $handle = a_in('handle', 20);
+        $pw = (string)($_POST['pass'] ?? '');
+        $level = a_int('level', 0, 255);
+        $err = a_handle_error($handle);
+        if ($err === null && mb_strlen($pw) < 6) {
+            $err = t('The new password needs at least 6 characters.');
+        } elseif ($err === null && $pw !== (string)($_POST['pass2'] ?? '')) {
+            $err = t('The passwords do not match.');
+        } elseif ($err === null && $level > $maxLevel) {
+            $err = t('You cannot assign a level above your own.');
+        }
+        if ($err !== null) {
+            a_flash($err, 'bad');
+            a_go('users');
+        }
+        $id = DB::insert('users', [
+            'handle' => $handle, 'handle_lc' => mb_strtolower($handle), 'pass' => password_hash($pw, PASSWORD_DEFAULT),
+            'location' => a_in('location', 40), 'level' => $level, 'created' => time(), 'today' => date('Y-m-d'), 'baud' => -1,
+        ]);
+        cb_log((int)$admin['id'], $admin['handle'], 'Created user ' . $handle);
+        a_flash(t('User {1} created.', $handle));
+        a_go('user', ['id' => $id]);
+    }
+
     $q = trim((string)($_GET['q'] ?? ''));
     echo '<h1>' . h(t('Users')) . '</h1>';
     echo '<form method="get" class="form row-actions"><input type="hidden" name="p" value="users">' .
@@ -34,6 +70,14 @@ function page_users(array $admin): void
             h(t('Edit')) . '</a></td></tr>';
     }
     echo '</table></div>';
+
+    echo '<form method="post" class="form panel" autocomplete="off">' . a_csrf() . '<h2>' . h(t('New user')) . '</h2><div class="grid2">' .
+        '<label>' . h(t('Handle')) . '<input name="handle" required maxlength="20"></label>' .
+        '<label>' . h(t('Location')) . '<input name="location" maxlength="40"></label>' .
+        '<label>' . h(t('Password')) . '<input type="password" name="pass" required minlength="6" autocomplete="new-password"></label>' .
+        '<label>' . h(t('Repeat password')) . '<input type="password" name="pass2" required minlength="6" autocomplete="new-password"></label>' .
+        '<label>' . h(t('Level')) . a_level_select('level', min(Settings::int('new_level', 10), $maxLevel), $maxLevel) . '</label>' .
+        '</div><button class="btn" name="create" value="1">' . h(t('Create user')) . '</button></form>';
 }
 
 function page_user(array $admin): void
@@ -45,6 +89,11 @@ function page_user(array $admin): void
         a_go('users');
     }
     $self = (int)$u['id'] === (int)$admin['id'];
+    $maxLevel = (int)$admin['level'];
+    if (!$self && (int)$u['level'] > $maxLevel) {
+        a_flash(t('You cannot edit users with a higher level than your own.'), 'bad');
+        a_go('users');
+    }
     if (a_post()) {
         if (isset($_POST['delete'])) {
             if ($self || (int)$u['id'] === Settings::int('sysop_id', 1)) {
@@ -61,12 +110,12 @@ function page_user(array $admin): void
         }
         $handle = a_in('handle', 20);
         $lc = mb_strtolower($handle);
-        if (!preg_match('/^[\p{L}\p{N}][\p{L}\p{N} ._\-]{1,18}[\p{L}\p{N}._\-]$/u', $handle)) {
-            a_flash(t('Handle: 3 to 20 letters, digits, spaces, dots, dashes or underscores.'), 'bad');
-            a_go('user', ['id' => $id]);
+        $err = a_handle_error($handle, $id);
+        if ($err === null && !$self && a_int('level', 0, 255) > $maxLevel) {
+            $err = t('You cannot assign a level above your own.');
         }
-        if (DB::val('SELECT COUNT(*) FROM {users} WHERE handle_lc=? AND id<>?', [$lc, $id])) {
-            a_flash(t('This handle is already taken.'), 'bad');
+        if ($err !== null) {
+            a_flash($err, 'bad');
             a_go('user', ['id' => $id]);
         }
         $data = [
@@ -100,7 +149,7 @@ function page_user(array $admin): void
     echo '<label>' . h(t('Handle')) . '<input name="handle" value="' . h($u['handle']) . '" maxlength="20"></label>';
     echo '<label>' . h(t('Location')) . '<input name="location" value="' . h($u['location']) . '" maxlength="40"></label>';
     echo '<label>' . h(t('Level')) . ($self ? '<input value="' . (int)$u['level'] . '" disabled><span class="hint">' . h(t('You cannot change your own level.')) . '</span>'
-            : a_level_select('level', (int)$u['level'])) . '</label>';
+            : a_level_select('level', (int)$u['level'], $maxLevel)) . '</label>';
     echo '<label>' . h(t('New password')) . '<input type="password" name="newpass" autocomplete="new-password"><span class="hint">' .
         h(t('Leave empty to keep the password. Callers cannot reset passwords themselves, that is your job.')) . '</span></label>';
     echo '<label>' . h(t('Uploads (files)')) . '<input type="number" name="ul_files" value="' . (int)$u['ul_files'] . '"></label>';

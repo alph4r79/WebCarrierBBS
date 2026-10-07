@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 define('CB_ROOT', dirname(__DIR__));
 define('CB_DATA', CB_ROOT . '/data');
-define('CB_VERSION', '1.1.0');
+define('CB_VERSION', '1.2.0');
 define('CB_AUTHOR', 'Christoph Scheel');
 define('CB_AUTHOR_URL', 'https://chrisscheel.de');
 // AGPL section 13: users of a networked installation must be able to get the source.
@@ -93,6 +93,46 @@ function cb_login_blocked(int $uid): bool
 {
     $n = (int)DB::val("SELECT COUNT(*) FROM {log} WHERE user_id=? AND text LIKE 'Wrong password%' AND time>?", [$uid, time() - 900]);
     return $n >= 5;
+}
+
+/** 3 to 20 characters, starts with a letter or digit. */
+const CB_HANDLE_RE = '/^[\p{L}\p{N}][\p{L}\p{N} ._\-]{1,18}[\p{L}\p{N}._\-]$/u';
+
+/**
+ * Handle check for registration and the backend: null if fine, 'bad' or 'taken'.
+ * $exceptId skips that user (editing), its current handle counts as allowed even if reserved.
+ */
+function cb_handle_check(string $handle, int $exceptId = 0): ?string
+{
+    if (!preg_match(CB_HANDLE_RE, $handle)) {
+        return 'bad';
+    }
+    $lc = mb_strtolower($handle);
+    $own = $exceptId > 0 && DB::val('SELECT handle_lc FROM {users} WHERE id=?', [$exceptId]) === $lc;
+    $reserved = ['new', 'sysop', 'all', mb_strtolower(Lang::get('kw_new')), mb_strtolower(Lang::get('kw_all'))];
+    if ((!$own && in_array($lc, $reserved, true))
+        || DB::val('SELECT COUNT(*) FROM {users} WHERE handle_lc=? AND id<>?', [$lc, $exceptId])) {
+        return 'taken';
+    }
+    return null;
+}
+
+/** DOS style file name (ASCII letters, digits, dot, dash, underscore), '' if nothing usable is left. */
+function cb_safe_filename(string $name): string
+{
+    $name = basename(str_replace('\\', '/', $name));
+    // one underscore per character, byte wise only if the name is no valid UTF-8
+    $clean = preg_replace('/[^A-Za-z0-9._\-]/u', '_', $name) ?? preg_replace('/[^A-Za-z0-9._\-]/', '_', $name);
+    $name = trim((string)$clean, '._');
+    return strlen($name) > 80 ? '' : $name;
+}
+
+/** Anything the web server could execute or render, never stored under a user chosen name. */
+function cb_dangerous_filename(string $name): bool
+{
+    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+    return (bool)preg_match('/^(php\d*|pht|phtml|phar|phps|cgi|pl|asp|aspx|jsp|shtml?|x?html?|xht|js|mjs|svgz?|htaccess)$/', $ext)
+        || (bool)preg_match('/\.(php\d*|pht|phtml|phar|cgi|pl|py|asp|jsp)\./i', $name);
 }
 
 /** Credit line for the backend and installer pages. */

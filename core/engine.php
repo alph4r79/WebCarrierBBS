@@ -631,15 +631,9 @@ final class Engine
     private function i_nu_handle(string $v): void
     {
         $v = CP437::clean($v, 20);
-        $lc = mb_strtolower($v);
-        if (!preg_match('/^[\p{L}\p{N}][\p{L}\p{N} ._\-]{1,18}[\p{L}\p{N}._\-]$/u', $v)) {
-            $this->say('nu_handle_bad');
-            $this->go('nu_handle');
-            return;
-        }
-        if (in_array($lc, ['new', 'sysop', 'all', mb_strtolower(Lang::get('kw_new')), mb_strtolower(Lang::get('kw_all'))], true)
-            || DB::val('SELECT COUNT(*) FROM {users} WHERE handle_lc=?', [$lc])) {
-            $this->say('nu_handle_taken');
+        $err = cb_handle_check($v);
+        if ($err !== null) {
+            $this->say($err === 'bad' ? 'nu_handle_bad' : 'nu_handle_taken');
             $this->go('nu_handle');
             return;
         }

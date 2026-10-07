@@ -16,13 +16,6 @@ function a_farea_names(): array
     return $n;
 }
 
-function a_safe_name(string $name): string
-{
-    $name = basename(str_replace('\\', '/', $name));
-    $name = preg_replace('/[^A-Za-z0-9._\-]/', '_', $name) ?? '';
-    return trim($name, '._');
-}
-
 function a_diz(string $path): string
 {
     if (!class_exists('ZipArchive') || strtolower(pathinfo($path, PATHINFO_EXTENSION)) !== 'zip') {
@@ -46,7 +39,7 @@ function a_diz(string $path): string
 /** Store a file in an area. Returns an error text or null. */
 function a_store_file(int $area, string $src, string $name, string $desc, int $uid, string $handle, bool $move): ?string
 {
-    $name = a_safe_name($name);
+    $name = cb_safe_filename($name);
     if ($name === '') {
         return t('Invalid file name.');
     }
@@ -73,13 +66,48 @@ function a_store_file(int $area, string $src, string $name, string $desc, int $u
     return null;
 }
 
-function a_delete_file(array $f): void
+/** Delete file and database row. False if the file could not be removed from the disk (row is kept). */
+function a_delete_file(array $f): bool
 {
     $p = CB_DATA . '/files/' . $f['storage'];
-    if ($f['storage'] !== '' && is_file($p)) {
-        @unlink($p);
+    if ($f['storage'] !== '' && is_file($p) && !@unlink($p)) {
+        return false;
     }
     DB::q('DELETE FROM {files} WHERE id=?', [(int)$f['id']]);
+    return true;
+}
+
+/** Move or rename a stored file (disk and database). Returns an error text or null. */
+function a_relocate_file(array $f, int $area, string $name): ?string
+{
+    if (DB::val('SELECT COUNT(*) FROM {files} WHERE area_id=? AND LOWER(filename)=? AND id<>?', [$area, strtolower($name), (int)$f['id']])) {
+        return t('{1} exists already in this area.', $name);
+    }
+    $dir = CB_DATA . '/files/' . $area;
+    if (!is_dir($dir) && !mkdir($dir, 0775, true)) {
+        return t('Cannot create {1}.', 'data/files/' . $area);
+    }
+    $src = CB_DATA . '/files/' . $f['storage'];
+    $dst = $dir . '/' . $name;
+    $sameFile = $f['storage'] !== '' && strtolower($src) === strtolower($dst);
+    if (is_file($dst) && !$sameFile) {
+        return t('{1} exists already in this area.', $name);
+    }
+    if ($f['storage'] === '' || !is_file($src)) {
+        return t('{1} is missing on the disk.', $f['filename']);
+    }
+    if ($src !== $dst) {
+        // two steps, so a change of case only also works on case insensitive file systems
+        $tmp = $dir . '/.mv_' . bin2hex(random_bytes(6));
+        if (!@rename($src, $tmp) || !@rename($tmp, $dst)) {
+            if (is_file($tmp)) {
+                @rename($tmp, $src);
+            }
+            return t('Could not store {1}.', $name);
+        }
+    }
+    DB::update('files', ['area_id' => $area, 'filename' => $name, 'storage' => $area . '/' . $name], 'id=?', [(int)$f['id']]);
+    return null;
 }
 
 function page_fileareas(array $admin): void
@@ -87,8 +115,13 @@ function page_fileareas(array $admin): void
     if (a_post()) {
         if (isset($_POST['del'])) {
             $id = (int)$_POST['del'];
+            $left = 0;
             foreach (DB::all('SELECT * FROM {files} WHERE area_id=?', [$id]) as $f) {
-                a_delete_file($f);
+                $left += a_delete_file($f) ? 0 : 1;
+            }
+            if ($left > 0) {
+                a_flash(t('{1} file(s) could not be deleted from the disk, the area was kept.', $left), 'bad');
+                a_go('fileareas');
             }
             @rmdir(CB_DATA . '/files/' . $id);
             DB::q('DELETE FROM {file_areas} WHERE id=?', [$id]);
@@ -148,14 +181,82 @@ function page_files(array $admin): void
             a_flash(t('File approved.'));
         } elseif (isset($_POST['del'])) {
             $f = DB::row('SELECT * FROM {files} WHERE id=?', [(int)$_POST['del']]);
+            if ($f && !a_delete_file($f)) {
+                a_flash(t('{1} could not be deleted from the disk.', $f['filename']), 'bad');
+                a_go('files', $back);
+            }
             if ($f) {
-                a_delete_file($f);
                 cb_log((int)$admin['id'], $admin['handle'], 'Deleted file ' . $f['filename']);
             }
             a_flash(t('File deleted.'));
-        } elseif (isset($_POST['save_desc'])) {
-            DB::q('UPDATE {files} SET description=? WHERE id=?', [a_in('desc', 2000), (int)$_POST['save_desc']]);
-            a_flash(t('Description saved.'));
+        } elseif (isset($_POST['save_file'])) {
+            $f = DB::row('SELECT * FROM {files} WHERE id=?', [(int)$_POST['save_file']]);
+            if ($f) {
+                DB::q('UPDATE {files} SET description=? WHERE id=?', [a_in('desc', 2000), (int)$f['id']]);
+                $name = cb_safe_filename(a_in('filename', 120));
+                $err = null;
+                if ($name === '') {
+                    $err = t('Invalid file name.');
+                } elseif ($name !== $f['filename'] && cb_dangerous_filename($name)) {
+                    $err = t('This file type is not allowed.');
+                } elseif ($name !== $f['filename']) {
+                    $err = a_relocate_file($f, (int)$f['area_id'], $name);
+                    if ($err === null) {
+                        cb_log((int)$admin['id'], $admin['handle'], 'Renamed file ' . $f['filename'] . ' to ' . $name);
+                    }
+                }
+                if ($err !== null) {
+                    a_flash($err, 'bad');
+                    a_go('files', ['area' => (int)$f['area_id'], 'edit' => (int)$f['id']]);
+                }
+                a_flash(t('File saved.'));
+                a_go('files', ['area' => (int)$f['area_id']]);
+            }
+        } elseif (isset($_POST['bulk'])) {
+            $ids = array_values(array_unique(array_filter(array_map('intval', (array)($_POST['ids'] ?? [])))));
+            $op = (string)$_POST['bulk'];
+            $target = a_int('move_to');
+            if (!$ids) {
+                a_flash(t('No files selected.'), 'warn');
+            } elseif ($op === 'move' && !isset($names[$target])) {
+                a_flash(t('Please choose a file area.'), 'bad');
+            } else {
+                $done = 0;
+                foreach ($ids as $fid) {
+                    $f = DB::row('SELECT * FROM {files} WHERE id=?', [$fid]);
+                    if (!$f) {
+                        continue;
+                    }
+                    if ($op === 'approve') {
+                        DB::q('UPDATE {files} SET approved=1 WHERE id=?', [$fid]);
+                        $done++;
+                    } elseif ($op === 'delete') {
+                        if (!a_delete_file($f)) {
+                            a_flash(t('{1} could not be deleted from the disk.', $f['filename']), 'bad');
+                            continue;
+                        }
+                        cb_log((int)$admin['id'], $admin['handle'], 'Deleted file ' . $f['filename']);
+                        $done++;
+                    } elseif ($op === 'move' && (int)$f['area_id'] !== $target) {
+                        $err = a_relocate_file($f, $target, (string)$f['filename']);
+                        if ($err !== null) {
+                            a_flash(t('{1} skipped: {2}', $f['filename'], $err), 'warn');
+                            continue;
+                        }
+                        cb_log((int)$admin['id'], $admin['handle'], 'Moved file ' . $f['filename'] . ' to area ' . $target);
+                        $done++;
+                    }
+                }
+                $msg = match ($op) {
+                    'approve' => t('{1} file(s) approved.', $done),
+                    'delete' => t('{1} file(s) deleted.', $done),
+                    'move' => t('{1} file(s) moved.', $done),
+                    default => null,
+                };
+                if ($msg !== null) {
+                    a_flash($msg);
+                }
+            }
         } elseif (isset($_POST['upload'])) {
             $target = a_int('target');
             if (!isset($names[$target])) {
@@ -220,25 +321,45 @@ function page_files(array $admin): void
         echo '<option value="' . $id . '"' . ($id === $area ? ' selected' : '') . '>' . h($n) . '</option>';
     }
     echo '</select><button class="btn" type="submit">' . h(t('Show')) . '</button></form><br>';
-    if ($area && isset($names[$area])) {
-        $edit = (int)($_GET['edit'] ?? 0);
-        echo '<div class="tablewrap"><table><tr><th>' . h(t('File')) . '</th><th class="num">' . h(t('Size')) . '</th><th>' . h(t('Date')) . '</th><th class="num">DL</th><th>' .
-            h(t('Description')) . '</th><th></th></tr>';
-        foreach (DB::all('SELECT * FROM {files} WHERE area_id=? ORDER BY filename', [$area]) as $f) {
-            $id = (int)$f['id'];
-            echo '<tr' . ((int)$f['approved'] ? '' : ' class="pending"') . '><td>' . h($f['filename']) . '</td><td class="num">' . cb_kb((int)$f['size']) .
-                '</td><td class="num">' . date('d.m.y', (int)$f['added']) . '</td><td class="num">' . (int)$f['downloads'] . '</td><td>';
-            if ($edit === $id) {
-                echo '<form method="post" class="form">' . a_csrf() . '<textarea name="desc" class="mono" style="min-height:120px">' . h($f['description']) .
-                    '</textarea><button class="btn small" name="save_desc" value="' . $id . '">' . h(t('Save')) . '</button></form>';
-            } else {
-                echo nl2br(h($f['description'])) . ' <a href="' . h(a_url('files', ['area' => $area, 'edit' => $id])) . '">' . h(t('Edit')) . '</a>';
-            }
-            echo '</td><td><form method="post">' . a_csrf() . '<button class="btn small danger ghost" name="del" value="' . $id . '" onclick="return confirm(' .
-                h(json_encode(t('Delete this file?'))) . ')">' . h(t('Delete')) . '</button></form></td></tr>';
-        }
-        echo '</table></div>';
+    if (!$area || !isset($names[$area])) {
+        return;
     }
+    $edit = DB::row('SELECT * FROM {files} WHERE id=? AND area_id=?', [(int)($_GET['edit'] ?? 0), $area]);
+    if ($edit) {
+        echo '<form method="post" class="form panel">' . a_csrf() . '<h2>' . h(t('Edit file')) . '</h2>' .
+            '<label>' . h(t('File name')) . '<input name="filename" class="mono" maxlength="80" value="' . h($edit['filename']) . '">' .
+            '<span class="hint">' . h(t('Letters, digits, dot, dash and underscore. Other characters become an underscore.')) . '</span></label>' .
+            '<label>' . h(t('Description')) . '<textarea name="desc" class="mono" style="min-height:120px">' . h($edit['description']) . '</textarea></label>' .
+            '<p class="row-actions"><button class="btn" name="save_file" value="' . (int)$edit['id'] . '">' . h(t('Save')) . '</button> ' .
+            '<a class="btn ghost" href="' . h(a_url('files', ['area' => $area])) . '">' . h(t('Back')) . '</a></p></form>';
+    }
+    $files = DB::all('SELECT * FROM {files} WHERE area_id=? ORDER BY filename', [$area]);
+    if (!$files) {
+        echo '<div class="panel"><p>' . h(t('No files in this area.')) . '</p></div>';
+        return;
+    }
+    $all = 'for(const c of this.form.querySelectorAll(\'input[name="ids[]"]\'))c.checked=this.checked';
+    echo '<form method="post" action="' . h(a_url('files', ['area' => $area])) . '">' . a_csrf() .
+        '<div class="tablewrap"><table><tr><th class="check"><input type="checkbox" onclick="' . h($all) . '" aria-label="' . h(t('Select all')) . '"></th><th>' .
+        h(t('File')) . '</th><th class="num">' . h(t('Size')) . '</th><th>' . h(t('Date')) . '</th><th class="num">DL</th><th>' . h(t('Description')) . '</th><th></th></tr>';
+    foreach ($files as $f) {
+        $id = (int)$f['id'];
+        echo '<tr' . ((int)$f['approved'] ? '' : ' class="pending"') . '><td class="check"><input type="checkbox" name="ids[]" value="' . $id . '" aria-label="' .
+            h($f['filename']) . '"></td><td>' . h($f['filename']) . '</td><td class="num">' . cb_kb((int)$f['size']) .
+            '</td><td class="num">' . date('d.m.y', (int)$f['added']) . '</td><td class="num">' . (int)$f['downloads'] . '</td><td>' .
+            nl2br(h($f['description'])) . '</td><td><a class="btn small ghost" href="' . h(a_url('files', ['area' => $area, 'edit' => $id])) . '">' .
+            h(t('Edit')) . '</a></td></tr>';
+    }
+    echo '</table></div><div class="bulk"><span class="note">' . h(t('Selected files:')) . '</span>' .
+        '<button class="btn small" name="bulk" value="approve">' . h(t('Approve')) . '</button>' .
+        '<button class="btn small danger ghost" name="bulk" value="delete" onclick="return confirm(' . h(json_encode(t('Delete the selected files?'))) . ')">' .
+        h(t('Delete')) . '</button><span class="move"><select name="move_to" aria-label="' . h(t('Move to')) . '"><option value="0">' . h(t('Move to')) . '</option>';
+    foreach ($names as $aid => $n) {
+        if ($aid !== $area) {
+            echo '<option value="' . $aid . '">' . h($n) . '</option>';
+        }
+    }
+    echo '</select><button class="btn small ghost" name="bulk" value="move">' . h(t('Move')) . '</button></span></div></form>';
 }
 
 /** Read FILES.BBS or DESCRIPT.ION in a folder: filename => description. */

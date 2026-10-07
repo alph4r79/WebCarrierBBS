@@ -2,6 +2,26 @@
 
 All notable changes to WebCarrier BBS. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version numbers follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-10-07
+
+### Added
+
+- Backend: create users directly on the user page, with the same handle rules as the registration in the terminal.
+- Backend: checkboxes and bulk actions in the file list of an area: approve, delete and move to another area. Files are moved on disk, names that already exist in the target area are skipped and reported.
+- Backend: rename files together with their description. Names are cleaned like uploads, duplicates and dangerous extensions are refused.
+- Backend: checkboxes and bulk actions in the message list (delete, move to another area), moving also from the single message view.
+- Backend: new page Backup that downloads a ZIP with core/config.php, the screens, the database (consistent SQLite copy or SQL dump for MySQL) and optionally the file areas.
+
+### Changed
+
+- Levels can only be assigned up to the own level, users with a higher level than the own can no longer be edited in the backend.
+- Renaming a user in the backend refuses the reserved names (NEW, Sysop, All and their translations), like the registration does.
+- File names are cleaned per character, an umlaut becomes one underscore instead of two.
+
+### Fixed
+
+- Deleting a file in the backend no longer removes the database entry if the file could not be deleted from disk.
+
 ## [1.1.0] - 2026-10-06
 
 ### Added
@@ -29,5 +49,6 @@ First public release.
 - Web installer for SQLite or MySQL/MariaDB
 - German and English
 
+[1.2.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/alph4r79/webcarrierbbs/releases/tag/v1.0.0

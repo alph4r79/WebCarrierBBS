@@ -1,6 +1,6 @@
 # WebCarrier BBS: Sysop-Handbuch
 
-Version 1.1.0
+Version 1.2.0
 
 Für Betreiber der Mailbox: Installation, Einrichtung, Backend, Menüs, Screens, Dateiimport, Doors und Betrieb.
 
@@ -131,20 +131,31 @@ Beim Speichern der Einstellungen prüft das Backend zwei Werte: Der Sysop-Level 
 | Übersicht | Zahlen, belegte Nodes, letzte Ereignisse, Warnungen (leeres Impressum, wartende Uploads) |
 | Einstellungen | Name, Sprache, Zeitzone, Nodes, Neuanmeldung, Terminal, Uploads |
 | Impressum und Datenschutz | Rechtstexte als reiner Text |
-| User | Suchen, bearbeiten, Level ändern, sperren, Passwort setzen, löschen |
+| User | Anlegen, suchen, bearbeiten, Level ändern, sperren, Passwort setzen, löschen |
 | Level | Zeit, Downloadlimit und Ratio je Level |
 | Nachrichtenbereiche | Anlegen, umbenennen, Rechte, Reihenfolge, löschen |
-| Nachrichten | Öffentliche Nachrichten lesen und löschen. Private Post wird hier bewusst nicht angezeigt |
+| Nachrichten | Öffentliche Nachrichten lesen, löschen und in andere Bereiche verschieben. Private Post wird hier bewusst nicht angezeigt |
 | Oneliner | Moderieren |
 | Dateibereiche | Anlegen, Rechte, Uploads erlauben |
-| Dateien | Uploads freigeben, Beschreibungen ändern, Dateien löschen, Dateien per Browser hochladen |
+| Dateien | Uploads freigeben, umbenennen, Beschreibungen ändern, verschieben, löschen, Dateien per Browser hochladen |
 | Dateiimport | Viele Dateien auf einmal aus `data/import` übernehmen |
 | Menüs | Menüstruktur und Hotkeys bearbeiten |
 | Screens | ANSI- und Text-Screens hochladen, bearbeiten, mit Vorschau |
 | Doors | Installierte Doors und ob sie in einem Menü stehen |
 | Log | Logins, Uploads, Downloads, Änderungen |
+| Backup | Sicherung als ZIP herunterladen, siehe Abschnitt 13 |
+
+### Userverwaltung
+
+Unter „User“ legst du neue Accounts direkt an: Handle, Ort, Passwort (zweimal, mindestens 6 Zeichen) und Level. Für den Handle gelten dieselben Regeln wie bei der Neuanmeldung im Terminal: 3 bis 20 Zeichen, eindeutig, und die reservierten Namen NEW, Sysop und All sind gesperrt, bei deutscher Sprache der Box zusätzlich NEU und Alle. Das gilt auch, wenn du einen User umbenennst.
+
+Level vergeben kannst du höchstens bis zu deinem eigenen. User mit einem höheren Level als deinem lassen sich nicht bearbeiten. Das betrifft vor allem Co-Sysops, wenn du den Sysop-Level niedriger als 255 eingestellt hast. Dein eigenes Level kannst du nicht ändern.
 
 **Passwort vergessen:** Anrufer können ihr Passwort nicht selbst zurücksetzen, weil die Box keine E-Mail-Adressen speichert. Das machst du in der Userverwaltung unter „Neues Passwort“.
+
+### Nachrichten
+
+Die Liste unter „Nachrichten“ zeigt die letzten 200 öffentlichen Nachrichten, auf Wunsch nur eines Bereichs. Über die Häkchen links (das Häkchen im Tabellenkopf wählt alle) löschst du mehrere Nachrichten auf einmal oder verschiebst sie in einen anderen Bereich, etwa wenn jemand im falschen Bereich geschrieben hat. In der Einzelansicht einer Nachricht geht beides auch direkt. Private Post lässt sich hier weder sehen noch verschieben.
 
 ## 8. Menüs und Befehle
 
@@ -241,6 +252,12 @@ Dateien liegen in `data/files/<Bereichsnummer>/`. Die Datenbank kennt Name, Grö
 
 Standardmäßig sind Uploads erst nach deiner Freigabe sichtbar. Wartende Uploads siehst du in der Übersicht und unter „Dateien“. Prüf sie, bevor du sie freigibst: Du bist als Betreiber für die Inhalte verantwortlich, die du anbietest.
 
+**Dateien verwalten:** Unter „Dateien“ wählst du einen Bereich und siehst seine Dateien. Über die Häkchen links kannst du mehrere Dateien auf einmal freigeben, löschen (mit Rückfrage) oder in einen anderen Bereich verschieben. Beim Verschieben wandert die Datei auf der Platte nach `data/files/<neuer Bereich>/`. Gibt es im Zielbereich schon eine Datei mit dem Namen, wird sie übersprungen und du bekommst eine Meldung.
+
+Über „Bearbeiten“ änderst du Name und Beschreibung einer Datei. Für den Namen gelten dieselben Regeln wie beim Upload: Buchstaben, Ziffern, Punkt, Binde- und Unterstrich, alles andere wird zum Unterstrich. Endungen wie php oder html sind nicht erlaubt, und ein Name, den es im Bereich schon gibt, wird abgelehnt. Die Datei wird auf der Platte mit umbenannt.
+
+Lässt sich eine Datei nicht von der Platte löschen (etwa wegen fehlender Rechte), bleibt sie auch in der Liste und du bekommst eine Meldung. Beim Löschen eines ganzen Dateibereichs bleibt der Bereich dann ebenfalls erhalten.
+
 **Massenimport:** Für ganze Sammlungen, etwa eine Shareware-CD wie Kirk's Comm Disc:
 
 1. Lade die Dateien per FTP nach `data/import/`, gern in Unterordner, zum Beispiel `data/import/RA/` und `data/import/FIDO/`.
@@ -308,7 +325,18 @@ Eine weitere Sprache legst du an, indem du `lang/en.php` kopierst, übersetzt un
 
 ## 13. Datensicherung und Update
 
-**Sichern** musst du drei Dinge: `core/config.php`, den kompletten Ordner `data/` (bei SQLite liegt dort auch die Datenbank) und bei MySQL einen Export der Datenbank. Bei SQLite die Sicherung am besten machen, während niemand online ist.
+**Backup im Backend:** Unter „Backup“ erzeugt ein Klick ein ZIP und lädt es herunter. Der Dateiname enthält Datum und Uhrzeit, zum Beispiel `webcarrierbbs-backup-2026-10-07-213000.zip`. Im Archiv stecken:
+
+- `core/config.php`, also auch die Zugangsdaten zur Datenbank. Bewahre das Backup deshalb sicher auf.
+- `data/screens/` mit allen Screens.
+- Die Datenbank: bei SQLite eine konsistente Kopie der Datenbankdatei (auch während Anrufer online sind), bei MySQL ein SQL-Dump aller Tabellen der Box als `database.sql`.
+- Auf Wunsch die Dateibereiche (`data/files/`). Die Seite zeigt dir, wie groß sie gerade sind. Große Backups können am Zeitlimit deines Hosters scheitern, dann sicherst du `data/files/` besser per FTP.
+
+Das Archiv ist aufgebaut wie die Installation selbst. **Wiederherstellen:** WebCarrier BBS frisch hochladen und das Archiv in denselben Ordner entpacken, der Installer wird dann nicht gebraucht. Bei MySQL vorher `database.sql` in die Datenbank importieren, zum Beispiel mit phpMyAdmin.
+
+Fehlt auf deinem Webspace die PHP-Erweiterung ZipArchive, kann das Backend kein Backup erstellen und erklärt dir stattdessen die Sicherung per FTP.
+
+**Sichern per FTP:** Du brauchst drei Dinge: `core/config.php`, den kompletten Ordner `data/` (bei SQLite liegt dort auch die Datenbank) und bei MySQL einen Export der Datenbank. Bei SQLite die Sicherung am besten machen, während niemand online ist.
 
 **Update auf eine neue Version:** Sicherung machen, dann alle Dateien der neuen Version hochladen, außer `core/config.php` und dem Ordner `data/`. Den Ordner `install/` danach wieder löschen.
 

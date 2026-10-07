@@ -14,6 +14,8 @@ final class DB
     public static ?PDO $pdo = null;
     public static string $prefix = 'cb_';
     public static string $driver = 'sqlite';
+    /** Absolute path of the SQLite database, '' for MySQL. */
+    public static string $file = '';
 
     public static function connect(array $c): void
     {
@@ -35,6 +37,7 @@ final class DB
             if ($file !== '' && $file[0] !== '/' && !preg_match('~^[A-Za-z]:~', $file)) {
                 $file = CB_ROOT . '/' . $file;
             }
+            self::$file = $file;
             self::$pdo = new PDO('sqlite:' . $file, null, null, $opt);
             self::$pdo->exec('PRAGMA journal_mode=WAL');
             self::$pdo->exec('PRAGMA foreign_keys=OFF');

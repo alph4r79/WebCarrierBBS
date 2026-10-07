@@ -47,19 +47,14 @@ if ((int)$file['size'] > Engine::uploadMaxBytes()) {
     up_fail('too large');
 }
 
-// file name: plain ASCII only, DOS style
-$name = basename(str_replace('\\', '/', (string)$file['name']));
-$name = preg_replace('/[^A-Za-z0-9._\-]/', '_', $name) ?? '';
-$name = trim($name, '._');
-if ($name === '' || strlen($name) > 80) {
+$name = cb_safe_filename((string)$file['name']);
+if ($name === '') {
     up_fail('bad name');
 }
 $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
 $allowed = array_filter(array_map('trim', explode(',', strtolower(Settings::get('upload_ext', 'zip,arj,lzh,rar,7z,txt,ans')))));
-// blocked regardless of upload_ext: anything the web server could execute or render
-$danger = '/^(php\d*|pht|phtml|phar|phps|cgi|pl|asp|aspx|jsp|shtml?|x?html?|xht|js|mjs|svgz?|htaccess)$/';
-if ($ext === '' || !in_array($ext, $allowed, true) || preg_match($danger, $ext)
-    || preg_match('/\.(php\d*|pht|phtml|phar|cgi|pl|py|asp|jsp)\./i', $name)) {
+// dangerous names are blocked regardless of upload_ext
+if ($ext === '' || !in_array($ext, $allowed, true) || cb_dangerous_filename($name)) {
     up_fail('type not allowed');
 }
 if (DB::val('SELECT COUNT(*) FROM {files} WHERE area_id=? AND LOWER(filename)=?', [$area, strtolower($name)])) {

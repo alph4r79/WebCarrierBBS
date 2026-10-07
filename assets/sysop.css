@@ -119,6 +119,11 @@ p { margin: 0 0 12px; }
 .grid2 { display: grid; gap: 0 16px; }
 .row-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
+/* Bulk actions below a table with checkboxes */
+.bulk { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 16px; }
+.bulk .move { display: flex; gap: 8px; align-items: center; }
+.bulk select { padding: 4px 6px; font: 14px var(--sans); border: 1px solid #aab1be; border-radius: 2px; background: #fff; max-width: 220px; }
+
 .btn {
   display: inline-block;
   padding: 8px 16px;
@@ -144,6 +149,8 @@ th { background: #f3f5f8; font-weight: 600; white-space: nowrap; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 td input, td select { width: 100%; min-width: 60px; padding: 4px 6px; font: 14px var(--sans); border: 1px solid #aab1be; border-radius: 2px; }
 td input.key { width: 3em; text-align: center; font-family: var(--mono); }
+th.check, td.check { width: 1%; }
+th.check input, td.check input { width: auto; min-width: 0; margin: 2px 0 0; }
 tr.pending td { background: #fff8e6; }
 .tag { display: inline-block; font-size: 12px; padding: 0 6px; border: 1px solid var(--line); border-radius: 2px; color: var(--muted); }
 .tag.ok { color: var(--ok); border-color: #9ccfae; }

@@ -20,6 +20,7 @@ require __DIR__ . '/pages_users.php';
 require __DIR__ . '/pages_msgs.php';
 require __DIR__ . '/pages_files.php';
 require __DIR__ . '/pages_menus.php';
+require __DIR__ . '/pages_backup.php';
 
 header('X-Frame-Options: DENY');
 header('X-Content-Type-Options: nosniff');
@@ -114,7 +115,7 @@ function a_levels(): array
     return $out;
 }
 
-function a_level_select(string $name, int $cur): string
+function a_level_select(string $name, int $cur, int $max = 255): string
 {
     $levels = a_levels();
     if (!isset($levels[$cur])) {
@@ -123,6 +124,9 @@ function a_level_select(string $name, int $cur): string
     }
     $h = '<select name="' . h($name) . '">';
     foreach ($levels as $l => $label) {
+        if ($l > $max) {
+            continue;
+        }
         $h .= '<option value="' . $l . '"' . ($l === $cur ? ' selected' : '') . '>' . h($label) . '</option>';
     }
     return $h . '</select>';
@@ -203,6 +207,7 @@ $pages = [
     'screen' => [null, 'page_screen'],
     'doors' => ['Doors', 'page_doors'],
     'log' => ['Log', 'page_log'],
+    'backup' => ['Backup', 'page_backup'],
 ];
 if (!isset($pages[$page]) || $pages[$page] === null) {
     $page = 'dash';
