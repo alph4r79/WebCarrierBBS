@@ -16,6 +16,8 @@ Anleitung für Anrufer.
 
 Sind alle Leitungen belegt, bekommst du eine Besetzt-Meldung. Dann später nochmal versuchen.
 
+Wird die Box gerade aktualisiert, erscheint statt des Terminals der Hinweis, in ein paar Minuten wieder anzurufen. Wer in diesem Moment online ist, wird getrennt.
+
 Mit **F11** schaltest du den Browser in den Vollbildmodus.
 
 ## 2. Einloggen und Anmelden

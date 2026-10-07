@@ -24,6 +24,7 @@ return [
     'more_prompt' => '|08-- |07Mehr |08[|15Enter|08] |07weiter, |08[|15Q|08] |07Stopp |08--',
 
     'all_busy' => '|CR|12Alle Leitungen sind besetzt.|CR|07@BBSNAME@ hat @NODES@ Node(s) und alle sind belegt.|CR|07Bitte ruf später nochmal an.|CR',
+    'maintenance' => '|CR|14Die Box wird gerade aktualisiert.|CR|07Bitte ruf in ein paar Minuten wieder an.|CR',
     'welcome_default' => '|CR|15@BBSNAME@|CR|07Sysop: |11@SYSOP@|CR|07Läuft mit WebCarrier BBS @VERSION@|CR',
     'login_prompt' => '|07Dein Name, oder |15NEU|07 zum Anmelden|08: |15',
     'login_unknown' => '|CR|07Den Namen |15{1}|07 gibt es hier noch nicht.|CR',

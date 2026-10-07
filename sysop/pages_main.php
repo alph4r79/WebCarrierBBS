@@ -7,38 +7,235 @@
  */
 declare(strict_types=1);
 
+/** Text for an update error code from core/update.php. */
+function a_update_reason(string $code, array $args): string
+{
+    $a = (string)($args[0] ?? '');
+    return match ($code) {
+        'locked' => t('Another update is running right now.'),
+        'none' => t('There is no update to install.'),
+        'blocked' => t('This update can only be installed by hand.'),
+        'key' => t('The key to check the update signature is missing.'),
+        'write' => t('{1} is not writable.', $a),
+        'space' => t('There is not enough free space in data/tmp.'),
+        'backup' => t('The backup before the update failed: {1}', $a),
+        'download' => t('The update could not be downloaded.'),
+        'size' => t('The downloaded file has the wrong size.'),
+        'sha256' => t('The checksum of the downloaded file is wrong.'),
+        'signature' => t('The signature of the update is invalid.'),
+        'zip' => t('The update archive is damaged or contains invalid paths.'),
+        'structure' => t('The update archive does not contain WebCarrier BBS.'),
+        'version' => t('The archive contains version {1} instead of the announced one.', $a),
+        'copy' => t('{1} could not be written.', $a),
+        default => t('Unexpected error: {1}', $a),
+    };
+}
+
+/** One sentence why an update can only be installed by hand. */
+function a_update_blocker(string $code, string $arg): string
+{
+    return match ($code) {
+        'php' => t('This version needs PHP {1} or newer, your webspace has PHP {2}.', $arg, PHP_VERSION),
+        'manual' => t('This version has to be installed by hand.'),
+        'zip' => t('The PHP extension ZipArchive is missing.'),
+        'sodium' => t('The PHP extension sodium is missing, so the signature of the update cannot be checked.'),
+        'git' => t('This installation is a Git checkout, update it with Git.'),
+        default => t('{1} is not writable for PHP.', $arg),
+    };
+}
+
+function a_dismissed(): array
+{
+    $d = json_decode(Settings::get('notices_dismissed'), true);
+    return is_array($d) ? $d : [];
+}
+
+/**
+ * Current notices, most important first. Each: id, kind (security, task, update, info, news),
+ * title, text, optional items (list of lines) and actions: ['link', label, url] or ['post', label, field, value, confirm].
+ */
+function a_dash_notices(): array
+{
+    $n = [];
+    if (is_dir(CB_ROOT . '/install')) {
+        $n[] = ['id' => 'install', 'kind' => 'security', 'title' => t('The install folder is still on the server'),
+            'text' => t('Delete the folder install from your webspace. As long as it exists, it is a needless risk.')];
+    }
+    $stale = json_decode(Settings::get('update_stale'), true);
+    if (is_array($stale)) {
+        $n[] = ['id' => 'stale', 'kind' => 'security', 'title' => t('An aborted update was cleaned up'),
+            'text' => t('The maintenance mode of an update was older than 15 minutes and has been ended, the old files were restored.') .
+                (!empty($stale['restore_failed']) ? ' ' . t('Not restored: {1}', implode(', ', $stale['restore_failed'])) : '')];
+    }
+    if (trim(Settings::get('legal_impressum')) === '' || trim(Settings::get('legal_privacy')) === '') {
+        $n[] = ['id' => 'legal', 'kind' => 'task', 'title' => t('Imprint or privacy policy is empty'),
+            'text' => t('Fill in both before you open the board to the public.'), 'actions' => [['link', t('Imprint and privacy'), a_url('legal')]]];
+    }
+    $pending = (int)DB::val('SELECT COUNT(*) FROM {files} WHERE approved=0');
+    if ($pending > 0) {
+        $n[] = ['id' => 'uploads', 'kind' => 'task', 'title' => t('{1} upload(s) waiting for your check', $pending),
+            'text' => t('Uploads are only visible to callers after you approved them.'), 'actions' => [['link', t('Check uploads'), a_url('files')]]];
+    }
+    $res = json_decode(Settings::get('update_result'), true);
+    if (is_array($res)) {
+        if (!empty($res['ok'])) {
+            $n[] = ['id' => 'result', 'kind' => 'update', 'title' => t('Update to version {1} finished', (string)$res['version']),
+                'text' => t('WebCarrier BBS was updated from version {1}. A backup from before the update is in data/backups.', (string)($res['from'] ?? ''))];
+        } else {
+            $n[] = ['id' => 'result', 'kind' => 'update', 'title' => t('The update to version {1} failed', (string)$res['version']),
+                'text' => a_update_reason((string)$res['reason'], (array)($res['args'] ?? [])) . ' ' .
+                    (empty($res['restore_failed']) ? t('The old state was restored.') : t('Not restored: {1}', implode(', ', $res['restore_failed'])))];
+        }
+    }
+    $up = cb_update_available();
+    if ($up) {
+        $lang = Lang::$code;
+        $items = $up['changes'][$lang] ?? [];
+        $items = $items ?: ($up['changes']['de'] ?? []) ?: ($up['changes']['en'] ?? []);
+        $blockers = cb_update_blockers($up);
+        $notice = ['id' => 'update', 'kind' => 'update', 'title' => t('Version {1} is available', $up['version']),
+            'text' => t('Released on {1}. You are running version {2}.', date('d.m.Y', (int)strtotime($up['date'])), CB_VERSION), 'items' => $items];
+        if ($blockers) {
+            $notice['text'] .= ' ' . a_update_blocker($blockers[0][0], (string)$blockers[0][1]);
+            $notice['actions'] = [['link', t('How to update by hand'), CB_SOURCE_URL . '/blob/main/docs/SYSOP_GUIDE.md#update-von-hand']];
+        } else {
+            $notice['actions'] = [
+                ['post', t('Update now'), 'update_now', $up['version'], t('Update to version {1} now? A backup is made first, callers are disconnected during the update.', $up['version'])],
+                ['post', t('Skip this version'), 'skip', $up['version'], ''],
+            ];
+        }
+        $n[] = $notice;
+    }
+    $last = Settings::int('last_backup', 0);
+    if ($last < time() - 30 * 86400) {
+        $n[] = ['id' => 'backup-' . $last, 'kind' => 'info', 'title' => $last ? t('The last backup is older than 30 days') : t('There is no backup yet'),
+            'text' => t('A backup contains the database, the configuration and the screens.'), 'actions' => [['link', t('Backup'), a_url('backup')]]];
+    }
+    if (Settings::get('update_check', '0') !== '1') {
+        $n[] = ['id' => 'update-check-off', 'kind' => 'info', 'title' => t('The update check is switched off'),
+            'text' => t('The board does not look for new versions, you can switch this on in the settings. Only the address webcarrier-bbs.de is requested, no data of the board is sent.'),
+            'actions' => [['post', t('Switch on'), 'enable_check', '1', '']]];
+    } else {
+        foreach (cb_update_data()['notices'] ?? [] as $x) {
+            $n[] = ['id' => 'news-' . $x['id'], 'kind' => 'news', 'title' => $x['title'], 'text' => $x['text'],
+                'actions' => $x['url'] !== '' ? [['link', t('More'), $x['url']]] : []];
+        }
+    }
+    $dismissed = a_dismissed();
+    $n = array_values(array_filter($n, static fn($x) => !in_array($x['kind'], ['info', 'news'], true) || !in_array($x['id'], $dismissed, true)));
+    $rank = ['security' => 0, 'task' => 1, 'update' => 2, 'info' => 3, 'news' => 4];
+    usort($n, static fn($a, $b) => $rank[$a['kind']] <=> $rank[$b['kind']]);
+    return $n;
+}
+
+function a_dash_post(array $admin): void
+{
+    if (isset($_POST['dismiss'])) {
+        $id = (string)$_POST['dismiss'];
+        foreach (a_dash_notices() as $x) {
+            if ($x['id'] === $id && in_array($x['kind'], ['info', 'news'], true)) {
+                $d = array_slice(array_values(array_unique(array_merge(a_dismissed(), [$id]))), -100);
+                Settings::set('notices_dismissed', (string)json_encode($d));
+            }
+        }
+    } elseif (isset($_POST['enable_check'])) {
+        Settings::set('update_check', '1');
+        cb_update_check(true);
+        a_flash(t('The update check is switched on.'));
+    } elseif (isset($_POST['check_now'])) {
+        cb_update_check(true);
+        a_flash(Settings::get('update_status') === 'ok' ? t('Update check done.') : t('The update check failed.'), Settings::get('update_status') === 'ok' ? 'ok' : 'bad');
+    } elseif (isset($_POST['skip'])) {
+        $up = cb_update_available();
+        if ($up && $up['version'] === (string)$_POST['skip']) {
+            Settings::set('update_skip', $up['version']);
+            cb_log((int)$admin['id'], $admin['handle'], 'Skipped update ' . $up['version']);
+        }
+    } elseif (isset($_POST['update_now'])) {
+        try {
+            cb_update_run((int)$admin['id'], $admin['handle']);
+        } catch (CbUpdateError $e) {
+            if ($e->reason === 'locked') {
+                a_flash(a_update_reason('locked', []), 'bad');
+            }
+        }
+    }
+    a_go('dash');
+}
+
+/** Status of the update check for the system box. */
+function a_update_status(): string
+{
+    if (Settings::get('update_check', '0') !== '1') {
+        return t('off');
+    }
+    $when = Settings::int('update_last_check', 0);
+    if (Settings::get('update_status') === 'failed') {
+        return t('check failed ({1})', date('d.m.Y H:i', $when));
+    }
+    if ($up = cb_update_available()) {
+        return t('version {1} available', $up['version']);
+    }
+    return $when ? t('last checked {1}', date('d.m.Y H:i', $when)) : t('not checked yet');
+}
+
 function page_dash(array $admin): void
 {
-    $day = strtotime('today');
-    $stats = [
-        [DB::val('SELECT COUNT(*) FROM {users}'), t('Users')],
-        [DB::val('SELECT COUNT(*) FROM {calls} WHERE time>=?', [$day]), t('Calls today')],
-        [DB::val('SELECT COUNT(*) FROM {nodes} WHERE user_id>0'), t('Online now')],
-        [DB::val('SELECT COUNT(*) FROM {messages} WHERE private=0'), t('Public messages')],
-        [DB::val('SELECT COUNT(*) FROM {files} WHERE approved=1'), t('Files')],
-        [DB::val('SELECT COUNT(*) FROM {files} WHERE approved=0'), t('Uploads waiting')],
-    ];
-    echo '<h1>' . h(t('Overview')) . '</h1>';
-    $warn = [];
-    if (trim(Settings::get('legal_impressum')) === '' || trim(Settings::get('legal_privacy')) === '') {
-        $warn[] = t('Imprint or privacy policy is still empty. Fill both in before you open the board to the public.');
+    if (a_post()) {
+        a_dash_post($admin);
     }
-    if (is_dir(CB_ROOT . '/install')) {
-        $warn[] = t('The install folder is still on the server. You can delete it.');
+    cb_update_check();
+    $notices = a_dash_notices();
+    // one-time notices are shown once
+    foreach (['update_result', 'update_stale'] as $k) {
+        if (Settings::get($k) !== '') {
+            Settings::set($k, '');
+        }
     }
-    if ((int)$stats[5][0] > 0) {
-        $warn[] = t('{1} upload(s) waiting for your check.', $stats[5][0]);
-    }
-    foreach ($warn as $w) {
-        echo '<div class="flash warn"><p>' . h($w) . '</p></div>';
-    }
-    echo '<div class="stats">';
-    foreach ($stats as [$n, $label]) {
-        echo '<div><b>' . (int)$n . '</b><span>' . h($label) . '</span></div>';
-    }
-    echo '</div>';
 
-    echo '<h2>' . h(t('Nodes')) . '</h2><div class="tablewrap"><table><tr><th>' . h(t('Node')) . '</th><th>' . h(t('User')) .
+    echo '<h1>' . h(t('Overview')) . '</h1><div class="dash"><div class="dash-main">';
+
+    echo '<section class="panel dash-notices"><h2>' . h(t('Notices')) . '</h2>';
+    if (!$notices) {
+        echo '<p class="note">' . h(t('Everything is fine, there are no notices.')) . '</p>';
+    } else {
+        $kinds = ['security' => t('Security:'), 'task' => t('Task:'), 'update' => t('Update:'), 'info' => t('Note:'), 'news' => t('News:')];
+        echo '<ul class="notices">';
+        foreach ($notices as $x) {
+            echo '<li class="notice ' . h($x['kind']) . '"><p class="notice-title"><strong>' . h($kinds[$x['kind']]) . '</strong> ' . h($x['title']) . '</p>' .
+                '<p>' . h($x['text']) . '</p>';
+            if (!empty($x['items'])) {
+                echo '<ul class="notice-items">';
+                foreach ($x['items'] as $i) {
+                    echo '<li>' . h($i) . '</li>';
+                }
+                echo '</ul>';
+            }
+            $acts = $x['actions'] ?? [];
+            if (in_array($x['kind'], ['info', 'news'], true)) {
+                $acts[] = ['post', t('Hide'), 'dismiss', $x['id'], ''];
+            }
+            if ($acts) {
+                echo '<div class="row-actions">';
+                foreach ($acts as $a) {
+                    if ($a[0] === 'link') {
+                        $ext = !str_starts_with($a[2], '?');
+                        echo '<a class="btn small ghost" href="' . h($a[2]) . '"' . ($ext ? ' rel="noopener" target="_blank"' : '') . '>' . h($a[1]) . '</a>';
+                    } else {
+                        $cls = $a[2] === 'dismiss' ? 'linkbtn' : ($a[2] === 'update_now' || $a[2] === 'enable_check' ? 'btn small' : 'btn small ghost');
+                        echo '<form method="post" action="' . h(a_url('dash')) . '"' . ($a[4] !== '' ? a_confirm($a[4]) : '') . '>' . a_csrf() .
+                            '<button class="' . $cls . '" name="' . h($a[2]) . '" value="' . h($a[3]) . '">' . h($a[1]) . '</button></form>';
+                    }
+                }
+                echo '</div>';
+            }
+            echo '</li>';
+        }
+        echo '</ul>';
+    }
+    echo '</section>';
+
+    echo '<section class="panel dash-nodes"><h2>' . h(t('Nodes')) . '</h2><div class="tablewrap"><table><tr><th>' . h(t('Node')) . '</th><th>' . h(t('User')) .
         '</th><th>' . h(t('Activity')) . '</th><th>' . h(t('Since')) . '</th></tr>';
     $rows = DB::all('SELECT * FROM {nodes} ORDER BY node');
     if (!$rows) {
@@ -48,13 +245,42 @@ function page_dash(array $admin): void
         echo '<tr><td>' . (int)$r['node'] . '</td><td>' . h($r['handle'] ?: t('(logging in)')) . '</td><td>' . h($r['activity']) .
             '</td><td>' . date('H:i', (int)$r['since']) . '</td></tr>';
     }
-    echo '</table></div>';
+    echo '</table></div></section>';
 
-    echo '<h2>' . h(t('Latest events')) . '</h2><div class="tablewrap"><table>';
+    echo '<section class="panel dash-events"><h2>' . h(t('Latest events')) . '</h2><table class="events"><tr><th>' . h(t('Time')) . '</th><th>' .
+        h(t('User')) . '</th><th>' . h(t('Event')) . '</th></tr>';
     foreach (DB::all('SELECT * FROM {log} ORDER BY id DESC LIMIT 15') as $l) {
-        echo '<tr><td class="num">' . date('d.m. H:i', (int)$l['time']) . '</td><td>' . h($l['handle']) . '</td><td>' . h($l['text']) . '</td></tr>';
+        echo '<tr><td class="time">' . date('d.m. H:i', (int)$l['time']) . '</td><td>' . h($l['handle']) . '</td><td>' . h($l['text']) . '</td></tr>';
     }
-    echo '</table></div>';
+    echo '</table></section></div><div class="dash-side">';
+
+    $day = strtotime('today');
+    $stats = [
+        [(int)DB::val('SELECT COUNT(*) FROM {users}'), t('Users'), ''],
+        [(int)DB::val('SELECT COUNT(*) FROM {calls} WHERE time>=?', [$day]), t('Calls today'), ''],
+        [(int)DB::val('SELECT COUNT(*) FROM {nodes} WHERE user_id>0'), t('Online now'), ''],
+        [(int)DB::val('SELECT COUNT(*) FROM {messages} WHERE private=0'), t('Public messages'), ''],
+        [(int)DB::val('SELECT COUNT(*) FROM {files} WHERE approved=1'), t('Files'), ''],
+        [(int)DB::val('SELECT COUNT(*) FROM {files} WHERE approved=0'), t('Uploads waiting'), a_url('files')],
+    ];
+    echo '<section class="panel dash-stats"><h2>' . h(t('Figures')) . '</h2><dl class="kv">';
+    foreach ($stats as [$num, $label, $url]) {
+        echo '<dt>' . h($label) . '</dt><dd>' . ($url !== '' && $num > 0 ? '<a href="' . h($url) . '">' . $num . '</a>' : $num) . '</dd>';
+    }
+    echo '</dl></section>';
+
+    $last = Settings::int('last_backup', 0);
+    echo '<section class="panel dash-system"><h2>' . h(t('System')) . '</h2><dl class="kv">' .
+        '<dt>' . h(t('Version')) . '</dt><dd>' . h(CB_VERSION) . '</dd>' .
+        '<dt>PHP</dt><dd>' . h(PHP_VERSION) . '</dd>' .
+        '<dt>' . h(t('Database')) . '</dt><dd>' . (DB::$driver === 'mysql' ? 'MySQL' : 'SQLite') . '</dd>' .
+        '<dt>' . h(t('Last backup')) . '</dt><dd>' . h($last ? date('d.m.Y H:i', $last) : t('never')) . '</dd>' .
+        '<dt>' . h(t('Update check')) . '</dt><dd>' . h(a_update_status()) . '</dd></dl>';
+    if (Settings::get('update_check', '0') === '1') {
+        echo '<form method="post" action="' . h(a_url('dash')) . '">' . a_csrf() . '<button class="btn small ghost" name="check_now" value="1">' .
+            h(t('Check now')) . '</button></form>';
+    }
+    echo '</section></div></div>';
 }
 
 function a_languages(): array
@@ -101,7 +327,15 @@ function page_settings(array $admin): void
             ['upload_ext', t('Allowed file types'), 'text', t('Comma separated, for example zip,arj,lzh,txt')],
             ['upload_auto_approve', t('Uploads are online without your check'), 'bool', ''],
         ],
+        t('Updates') => [
+            ['update_check', t('Look for updates'), 'bool', t('Once a day the board requests webcarrier-bbs.de/update.json to see if there is a new version. Nothing about your board is sent.')],
+        ],
     ];
+    if (a_post() && isset($_POST['check_now'])) {
+        cb_update_check(true);
+        a_flash(Settings::get('update_status') === 'ok' ? t('Update check done.') : t('The update check failed.'), Settings::get('update_status') === 'ok' ? 'ok' : 'bad');
+        a_go('settings');
+    }
     if (a_post()) {
         foreach ($fields as $group) {
             foreach ($group as [$k, , $type]) {
@@ -140,7 +374,8 @@ function page_settings(array $admin): void
         foreach ($group as [$k, $label, $type, $extra]) {
             $v = Settings::get($k);
             if ($type === 'bool') {
-                echo '<label class="inline"><input type="checkbox" name="' . h($k) . '"' . ($v === '1' ? ' checked' : '') . '> ' . h($label) . '</label>';
+                echo '<label class="inline"><input type="checkbox" name="' . h($k) . '"' . ($v === '1' ? ' checked' : '') . '> ' . h($label) . '</label>' .
+                    ($extra !== '' ? '<p class="hint">' . h($extra) . '</p>' : '');
             } elseif ($type === 'select') {
                 echo '<label>' . h($label) . '<select name="' . h($k) . '">';
                 foreach ($extra as $ov => $ol) {
@@ -154,9 +389,14 @@ function page_settings(array $admin): void
                     ($extra !== '' ? '<span class="hint">' . h($extra) . '</span>' : '') . '</label>';
             }
         }
+        if ($title === t('Updates') && Settings::get('update_check', '0') === '1') {
+            echo '<p class="note">' . h(t('Update check: {1}', a_update_status())) . '</p>' .
+                '<p><button class="btn small ghost" form="check-now" name="check_now" value="1">' . h(t('Check now')) . '</button></p>';
+        }
         echo '</div></section>';
     }
     echo '<p><button class="btn" type="submit">' . h(t('Save settings')) . '</button></p></form>';
+    echo '<form method="post" id="check-now" action="' . h(a_url('settings')) . '">' . a_csrf() . '</form>';
 }
 
 function page_legal(array $admin): void

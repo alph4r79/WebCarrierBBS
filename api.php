@@ -23,6 +23,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 }
 
 cb_boot();
+if (cb_maintenance()) {
+    $w = new AnsiWriter();
+    $w->write(cb_maintenance_text());
+    echo json_encode(['o' => CP437::transport($w->buf), 'ask' => null, 'hang' => true, 'csrf' => cb_csrf()], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 Lang::load(Settings::get('language', 'en'));
 require __DIR__ . '/core/engine.php';
 

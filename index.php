@@ -14,6 +14,18 @@ if (!cb_installed()) {
 }
 cb_boot();
 Lang::load(Settings::get('language', 'en'));
+if (cb_maintenance()) {
+    http_response_code(503);
+    header('Retry-After: 300');
+    $msg = trim(preg_replace('/\|\d\d|\|CL/', '', str_replace('|CR', "\n", Lang::get('maintenance'))) ?? '');
+    ?><!DOCTYPE html>
+<html lang="<?= h(Lang::$code) ?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><title><?= h(Settings::get('bbs_name', 'WebCarrier BBS')) ?></title>
+<link rel="stylesheet" href="assets/terminal.css?v=<?= CB_VERSION ?>"></head>
+<body class="legal"><article><h1><?= h(Settings::get('bbs_name', 'WebCarrier BBS')) ?></h1><p><?= h($msg) ?></p></article></body></html>
+<?php
+    exit;
+}
 
 $js = [];
 foreach (['js_title', 'js_press', 'js_dialing', 'js_nocarrier', 'js_redial', 'js_uploading', 'js_netfail',

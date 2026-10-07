@@ -1,6 +1,6 @@
 # WebCarrier BBS: Sysop-Handbuch
 
-Version 1.2.0
+Version 1.3.0
 
 Für Betreiber der Mailbox: Installation, Einrichtung, Backend, Menüs, Screens, Dateiimport, Doors und Betrieb.
 
@@ -46,7 +46,7 @@ Speicherplatz brauchst du vor allem für die Dateibereiche. Die Software selbst 
 
 ## 3. Installation
 
-1. Lade die gewünschte Version als ZIP herunter (GitHub unter „Releases“ oder [chrisscheel.de](https://chrisscheel.de)) und entpacke sie. Lade den Inhalt des Ordners `webcarrierbbs-<version>` per FTP auf deinen Webspace, entweder in das Hauptverzeichnis der Domain oder in einen Unterordner wie `/bbs/`.
+1. Lade die gewünschte Version als ZIP herunter ([webcarrier-bbs.de](https://webcarrier-bbs.de) oder GitHub unter „Releases“) und entpacke sie. Lade den Inhalt des Ordners `webcarrierbbs-<version>` per FTP auf deinen Webspace, entweder in das Hauptverzeichnis der Domain oder in einen Unterordner wie `/bbs/`.
 2. Stelle sicher, dass die Ordner `core/` und `data/` (mit allen Unterordnern) für PHP beschreibbar sind. Bei den meisten Hostern ist das automatisch so. Falls nicht, setze per FTP die Rechte auf 775 oder 755.
 3. Rufe im Browser `https://deine-domain.de/install/` auf (bzw. `/bbs/install/`).
 4. Der Installer startet auf Deutsch, wenn dein Browser Deutsch bevorzugt, sonst auf Englisch. Oben rechts kannst du die Sprache umschalten. Er prüft den Server, alle Punkte außer ZipArchive müssen grün sein.
@@ -128,8 +128,8 @@ Beim Speichern der Einstellungen prüft das Backend zwei Werte: Der Sysop-Level 
 
 | Bereich | Wofür |
 |---|---|
-| Übersicht | Zahlen, belegte Nodes, letzte Ereignisse, Warnungen (leeres Impressum, wartende Uploads) |
-| Einstellungen | Name, Sprache, Zeitzone, Nodes, Neuanmeldung, Terminal, Uploads |
+| Übersicht | Meldungen, belegte Nodes, Kennzahlen, letzte Ereignisse, Systeminfos (siehe unten) |
+| Einstellungen | Name, Sprache, Zeitzone, Nodes, Neuanmeldung, Terminal, Uploads, Update-Prüfung |
 | Impressum und Datenschutz | Rechtstexte als reiner Text |
 | User | Anlegen, suchen, bearbeiten, Level ändern, sperren, Passwort setzen, löschen |
 | Level | Zeit, Downloadlimit und Ratio je Level |
@@ -144,6 +144,22 @@ Beim Speichern der Einstellungen prüft das Backend zwei Werte: Der Sysop-Level 
 | Doors | Installierte Doors und ob sie in einem Menü stehen |
 | Log | Logins, Uploads, Downloads, Änderungen |
 | Backup | Sicherung als ZIP herunterladen, siehe Abschnitt 13 |
+
+### Übersicht
+
+Ganz oben stehen die **Meldungen**, sortiert nach Wichtigkeit. Vor jedem Titel steht die Art:
+
+| Art | Beispiele |
+|---|---|
+| Sicherheit | Der Ordner `install` liegt noch auf dem Server, ein abgebrochenes Update wurde aufgeräumt |
+| Aufgabe | Impressum oder Datenschutzerklärung leer, Uploads warten auf deine Freigabe |
+| Update | Neue Version verfügbar, Ergebnis des letzten Updates (einmalig) |
+| Hinweis | Noch kein Backup oder letztes Backup älter als 30 Tage, Update-Prüfung ausgeschaltet |
+| Neuigkeit | Meldungen des Projekts, nur bei eingeschalteter Update-Prüfung |
+
+Hinweise und Neuigkeiten kannst du mit „Ausblenden“ wegklicken. Sicherheitsmeldungen, Aufgaben und Updates lassen sich nicht ausblenden, sie verschwinden, sobald die Ursache behoben ist. Gibt es nichts zu melden, steht dort, dass alles in Ordnung ist.
+
+Darunter folgen die belegten Nodes, die Kennzahlen (User, Anrufe heute, gerade online, öffentliche Nachrichten, Dateien, wartende Uploads), die letzten Ereignisse aus dem Log und der Kasten „System“ mit Version, PHP-Version, Datenbank, letztem Backup und dem Stand der Update-Prüfung. Auf dem Handy steht alles untereinander, auf breiten Bildschirmen stehen Kennzahlen und System in einer schmalen Spalte rechts.
 
 ### Userverwaltung
 
@@ -338,7 +354,33 @@ Fehlt auf deinem Webspace die PHP-Erweiterung ZipArchive, kann das Backend kein 
 
 **Sichern per FTP:** Du brauchst drei Dinge: `core/config.php`, den kompletten Ordner `data/` (bei SQLite liegt dort auch die Datenbank) und bei MySQL einen Export der Datenbank. Bei SQLite die Sicherung am besten machen, während niemand online ist.
 
-**Update auf eine neue Version:** Sicherung machen, dann alle Dateien der neuen Version hochladen, außer `core/config.php` und dem Ordner `data/`. Den Ordner `install/` danach wieder löschen.
+### Update-Prüfung
+
+Die Box kann selbst nachsehen, ob es eine neue Version gibt. Die Prüfung ist ab Werk **ausgeschaltet**, auch nach einem Update von einer älteren Version. Einschalten kannst du sie unter „Einstellungen“ im Abschnitt „Updates“ oder direkt über die Meldung in der Übersicht.
+
+Bei eingeschalteter Prüfung fragt die Box höchstens einmal am Tag, wenn du die Übersicht öffnest, die Datei `https://webcarrier-bbs.de/update.json` ab. Gesendet wird nur diese Anfrage mit der Kennung „WebCarrierBBS“, ohne Versionsnummer und ohne Daten deiner Box. Nach spätestens drei Sekunden wird aufgegeben, ist der Server nicht erreichbar, zeigt der Kasten „System“ nur „Prüfung fehlgeschlagen“. Mit „Jetzt prüfen“ stößt du die Prüfung von Hand an.
+
+Gibt es eine neuere Version, erscheint in der Übersicht die Meldung „Update: Version x ist verfügbar“ mit Datum und Änderungen. Du kannst sie mit „Diese Version überspringen“ ausblenden. Erscheint später eine noch neuere Version, wird sie wieder angezeigt. Ältere oder gleiche Versionen werden nie angeboten.
+
+### Update per Knopf
+
+Mit „Jetzt aktualisieren“ läuft das Update in einem Rutsch, auch auf normalem Webspace mit 30 Sekunden Zeitlimit:
+
+1. Prüfen, ob alle Dateien beschreibbar sind und genug Platz frei ist.
+2. Backup von Datenbank, `core/config.php` und Screens nach `data/backups/vor-update-<version>-<datum>.zip`. Die letzten drei dieser Sicherungen bleiben liegen, ältere werden gelöscht. Klappt das Backup nicht, gibt es kein Update.
+3. Wartungsmodus: Anrufer sehen statt des Terminals die Meldung, dass die Box gerade aktualisiert wird, laufende Anrufe werden beendet. Das Backend bleibt bedienbar.
+4. Herunterladen des Pakets und Prüfen von Größe, SHA-256-Prüfsumme und digitaler Signatur. Nur Pakete, die mit dem Schlüssel des Projekts signiert sind, werden installiert.
+5. Entpacken und prüfen, ob das Paket wirklich die angekündigte Version enthält.
+6. Kopieren der neuen Dateien. Jede Datei, die ersetzt wird, wird vorher gesichert. Nie angefasst werden `core/config.php`, der Ordner `data/` und der Ordner `install/`. Eigene Dateien, die es im Paket nicht gibt, etwa eigene Doors, bleiben liegen.
+7. Abschluss mit dem neuen Code: Datenbankänderungen anwenden, Wartungsmodus beenden, aufräumen. In der Übersicht erscheint einmal die Meldung, dass das Update abgeschlossen ist.
+
+**Wenn etwas schiefgeht:** Jeder Abbruch stellt den alten Stand wieder her, beendet den Wartungsmodus, schreibt den Grund ins Log und zeigt ihn einmal in der Übersicht. Bricht PHP mitten im Update hart ab (etwa durch einen Absturz des Servers), bleibt der Wartungsmodus zunächst stehen. Spätestens 15 Minuten später räumt die Box beim nächsten Aufruf auf, stellt die alten Dateien wieder her und meldet das in der Übersicht als Sicherheitsmeldung.
+
+**Wann es nur von Hand geht:** Statt des Knopfs zeigt die Meldung einen Hinweis mit Link zu dieser Anleitung, wenn die neue Version eine höhere PHP-Version braucht, das Update ausdrücklich nur von Hand eingespielt werden soll, die PHP-Erweiterungen ZipArchive oder sodium fehlen, die Box aus einem Git-Checkout läuft (Ordner `.git` im Hauptordner) oder PHP nicht alle Dateien überschreiben darf. Der Hinweis nennt jeweils den Grund.
+
+### Update von Hand
+
+Sicherung machen, dann alle Dateien der neuen Version hochladen, außer `core/config.php` und dem Ordner `data/`. Den Ordner `install/` danach wieder löschen.
 
 Bringt eine neue Version Änderungen an der Datenbank mit, werden sie beim ersten Aufruf nach dem Update automatisch angewendet, egal ob über das Terminal oder das Backend. Du musst dafür nichts tun. Welchen Stand die Datenbank hat, steht in der Einstellung `db_version`. Bricht ein Update mittendrin ab, wird der fehlende Schritt beim nächsten Aufruf wiederholt. Gerade deshalb vorher die Sicherung machen.
 

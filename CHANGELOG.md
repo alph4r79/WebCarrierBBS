@@ -2,6 +2,22 @@
 
 All notable changes to WebCarrier BBS. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version numbers follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-10-07
+
+### Added
+
+- Update check: once a day the backend can look at webcarrier-bbs.de for a new version. It is switched off by default and sends nothing but the request itself.
+- Automatic update from the backend: backup first, maintenance mode for callers, download, check of size, SHA-256 and signature, copy with a saved copy of every replaced file. Any error restores the old state. Database changes are applied right after the new files are in place.
+- When an update can only be done by hand (newer PHP needed, Git checkout, missing extensions, files not writable), the backend says why and links to the instructions.
+- Callers see a short notice while the board is being updated.
+- Backups made before an update are kept in data/backups, the last three are kept.
+
+### Changed
+
+- The overview in the backend starts with a list of notices (security, tasks, updates, hints, project news), followed by nodes, figures, latest events and a system box. Hints and news can be hidden.
+- The figures are a compact list instead of six tiles, the table of latest events has proper columns and no longer scrolls sideways on phones.
+- Explanations of switches in the settings are shown now.
+
 ## [1.2.0] - 2026-10-07
 
 ### Added
@@ -49,6 +65,7 @@ First public release.
 - Web installer for SQLite or MySQL/MariaDB
 - German and English
 
+[1.3.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/alph4r79/webcarrierbbs/releases/tag/v1.0.0

@@ -15,6 +15,7 @@ if (!cb_installed()) {
 cb_boot();
 Lang::load(Settings::get('language', 'en'));
 require CB_ROOT . '/core/engine.php';
+require_once CB_ROOT . '/core/backup.php';
 require __DIR__ . '/pages_main.php';
 require __DIR__ . '/pages_users.php';
 require __DIR__ . '/pages_msgs.php';

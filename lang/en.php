@@ -25,6 +25,7 @@ return [
 
     /* connect and login */
     'all_busy' => '|CR|12All lines are busy.|CR|07@BBSNAME@ has @NODES@ node(s) and all of them are in use.|CR|07Please call again later.|CR',
+    'maintenance' => '|CR|14The board is being updated right now.|CR|07Please call again in a few minutes.|CR',
     'welcome_default' => '|CR|15@BBSNAME@|CR|07Sysop: |11@SYSOP@|CR|07Running WebCarrier BBS @VERSION@|CR',
     'login_prompt' => '|07Enter your name, or |15NEW|07 to register|08: |15',
     'login_unknown' => '|CR|07The name |15{1}|07 is not known here.|CR',

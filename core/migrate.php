@@ -10,7 +10,7 @@
  */
 declare(strict_types=1);
 
-define('CB_DB_VERSION', 2);
+define('CB_DB_VERSION', 3);
 
 /** Run all pending steps. Costs only the (cached) settings lookup when up to date. */
 function cb_migrate(): void
@@ -73,4 +73,12 @@ function cb_add_column(string $table, string $column, string $definition): void
 /** 2: no schema change, introduces db_version. */
 function cb_migrate_2(): void
 {
+}
+
+/** 3: update check, switched off for existing installations too. */
+function cb_migrate_3(): void
+{
+    if (DB::val("SELECT COUNT(*) FROM {settings} WHERE name='update_check'") == 0) {
+        Settings::set('update_check', '0');
+    }
 }

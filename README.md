@@ -17,6 +17,7 @@ Installing it works like WordPress: upload the folder, open `/install/`, fill in
 - Oneliners, user list, personal statistics and settings, expert mode, page sysop
 - Menu system configurable in the backend (25 commands), ANSI or pipe code screens with macros
 - Doors as small PHP classes, example door included
+- Optional update check and one-click updates from the backend, with signed packages, a backup before every update and automatic rollback on errors
 - German and English, SQLite (zero configuration) or MySQL/MariaDB
 
 ## Requirements

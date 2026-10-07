@@ -167,7 +167,7 @@ function cb_install_defaults(array $f): void
         'baud' => '14400', 'sound' => '1', 'allow_new' => '1', 'new_level' => '10', 'sysop_level' => '255',
         'upload_max_kb' => '8192', 'upload_ext' => 'zip,arj,lzh,rar,7z,lha,txt,ans,asc,nfo,diz,gif,png,jpg',
         'upload_auto_approve' => '0', 'max_msg_lines' => '200', 'logon_oneliners' => '1', 'show_footer' => '1',
-        'noindex' => '0', 'legal_impressum' => '', 'legal_privacy' => '', 'db_version' => (string)CB_DB_VERSION,
+        'noindex' => '0', 'legal_impressum' => '', 'legal_privacy' => '', 'update_check' => '0', 'db_version' => (string)CB_DB_VERSION,
     ];
     foreach ([[10, $de ? 'Neuer User' : 'New user', 30, 2048, 0], [20, $de ? 'Mitglied' : 'Member', 60, 10240, 0],
                  [50, $de ? 'Stammgast' : 'Regular', 120, 0, 0], [100, 'Co-Sysop', 240, 0, 0], [255, 'Sysop', 0, 0, 0]] as $l) {
