@@ -292,7 +292,10 @@ trait EngineMessages
         $m = DB::row('SELECT * FROM {messages} WHERE id=?', [(int)($this->S['rd']['mid'] ?? 0)]);
         $keys = "NPRAQ\r";
         $prompt = $this->L('reader_prompt');
-        if ($m && $this->canDelete($m)) {
+        if ($m && $this->isSysop() && (int)$m['private'] === 0) {
+            $keys .= 'DM';
+            $prompt = $this->L('reader_prompt_sys');
+        } elseif ($m && $this->canDelete($m)) {
             $keys .= 'D';
             $prompt = $this->L('reader_prompt_del');
         }
@@ -323,6 +326,18 @@ trait EngineMessages
                     return;
                 }
                 break;
+            case 'M':
+                if ($m && $this->isSysop() && (int)$m['private'] === 0) {
+                    $this->nl();
+                    foreach ($this->readableAreas() as $i => $ar) {
+                        $this->write('  |15' . cb_pad((string)($i + 1), 3, 'R') . '  |11' . cb_esc($ar['name']));
+                        $this->nl();
+                    }
+                    $this->S['st'] = 'rmove';
+                    $this->line(3, $this->L('msg_move_prompt'));
+                    return;
+                }
+                break;
             case 'D':
                 if ($m && $this->canDelete($m)) {
                     DB::q('DELETE FROM {messages} WHERE id=?', [(int)$m['id']]);
@@ -333,6 +348,25 @@ trait EngineMessages
         }
         $rd['i']++;
         $this->go('rmsg');
+    }
+
+    private function i_rmove(string $v): void
+    {
+        $areas = $this->readableAreas();
+        $n = (int)trim($v);
+        $mid = (int)($this->S['rd']['mid'] ?? 0);
+        if ($this->isSysop() && isset($areas[$n - 1]) && $mid > 0) {
+            DB::q('UPDATE {messages} SET area_id=? WHERE id=? AND private=0', [(int)$areas[$n - 1]['id'], $mid]);
+            cb_log((int)$this->user['id'], $this->user['handle'], 'Moved message ' . $mid . ' to area ' . $areas[$n - 1]['id']);
+            $this->say('msg_moved', cb_esc($areas[$n - 1]['name']));
+            $this->nl();
+        }
+        if (!empty($this->S['rd'])) {
+            $this->S['rd']['i']++;
+            $this->go('rmsg');
+            return;
+        }
+        $this->menu();
     }
 
     private function reply(array $m): void
@@ -450,7 +484,7 @@ trait EngineMessages
         }
         $lc = mb_strtolower($v);
         $u = $lc === 'sysop' ? DB::row('SELECT id, handle FROM {users} WHERE id=?', [$this->sysopId()])
-            : DB::row('SELECT id, handle FROM {users} WHERE handle_lc=?', [$lc]);
+            : DB::row('SELECT id, handle FROM {users} WHERE handle_lc=? AND pending=0', [$lc]);
         if (!$u) {
             if ($priv) {
                 $this->say('user_unknown', cb_esc($v));

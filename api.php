@@ -38,7 +38,7 @@ $v = is_array($in) ? (string)($in['v'] ?? '') : '';
 // max. message is 20000 chars, up to 4 bytes each
 $v = substr($v, 0, 100000);
 
-if (!in_array($a, ['start', 'in', 'idle', 'bye', 'ping'], true)) {
+if (!in_array($a, ['start', 'in', 'idle', 'bye', 'ping', 'poll'], true)) {
     http_response_code(400);
     echo json_encode(['err' => 'bad request']);
     exit;
@@ -50,7 +50,12 @@ if ($a !== 'start' && !cb_csrf_ok(is_array($in) ? (string)($in['csrf'] ?? '') : 
 
 try {
     $engine = new Engine();
-    echo json_encode($a === 'ping' ? $engine->ping() : $engine->run($a, $v), JSON_UNESCAPED_UNICODE);
+    $res = match ($a) {
+        'ping' => $engine->ping(),
+        'poll' => $engine->poll(),
+        default => $engine->run($a, $v),
+    };
+    echo json_encode($res, JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
     error_log('WebCarrier BBS: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
     http_response_code(500);

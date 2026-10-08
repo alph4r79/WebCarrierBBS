@@ -1,0 +1,10 @@
+|17|15 Registration received                                                         |16|07
+
+  |07Thank you for signing up at |15@BBSNAME@|07.
+
+  |07The sysop checks your account and will unlock it. Until then you
+  |07can log in, but you cannot use the board yet.
+
+  |07Please call again later. See you!
+
+  |08@SYSOP@|07

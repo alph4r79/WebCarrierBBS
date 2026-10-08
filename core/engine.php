@@ -15,19 +15,21 @@ declare(strict_types=1);
 require __DIR__ . '/engine_msg.php';
 require __DIR__ . '/engine_files.php';
 require __DIR__ . '/engine_misc.php';
+require __DIR__ . '/engine_sysop.php';
 
 final class Engine
 {
     use EngineMessages;
     use EngineFiles;
     use EngineMisc;
+    use EngineSysop;
 
     /** Menu commands available to the sysop in the menu editor. */
     public const COMMANDS = [
         'MENU', 'SCREEN', 'LEGAL', 'MSG_AREA', 'MSG_READ', 'MSG_NEW', 'MSG_POST', 'MSG_MAIL', 'MSG_SEND',
         'FILE_AREA', 'FILE_LIST', 'FILE_NEW', 'FILE_SEARCH', 'FILE_DOWNLOAD', 'FILE_UPLOAD',
         'ONELINERS', 'LASTCALLERS', 'WHO', 'USERLIST', 'USERINFO', 'SETTINGS', 'PAGE', 'COMMENT',
-        'DOOR', 'LOGOFF',
+        'DOOR', 'SYSOP', 'LOGOFF',
     ];
 
     public array $S;
@@ -69,7 +71,11 @@ final class Engine
                     return $this->resp();
                 }
             }
-            if ($a === 'bye') {
+            if ($this->kicked()) {
+                $this->nl();
+                $this->say('kicked');
+                $this->hangup();
+            } elseif ($a === 'bye') {
                 $this->hangup();
             } elseif ($a === 'idle') {
                 $this->nl();
@@ -105,6 +111,37 @@ final class Engine
         }
         DB::q('UPDATE {nodes} SET seen=? WHERE node=? AND sid=?', [time(), (int)$this->S['node'], session_id()]);
         return ['ok' => true, 'csrf' => cb_csrf()];
+    }
+
+    /**
+     * Poll from the terminal: delivers messages for this node (broadcast, page, chat).
+     * Keeps the state, except that a chat request switches to the chat. Not counted as activity.
+     */
+    public function poll(): array
+    {
+        $this->cleanupNodes();
+        if (empty($this->S['st']) || !$this->ownsNode()) {
+            $this->S = [];
+            $this->hang = true;
+            return $this->resp();
+        }
+        if (!empty($this->S['uid'])) {
+            $this->user = DB::row('SELECT * FROM {users} WHERE id=?', [(int)$this->S['uid']]);
+            if (!$this->user || (int)$this->user['locked'] === 1) {
+                $this->user = null;
+                $this->hangup();
+                return $this->resp();
+            }
+        }
+        if ($this->kicked()) {
+            $this->nl();
+            $this->say('kicked');
+            $this->hangup();
+            return $this->resp();
+        }
+        DB::q('UPDATE {nodes} SET seen=? WHERE node=? AND sid=?', [time(), (int)$this->S['node'], session_id()]);
+        $this->deliverNodeMsgs();
+        return $this->resp();
     }
 
     private function resp(): array
@@ -384,6 +421,14 @@ final class Engine
     {
         $limit = time() - (Settings::int('idle_minutes', 5) * 60 + 120);
         DB::q('DELETE FROM {nodes} WHERE seen<?', [$limit]);
+        DB::q('DELETE FROM {node_msgs} WHERE time<? OR node NOT IN (SELECT node FROM {nodes})', [time() - 3600]);
+    }
+
+    /** True if the sysop disconnected this node. */
+    private function kicked(): bool
+    {
+        return !empty($this->S['node'])
+            && (bool)DB::val('SELECT COUNT(*) FROM {nodes} WHERE node=? AND sid=? AND kicked=1', [(int)$this->S['node'], session_id()]);
     }
 
     private function assignNode(): int
@@ -436,6 +481,9 @@ final class Engine
 
     public function hangup(): void
     {
+        if (!empty($this->S['chat'])) {
+            $this->nodeMsg((int)$this->S['chat']['peer'], 'end', '');
+        }
         if ($this->user) {
             DB::q('UPDATE {users} SET time_today=? WHERE id=?', [$this->usedSeconds(), (int)$this->user['id']]);
             cb_log((int)$this->user['id'], $this->user['handle'], 'Logoff');
@@ -520,6 +568,11 @@ final class Engine
             if ((int)$u['locked'] === 1) {
                 $this->say('login_locked');
                 $this->hangup();
+                return;
+            }
+            if ((int)$u['pending'] === 1) {
+                cb_log((int)$u['id'], $u['handle'], 'Login while waiting for validation');
+                $this->showPending();
                 return;
             }
             $this->doLogin((int)$u['id']);
@@ -700,15 +753,39 @@ final class Engine
             $this->go('nu_handle');
             return;
         }
+        $pending = Settings::get('new_validate', '0') === '1' ? 1 : 0;
         $id = DB::insert('users', [
             'handle' => $nu['handle'], 'handle_lc' => mb_strtolower($nu['handle']), 'pass' => $nu['hash'],
             'location' => $nu['location'], 'level' => Settings::int('new_level', 10), 'created' => time(),
-            'today' => date('Y-m-d'), 'baud' => -1,
+            'today' => date('Y-m-d'), 'baud' => -1, 'pending' => $pending,
         ]);
         unset($this->S['nu']);
-        cb_log($id, $nu['handle'], 'New user registered');
+        cb_log($id, $nu['handle'], $pending ? 'New user registered, waiting for validation' : 'New user registered');
+        if ($pending) {
+            foreach ($this->sysopNodes() as $n) {
+                $this->nodeMsg($n, 'page', $this->L('nu_page_sysop', $nu['handle']));
+            }
+            $this->showPending();
+            return;
+        }
         $this->say('nu_created');
         $this->doLogin($id);
+    }
+
+    /** Screen for users waiting for validation, then hang up after a key. The time does not count. */
+    private function showPending(): void
+    {
+        $this->cls();
+        if (!$this->screen('pending')) {
+            $this->say('pending_text');
+        }
+        $this->S['st'] = 'pend_end';
+        $this->hot('', $this->L('pause'), true);
+    }
+
+    private function i_pend_end(string $v): void
+    {
+        $this->hangup();
     }
 
     /* ============================================================ menus */
@@ -861,6 +938,14 @@ final class Engine
                 break;
             case 'DOOR':
                 $this->openDoor($data);
+                break;
+            case 'SYSOP':
+                if ($this->isSysop()) {
+                    $this->go('sys');
+                } else {
+                    $this->say('cmd_unknown', cb_esc($cmd));
+                    $this->pause();
+                }
                 break;
             case 'LOGOFF':
                 $this->S['st'] = 'logoff';

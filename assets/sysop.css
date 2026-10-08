@@ -145,6 +145,17 @@ p { margin: 0 0 12px; }
 .bulk { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 16px; }
 .bulk .move { display: flex; gap: 8px; align-items: center; }
 .bulk select { padding: 4px 6px; font: 14px var(--sans); border: 1px solid #aab1be; border-radius: 2px; background: #fff; max-width: 220px; }
+.filters a[aria-current] { font-weight: 700; color: var(--ink); text-decoration: none; }
+
+/* Nodes on the dashboard: on small screens without the column Since, so Disconnect fits */
+.dash-nodes th, .dash-nodes td { padding: 8px 6px; }
+.dash-nodes th:nth-child(4), .dash-nodes td:nth-child(4) { display: none; }
+
+/* Broadcast below the nodes on the dashboard */
+.broadcast { margin-top: 12px; }
+.broadcast label { display: block; margin: 0 0 4px; font-size: 14px; color: var(--muted); }
+.broadcast-row { display: flex; gap: 8px; }
+.broadcast-row input { flex: 1; min-width: 0; padding: 6px 8px; font: 14px var(--sans); border: 1px solid #aab1be; border-radius: 2px; }
 
 .btn {
   display: inline-block;
@@ -198,6 +209,8 @@ tr.pending td { background: #fff8e6; }
 .credit a { color: inherit; }
 
 @media (min-width: 700px) {
+  .dash-nodes th, .dash-nodes td { padding: 8px 10px; }
+  .dash-nodes th:nth-child(4), .dash-nodes td:nth-child(4) { display: table-cell; }
   .grid2 { grid-template-columns: 1fr 1fr; }
 }
 

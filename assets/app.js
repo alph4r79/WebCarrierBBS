@@ -18,6 +18,9 @@
   var phase = 'idle';      // idle, dialing, online, offline
   var ask = null;          // what the BBS expects next
   var pending = false;     // request running
+  var polling = false;     // poll request running
+  var lastPoll = 0;
+  var prompt = '';         // current prompt line incl. colours, redrawn after poll output
   var uploading = false;
   var csrf = '';
   var idleSec = 300;
@@ -201,21 +204,75 @@
     term.print('\x1b[0m\r\n' + col(7) + (L.nocarrier || 'NO CARRIER') + '\r\n\r\n' + col(8) + (L.redial || '') + col(7));
   }
 
-  function setAsk(a) {
+  /* fromPoll: the idle timer is only reset by keys, not by polls */
+  function setAsk(a, fromPoll) {
     ask = a || null;
     line = '';
-    lastKey = Date.now();
+    if (!fromPoll) { lastKey = Date.now(); }
     if (!ask) { return; }
+    prompt = term.rowPrefix();
     if (ask.t === 'edit') { startEditor(ask); }
     term.showCursor(true);
     drainKeys();
   }
 
   function drainKeys() {
-    while (ask && !pending && !uploading && !term.busy() && keybuf.length) {
+    while (ask && !pending && !polling && !uploading && !term.busy() && keybuf.length) {
       handleKey(keybuf.shift());
     }
   }
+
+  /* ---------------------------------------------------------------- poll (messages, chat) */
+
+  /* Prompt and typed text again after output that interrupted an input. */
+  function redraw() {
+    if (!ask) { return; }
+    if (ask.t === 'edit' && ed) {
+      edPrompt();
+      term.print(ed.cur);
+    } else {
+      term.write(prompt);
+      if (ask.t === 'line' || ask.t === 'chat') { term.print(ask.p ? '*'.repeat(line.length) : line); }
+    }
+    term.showCursor(true);
+  }
+
+  function onPoll(r) {
+    polling = false;
+    if (r.csrf) { csrf = r.csrf; }
+    if (phase !== 'online') { return; }
+    var out = r.o || '';
+    if (!out && !r.ask && !r.hang) { drainKeys(); return; }
+    term.showCursor(false);
+    term.write('\r\x1b[K');
+    term.enqueue(out);
+    var after = function () {
+      if (r.hang) { hangup(); return; }
+      if (r.ask) { setAsk(r.ask, true); } else { redraw(); }
+      drainKeys();
+    };
+    if (term.busy()) {
+      term.onDrain = function () { term.onDrain = null; after(); };
+    } else {
+      after();
+    }
+  }
+
+  setInterval(function () {
+    if (phase !== 'online' || !ask || pending || polling || uploading || term.busy()) { return; }
+    if (Date.now() - lastPoll < (ask.t === 'chat' ? 1500 : 10000)) { return; }
+    lastPoll = Date.now();
+    polling = true;
+    fetch(CFG.base + 'api.php', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ a: 'poll', v: '', csrf: csrf })
+    }).then(function (r) {
+      if (!r.ok) { throw new Error('HTTP ' + r.status); }
+      return r.json();
+    }).then(onPoll).catch(function () { polling = false; });
+  }, 500);
 
   /* ---------------------------------------------------------------- keyboard */
 
@@ -240,7 +297,7 @@
       if (k === '\x1b') { term.flush(); } else if (keybuf.length < 64) { keybuf.push(k); }
       return;
     }
-    if (pending || !ask) {
+    if (pending || polling || !ask) {
       if (keybuf.length < 64) { keybuf.push(k); }
       return;
     }
@@ -255,7 +312,7 @@
   });
 
   document.addEventListener('paste', function (e) {
-    if (phase !== 'online' || !ask || (ask.t !== 'line' && ask.t !== 'edit')) { return; }
+    if (phase !== 'online' || !ask || (ask.t !== 'line' && ask.t !== 'edit' && ask.t !== 'chat')) { return; }
     var text = (e.clipboardData && e.clipboardData.getData('text')) || '';
     e.preventDefault();
     text = text.replace(/\r\n?/g, '\n').substr(0, 8000);
@@ -305,12 +362,18 @@
       send('in', keys === '' ? '\r' : k);
       return;
     }
-    if (ask.t === 'line') {
+    if (ask.t === 'line' || ask.t === 'chat') {
       if (k === '\r') {
         var v = line;
+        var chat = ask.t === 'chat';
         line = '';
         ask = null;
         term.showCursor(false);
+        if (chat) {
+          // own chat line in white
+          term.write('\r\x1b[K');
+          term.print(col(15) + '> ' + v + col(7));
+        }
         term.write('\r\n');
         send('in', v);
         return;

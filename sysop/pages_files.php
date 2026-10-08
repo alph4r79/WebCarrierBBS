@@ -66,17 +66,6 @@ function a_store_file(int $area, string $src, string $name, string $desc, int $u
     return null;
 }
 
-/** Delete file and database row. False if the file could not be removed from the disk (row is kept). */
-function a_delete_file(array $f): bool
-{
-    $p = CB_DATA . '/files/' . $f['storage'];
-    if ($f['storage'] !== '' && is_file($p) && !@unlink($p)) {
-        return false;
-    }
-    DB::q('DELETE FROM {files} WHERE id=?', [(int)$f['id']]);
-    return true;
-}
-
 /** Move or rename a stored file (disk and database). Returns an error text or null. */
 function a_relocate_file(array $f, int $area, string $name): ?string
 {
@@ -117,7 +106,7 @@ function page_fileareas(array $admin): void
             $id = (int)$_POST['del'];
             $left = 0;
             foreach (DB::all('SELECT * FROM {files} WHERE area_id=?', [$id]) as $f) {
-                $left += a_delete_file($f) ? 0 : 1;
+                $left += cb_delete_file($f) ? 0 : 1;
             }
             if ($left > 0) {
                 a_flash(t('{1} file(s) could not be deleted from the disk, the area was kept.', $left), 'bad');
@@ -181,7 +170,7 @@ function page_files(array $admin): void
             a_flash(t('File approved.'));
         } elseif (isset($_POST['del'])) {
             $f = DB::row('SELECT * FROM {files} WHERE id=?', [(int)$_POST['del']]);
-            if ($f && !a_delete_file($f)) {
+            if ($f && !cb_delete_file($f)) {
                 a_flash(t('{1} could not be deleted from the disk.', $f['filename']), 'bad');
                 a_go('files', $back);
             }
@@ -231,7 +220,7 @@ function page_files(array $admin): void
                         DB::q('UPDATE {files} SET approved=1 WHERE id=?', [$fid]);
                         $done++;
                     } elseif ($op === 'delete') {
-                        if (!a_delete_file($f)) {
+                        if (!cb_delete_file($f)) {
                             a_flash(t('{1} could not be deleted from the disk.', $f['filename']), 'bad');
                             continue;
                         }

@@ -106,6 +106,14 @@ trait EngineMisc
         $this->cls();
         $this->bar($this->L('who_title'));
         $this->nl();
+        $this->nodeTable();
+        $this->nl();
+        $this->pause();
+    }
+
+    /** All nodes with user, activity and time, also used by the sysop menu. */
+    private function nodeTable(): void
+    {
         $this->write('|03' . cb_pad($this->L('col_node'), 6) . cb_pad($this->L('col_user'), 22) . cb_pad($this->L('col_activity'), 38) . $this->L('col_since'));
         $this->nl();
         $this->rule();
@@ -126,14 +134,12 @@ trait EngineMisc
             }
             $this->nl();
         }
-        $this->nl();
-        $this->pause();
     }
 
     private function userList(): void
     {
         $this->act(Lang::get('act_userlist'));
-        $ids = array_map('intval', array_column(DB::all('SELECT id FROM {users} WHERE locked=0 ORDER BY handle_lc'), 'id'));
+        $ids = array_map('intval', array_column(DB::all('SELECT id FROM {users} WHERE locked=0 AND pending=0 ORDER BY handle_lc'), 'id'));
         $this->startPager('users', $ids, $this->L('userlist_title', count($ids)));
     }
 
@@ -295,6 +301,18 @@ trait EngineMisc
 
     private function pageSysop(): void
     {
+        $online = array_values(array_diff($this->sysopNodes(), [(int)$this->S['node']]));
+        if ($online) {
+            foreach ($online as $n) {
+                $this->nodeMsg($n, 'page', $this->L('page_notify', $this->user['handle'], (int)$this->S['node']));
+            }
+            cb_log((int)$this->user['id'], $this->user['handle'], 'Paged the sysop');
+            $this->nl();
+            $this->say('page_sent');
+            $this->nl();
+            $this->pause();
+            return;
+        }
         $this->nl();
         $this->say('page_start');
         $this->w->buf .= ' ';

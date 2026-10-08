@@ -17,9 +17,58 @@ function a_handle_error(string $handle, int $exceptId = 0): ?string
     return $err === 'taken' ? t('This handle is already taken or reserved.') : null;
 }
 
+/** Validate (with a level up to the own one) or delete users that wait for validation. */
+function a_pending_post(array $admin): void
+{
+    $maxLevel = (int)$admin['level'];
+    $done = ['approve' => 0, 'delete' => 0];
+    $jobs = [];
+    if (isset($_POST['approve_one'])) {
+        $id = (int)$_POST['approve_one'];
+        $jobs[] = ['approve', $id, (int)($_POST['lvl'][$id] ?? Settings::int('new_level', 10))];
+    } elseif (isset($_POST['delete_one'])) {
+        $jobs[] = ['delete', (int)$_POST['delete_one'], 0];
+    } elseif (in_array($_POST['bulk'] ?? '', ['approve', 'delete'], true)) {
+        foreach (array_unique(array_map('intval', (array)($_POST['ids'] ?? []))) as $id) {
+            $jobs[] = [(string)$_POST['bulk'], $id, a_int('bulk_level', 0, 255)];
+        }
+        if (!$jobs) {
+            a_flash(t('No users selected.'), 'warn');
+        }
+    }
+    foreach ($jobs as [$op, $id, $lvl]) {
+        $u = DB::row('SELECT * FROM {users} WHERE id=? AND pending=1', [$id]);
+        if (!$u) {
+            continue;
+        }
+        if ($op === 'approve') {
+            if ($lvl < 0 || $lvl > $maxLevel) {
+                a_flash(t('You cannot assign a level above your own.'), 'bad');
+                break;
+            }
+            DB::q('UPDATE {users} SET pending=0, level=? WHERE id=?', [$lvl, $id]);
+            cb_log((int)$admin['id'], $admin['handle'], 'Validated user ' . $u['handle'] . ' with level ' . $lvl);
+        } else {
+            cb_delete_user($id);
+            cb_log((int)$admin['id'], $admin['handle'], 'Deleted waiting user ' . $u['handle']);
+        }
+        $done[$op]++;
+    }
+    if ($done['approve']) {
+        a_flash(t('{1} user(s) validated.', $done['approve']));
+    }
+    if ($done['delete']) {
+        a_flash(t('{1} user(s) deleted.', $done['delete']));
+    }
+    a_go('users', ['filter' => 'pending']);
+}
+
 function page_users(array $admin): void
 {
     $maxLevel = (int)$admin['level'];
+    if (a_post() && (isset($_POST['approve_one']) || isset($_POST['delete_one']) || isset($_POST['bulk']))) {
+        a_pending_post($admin);
+    }
     if (a_post() && isset($_POST['create'])) {
         $handle = a_in('handle', 20);
         $pw = (string)($_POST['pass'] ?? '');
@@ -46,7 +95,16 @@ function page_users(array $admin): void
     }
 
     $q = trim((string)($_GET['q'] ?? ''));
+    $pendingOnly = ($_GET['filter'] ?? '') === 'pending';
+    $waiting = (int)DB::val('SELECT COUNT(*) FROM {users} WHERE pending=1');
     echo '<h1>' . h(t('Users')) . '</h1>';
+    echo '<p class="row-actions filters"><a href="' . h(a_url('users')) . '"' . (!$pendingOnly ? ' aria-current="page"' : '') . '>' . h(t('All users')) . '</a>' .
+        '<a href="' . h(a_url('users', ['filter' => 'pending'])) . '"' . ($pendingOnly ? ' aria-current="page"' : '') . '>' .
+        h(t('Waiting for validation ({1})', $waiting)) . '</a></p>';
+    if ($pendingOnly) {
+        a_pending_list($maxLevel);
+        return;
+    }
     echo '<form method="get" class="form row-actions"><input type="hidden" name="p" value="users">' .
         '<input name="q" value="' . h($q) . '" placeholder="' . h(t('Search handle or location')) . '" style="max-width:320px;margin:0">' .
         '<button class="btn" type="submit">' . h(t('Search')) . '</button></form><br>';
@@ -63,7 +121,8 @@ function page_users(array $admin): void
         '</th><th class="num">' . h(t('Calls')) . '</th><th>' . h(t('Last call')) . '</th><th class="num">UL</th><th class="num">DL</th><th></th></tr>';
     foreach ($rows as $u) {
         echo '<tr><td><a href="' . h(a_url('user', ['id' => $u['id']])) . '">' . h($u['handle']) . '</a>' .
-            ((int)$u['locked'] ? ' <span class="tag bad">' . h(t('locked')) . '</span>' : '') . '</td><td>' . h($u['location']) . '</td><td>' .
+            ((int)$u['locked'] ? ' <span class="tag bad">' . h(t('locked')) . '</span>' : '') .
+            ((int)$u['pending'] ? ' <span class="tag">' . h(t('waiting')) . '</span>' : '') . '</td><td>' . h($u['location']) . '</td><td>' .
             h($levels[(int)$u['level']] ?? (string)$u['level']) . '</td><td class="num">' . (int)$u['calls'] . '</td><td>' .
             ((int)$u['last_call'] ? date('d.m.y H:i', (int)$u['last_call']) : '') . '</td><td class="num">' . (int)$u['ul_files'] .
             '</td><td class="num">' . (int)$u['dl_files'] . '</td><td><a class="btn small ghost" href="' . h(a_url('user', ['id' => $u['id']])) . '">' .
@@ -78,6 +137,34 @@ function page_users(array $admin): void
         '<label>' . h(t('Repeat password')) . '<input type="password" name="pass2" required minlength="6" autocomplete="new-password"></label>' .
         '<label>' . h(t('Level')) . a_level_select('level', min(Settings::int('new_level', 10), $maxLevel), $maxLevel) . '</label>' .
         '</div><button class="btn" name="create" value="1">' . h(t('Create user')) . '</button></form>';
+}
+
+/** Users waiting for validation, with single and bulk actions. */
+function a_pending_list(int $maxLevel): void
+{
+    $rows = DB::all('SELECT * FROM {users} WHERE pending=1 ORDER BY created, id');
+    if (!$rows) {
+        echo '<div class="panel"><p>' . h(t('Nobody is waiting for validation.')) . '</p></div>';
+        return;
+    }
+    $def = min(Settings::int('new_level', 10), $maxLevel);
+    $all = 'for(const c of this.form.querySelectorAll(\'input[name="ids[]"]\'))c.checked=this.checked';
+    echo '<form method="post" action="' . h(a_url('users', ['filter' => 'pending'])) . '">' . a_csrf() .
+        '<div class="tablewrap"><table><tr><th class="check"><input type="checkbox" onclick="' . h($all) . '" aria-label="' . h(t('Select all')) . '"></th><th>' .
+        h(t('Handle')) . '</th><th>' . h(t('Location')) . '</th><th>' . h(t('Registered')) . '</th><th>' . h(t('Level')) . '</th><th></th></tr>';
+    foreach ($rows as $u) {
+        $id = (int)$u['id'];
+        echo '<tr><td class="check"><input type="checkbox" name="ids[]" value="' . $id . '" aria-label="' . h($u['handle']) . '"></td>' .
+            '<td><a href="' . h(a_url('user', ['id' => $id])) . '">' . h($u['handle']) . '</a></td><td>' . h($u['location']) . '</td>' .
+            '<td class="num">' . date('d.m.y H:i', (int)$u['created']) . '</td><td>' . a_level_select('lvl[' . $id . ']', $def, $maxLevel) . '</td>' .
+            '<td class="row-actions"><button class="btn small" name="approve_one" value="' . $id . '">' . h(t('Validate')) . '</button>' .
+            '<button class="btn small danger ghost" name="delete_one" value="' . $id . '" onclick="return confirm(' .
+            h(json_encode(t('Delete {1} for good?', $u['handle']))) . ')">' . h(t('Delete')) . '</button></td></tr>';
+    }
+    echo '</table></div><div class="bulk"><span class="note">' . h(t('Selected users:')) . '</span><span class="move">' .
+        a_level_select('bulk_level', $def, $maxLevel) . '<button class="btn small" name="bulk" value="approve">' . h(t('Validate')) . '</button></span>' .
+        '<button class="btn small danger ghost" name="bulk" value="delete" onclick="return confirm(' . h(json_encode(t('Delete the selected users?'))) . ')">' .
+        h(t('Delete')) . '</button></div></form>';
 }
 
 function page_user(array $admin): void
@@ -100,10 +187,7 @@ function page_user(array $admin): void
                 a_flash(t('The main sysop account cannot be deleted.'), 'bad');
                 a_go('user', ['id' => $id]);
             }
-            DB::q('DELETE FROM {users} WHERE id=?', [$id]);
-            DB::q('DELETE FROM {lastread} WHERE user_id=?', [$id]);
-            DB::q('DELETE FROM {door_data} WHERE user_id=?', [$id]);
-            DB::q('DELETE FROM {messages} WHERE private=1 AND (to_id=? OR from_id=?)', [$id, $id]);
+            cb_delete_user($id);
             cb_log((int)$admin['id'], $admin['handle'], 'Deleted user ' . $u['handle']);
             a_flash(t('User {1} deleted.', $u['handle']));
             a_go('users');

@@ -71,6 +71,12 @@ function a_dash_notices(): array
         $n[] = ['id' => 'legal', 'kind' => 'task', 'title' => t('Imprint or privacy policy is empty'),
             'text' => t('Fill in both before you open the board to the public.'), 'actions' => [['link', t('Imprint and privacy'), a_url('legal')]]];
     }
+    $waiting = (int)DB::val('SELECT COUNT(*) FROM {users} WHERE pending=1');
+    if ($waiting > 0) {
+        $n[] = ['id' => 'validate', 'kind' => 'task', 'title' => t('{1} new user(s) waiting for validation', $waiting),
+            'text' => t('They can log in, but cannot use the board until you validate them.'),
+            'actions' => [['link', t('Check new users'), a_url('users', ['filter' => 'pending'])]]];
+    }
     $pending = (int)DB::val('SELECT COUNT(*) FROM {files} WHERE approved=0');
     if ($pending > 0) {
         $n[] = ['id' => 'uploads', 'kind' => 'task', 'title' => t('{1} upload(s) waiting for your check', $pending),
@@ -137,6 +143,24 @@ function a_dash_post(array $admin): void
                 $d = array_slice(array_values(array_unique(array_merge(a_dismissed(), [$id]))), -100);
                 Settings::set('notices_dismissed', (string)json_encode($d));
             }
+        }
+    } elseif (isset($_POST['kick'])) {
+        $node = (int)$_POST['kick'];
+        $row = DB::row('SELECT * FROM {nodes} WHERE node=?', [$node]);
+        if ($row && $row['sid'] !== session_id()) {
+            DB::q('UPDATE {nodes} SET kicked=1 WHERE node=?', [$node]);
+            cb_log((int)$admin['id'], $admin['handle'], 'Disconnected node ' . $node . ($row['handle'] !== '' ? ' (' . $row['handle'] . ')' : '') . ' (backend)');
+            a_flash(t('Node {1} is being disconnected.', $node));
+        }
+    } elseif (isset($_POST['broadcast'])) {
+        $text = mb_substr(preg_replace('/[\x00-\x1F\x7F]/u', '', a_in('text', 70)) ?? '', 0, 70);
+        if ($text !== '') {
+            $nodes = array_map('intval', array_column(DB::all('SELECT node FROM {nodes} WHERE sid<>?', [session_id()]), 'node'));
+            foreach ($nodes as $node) {
+                DB::insert('node_msgs', ['node' => $node, 'kind' => 'msg', 'from_node' => 0, 'from_handle' => $admin['handle'], 'text' => $text, 'time' => time()]);
+            }
+            cb_log((int)$admin['id'], $admin['handle'], 'Broadcast to ' . count($nodes) . ' node(s) (backend): ' . $text);
+            a_flash(t('Message sent to {1} node(s).', count($nodes)));
         }
     } elseif (isset($_POST['enable_check'])) {
         Settings::set('update_check', '1');
@@ -236,16 +260,25 @@ function page_dash(array $admin): void
     echo '</section>';
 
     echo '<section class="panel dash-nodes"><h2>' . h(t('Nodes')) . '</h2><div class="tablewrap"><table><tr><th>' . h(t('Node')) . '</th><th>' . h(t('User')) .
-        '</th><th>' . h(t('Activity')) . '</th><th>' . h(t('Since')) . '</th></tr>';
+        '</th><th>' . h(t('Activity')) . '</th><th>' . h(t('Since')) . '</th><th></th></tr>';
     $rows = DB::all('SELECT * FROM {nodes} ORDER BY node');
     if (!$rows) {
-        echo '<tr><td colspan="4" class="note">' . h(t('All lines are free.')) . '</td></tr>';
+        echo '<tr><td colspan="5" class="note">' . h(t('All lines are free.')) . '</td></tr>';
     }
     foreach ($rows as $r) {
+        $own = $r['sid'] === session_id();
         echo '<tr><td>' . (int)$r['node'] . '</td><td>' . h($r['handle'] ?: t('(logging in)')) . '</td><td>' . h($r['activity']) .
-            '</td><td>' . date('H:i', (int)$r['since']) . '</td></tr>';
+            '</td><td>' . date('H:i', (int)$r['since']) . '</td><td>' . ($own ? '<span class="note">' . h(t('you')) . '</span>' :
+            '<form method="post" action="' . h(a_url('dash')) . '"' . a_confirm(t('Disconnect node {1}?', (int)$r['node'])) . '>' . a_csrf() .
+            '<button class="btn small danger ghost" name="kick" value="' . (int)$r['node'] . '">' . h(t('Disconnect')) . '</button></form>') . '</td></tr>';
     }
-    echo '</table></div></section>';
+    echo '</table></div>';
+    if ($rows) {
+        echo '<form method="post" action="' . h(a_url('dash')) . '" class="broadcast">' . a_csrf() .
+            '<label for="bc-text">' . h(t('Broadcast to all nodes')) . '</label><div class="broadcast-row">' .
+            '<input id="bc-text" name="text" maxlength="70" required><button class="btn small" name="broadcast" value="1">' . h(t('Send')) . '</button></div></form>';
+    }
+    echo '</section>';
 
     echo '<section class="panel dash-events"><h2>' . h(t('Latest events')) . '</h2><table class="events"><tr><th>' . h(t('Time')) . '</th><th>' .
         h(t('User')) . '</th><th>' . h(t('Event')) . '</th></tr>';
@@ -309,11 +342,14 @@ function page_settings(array $admin): void
         t('Access') => [
             ['max_nodes', t('Nodes (callers at the same time)'), 'number', t('When all nodes are busy, callers get "All lines are busy".')],
             ['idle_minutes', t('Hang up after minutes without input'), 'number', ''],
-            ['allow_new', t('New users may register'), 'bool', ''],
-            ['new_level', t('Level for new users'), 'level', ''],
             ['sysop_level', t('Level with sysop rights'), 'number', t('Users with this level or higher may enter this backend.')],
             ['logon_oneliners', t('Show oneliners after login'), 'bool', ''],
             ['max_msg_lines', t('Maximum lines per message'), 'number', ''],
+        ],
+        t('Registration') => [
+            ['allow_new', t('New users may register'), 'bool', ''],
+            ['new_level', t('Level for new users'), 'level', ''],
+            ['new_validate', t('New users must be validated'), 'bool', t('New users can sign up, but only use the board after you validated them (sysop menu in the terminal or user page here).')],
         ],
         t('Terminal') => [
             ['baud', t('Default modem speed'), 'select', ['0' => t('Off (full speed)'), '300' => '300', '1200' => '1200', '2400' => '2400',
@@ -388,6 +424,11 @@ function page_settings(array $admin): void
                 echo '<label>' . h($label) . '<input type="' . ($type === 'number' ? 'number' : 'text') . '" name="' . h($k) . '" value="' . h($v) . '">' .
                     ($extra !== '' ? '<span class="hint">' . h($extra) . '</span>' : '') . '</label>';
             }
+        }
+        $waiting = (int)DB::val('SELECT COUNT(*) FROM {users} WHERE pending=1');
+        if ($title === t('Registration') && $waiting > 0 && Settings::get('new_validate', '0') !== '1') {
+            echo '<p class="note">' . h(t('{1} user(s) still wait for validation. They stay waiting until you validate or delete them.', $waiting)) .
+                ' <a href="' . h(a_url('users', ['filter' => 'pending'])) . '">' . h(t('Check new users')) . '</a></p>';
         }
         if ($title === t('Updates') && Settings::get('update_check', '0') === '1') {
             echo '<p class="note">' . h(t('Update check: {1}', a_update_status())) . '</p>' .

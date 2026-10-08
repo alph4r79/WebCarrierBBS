@@ -2,6 +2,21 @@
 
 All notable changes to WebCarrier BBS. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version numbers follow [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] - 2026-10-08
+
+### Added
+
+- Sysop menu in the terminal (key ! in the main menu, only for sysops): review new users, approve or delete waiting uploads, edit users, disconnect a node, broadcast and chat.
+- Chat between sysop and caller, broadcast messages and paging that actually reaches a sysop who is online. The terminal polls for messages, every 10 seconds and every 1.5 seconds while chatting. Prompt and typed text are redrawn after an incoming message.
+- Optional validation of new users: they can sign up, see the new screen pending and are disconnected until the sysop validates them in the terminal or in the backend. The sysop gets a notice when someone signs up.
+- Backend: filter for users waiting for validation with single and bulk actions, a task on the overview, a Disconnect button for every node and a broadcast form.
+- Sysops can move a public message to another area right from the message reader (key M).
+
+### Changed
+
+- The settings have a new section Registration with the options for new users.
+- Default screens moved from install/defaults to core/defaults, so updates can bring new screens to existing boards.
+
 ## [1.3.0] - 2026-10-07
 
 ### Added
@@ -65,6 +80,7 @@ First public release.
 - Web installer for SQLite or MySQL/MariaDB
 - German and English
 
+[1.4.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.0.0...v1.1.0

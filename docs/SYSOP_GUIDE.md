@@ -1,6 +1,6 @@
 # WebCarrier BBS: Sysop-Handbuch
 
-Version 1.3.0
+Version 1.4.0
 
 Für Betreiber der Mailbox: Installation, Einrichtung, Backend, Menüs, Screens, Dateiimport, Doors und Betrieb.
 
@@ -71,14 +71,14 @@ Bevor du die Box bekannt machst:
 
 ### Apache
 
-Mitgelieferte `.htaccess`-Dateien sperren `core/`, `data/`, `lang/`, `doors/` und `install/defaults/` gegen direkte Aufrufe und verhindern Verzeichnislisten. Du musst nichts tun, solange dein Hoster `.htaccess` erlaubt (AllowOverride).
+Mitgelieferte `.htaccess`-Dateien sperren `core/` (mit den mitgelieferten Screen-Vorlagen in `core/defaults/`), `data/`, `lang/` und `doors/` gegen direkte Aufrufe und verhindern Verzeichnislisten. Du musst nichts tun, solange dein Hoster `.htaccess` erlaubt (AllowOverride).
 
 ### nginx
 
 nginx liest keine `.htaccess`. Ergänze in deinem `server`-Block unbedingt diese Regeln, sonst wären Datenbank und Dateien direkt abrufbar:
 
 ```nginx
-location ~ ^/(core|data|lang|doors|install/defaults)/ {
+location ~ ^/(core|data|lang|doors)/ {
     deny all;
     return 404;
 }
@@ -128,10 +128,10 @@ Beim Speichern der Einstellungen prüft das Backend zwei Werte: Der Sysop-Level 
 
 | Bereich | Wofür |
 |---|---|
-| Übersicht | Meldungen, belegte Nodes, Kennzahlen, letzte Ereignisse, Systeminfos (siehe unten) |
+| Übersicht | Meldungen, belegte Nodes mit Trennen und Rundruf, Kennzahlen, letzte Ereignisse, Systeminfos (siehe unten) |
 | Einstellungen | Name, Sprache, Zeitzone, Nodes, Neuanmeldung, Terminal, Uploads, Update-Prüfung |
 | Impressum und Datenschutz | Rechtstexte als reiner Text |
-| User | Anlegen, suchen, bearbeiten, Level ändern, sperren, Passwort setzen, löschen |
+| User | Anlegen, suchen, bearbeiten, Level ändern, sperren, Passwort setzen, löschen, neue User freischalten |
 | Level | Zeit, Downloadlimit und Ratio je Level |
 | Nachrichtenbereiche | Anlegen, umbenennen, Rechte, Reihenfolge, löschen |
 | Nachrichten | Öffentliche Nachrichten lesen, löschen und in andere Bereiche verschieben. Private Post wird hier bewusst nicht angezeigt |
@@ -152,14 +152,14 @@ Ganz oben stehen die **Meldungen**, sortiert nach Wichtigkeit. Vor jedem Titel s
 | Art | Beispiele |
 |---|---|
 | Sicherheit | Der Ordner `install` liegt noch auf dem Server, ein abgebrochenes Update wurde aufgeräumt |
-| Aufgabe | Impressum oder Datenschutzerklärung leer, Uploads warten auf deine Freigabe |
+| Aufgabe | Impressum oder Datenschutzerklärung leer, Uploads warten auf deine Freigabe, neue User warten auf Freischaltung |
 | Update | Neue Version verfügbar, Ergebnis des letzten Updates (einmalig) |
 | Hinweis | Noch kein Backup oder letztes Backup älter als 30 Tage, Update-Prüfung ausgeschaltet |
 | Neuigkeit | Meldungen des Projekts, nur bei eingeschalteter Update-Prüfung |
 
 Hinweise und Neuigkeiten kannst du mit „Ausblenden“ wegklicken. Sicherheitsmeldungen, Aufgaben und Updates lassen sich nicht ausblenden, sie verschwinden, sobald die Ursache behoben ist. Gibt es nichts zu melden, steht dort, dass alles in Ordnung ist.
 
-Darunter folgen die belegten Nodes, die Kennzahlen (User, Anrufe heute, gerade online, öffentliche Nachrichten, Dateien, wartende Uploads), die letzten Ereignisse aus dem Log und der Kasten „System“ mit Version, PHP-Version, Datenbank, letztem Backup und dem Stand der Update-Prüfung. Auf dem Handy steht alles untereinander, auf breiten Bildschirmen stehen Kennzahlen und System in einer schmalen Spalte rechts.
+Darunter folgen die belegten Nodes. Neben jeder Node steht der Knopf „Trennen“, deine eigene Sitzung im Terminal ist davon ausgenommen. Unter der Liste schickst du mit „Rundruf an alle Nodes“ eine Zeile an alle, die gerade online sind. Getrennte Anrufer sehen „Der Sysop hat die Verbindung getrennt.“, ein Rundruf erscheint beim Anrufer gelb mit einem Klingelton. Dann folgen die Kennzahlen (User, Anrufe heute, gerade online, öffentliche Nachrichten, Dateien, wartende Uploads), die letzten Ereignisse aus dem Log und der Kasten „System“ mit Version, PHP-Version, Datenbank, letztem Backup und dem Stand der Update-Prüfung. Auf dem Handy steht alles untereinander, auf breiten Bildschirmen stehen Kennzahlen und System in einer schmalen Spalte rechts.
 
 ### Userverwaltung
 
@@ -168,6 +168,16 @@ Unter „User“ legst du neue Accounts direkt an: Handle, Ort, Passwort (zweima
 Level vergeben kannst du höchstens bis zu deinem eigenen. User mit einem höheren Level als deinem lassen sich nicht bearbeiten. Das betrifft vor allem Co-Sysops, wenn du den Sysop-Level niedriger als 255 eingestellt hast. Dein eigenes Level kannst du nicht ändern.
 
 **Passwort vergessen:** Anrufer können ihr Passwort nicht selbst zurücksetzen, weil die Box keine E-Mail-Adressen speichert. Das machst du in der Userverwaltung unter „Neues Passwort“.
+
+### Freischaltung neuer User
+
+In den Einstellungen gibt es den Abschnitt „Neuanmeldung“ mit drei Schaltern: ob sich neue User überhaupt anmelden dürfen, welches Level sie bekommen und ob sie **freigeschaltet werden müssen**. Ab Werk ist die Freischaltung aus, dann verhält sich die Box wie gewohnt.
+
+Ist sie an, läuft die Neuanmeldung ganz normal, am Ende sieht der Anrufer aber den Screen `pending` („Danke für deine Anmeldung, der Sysop prüft deinen Zugang“), und nach einem Tastendruck wird aufgelegt. Die Zeit zählt dabei nicht gegen sein Tageslimit. Bis zur Freischaltung landet er auch bei jedem weiteren Login nach dem Passwort wieder auf diesem Screen. Wartende User erscheinen nicht in der Userliste, nicht bei „Letzte Anrufer“ und können keine private Post bekommen.
+
+Bist du gerade im Terminal eingeloggt, bekommst du bei jeder neuen Anmeldung sofort eine Benachrichtigung. In der Übersicht steht die Aufgabe „x neue User warten auf Freischaltung“ mit Link auf die gefilterte Userliste. Dort schaltest du einzeln frei (mit Auswahl des Levels, vorbelegt mit dem Level für neue User) oder löschst den Account, über die Häkchen auch für mehrere auf einmal. Im Terminal geht das im Sysop-Menü mit der Taste N.
+
+Schaltest du die Freischaltung wieder aus, bleiben bereits wartende User wartend, bis du sie freischaltest oder löschst. Die Einstellungsseite weist dann darauf hin.
 
 ### Nachrichten
 
@@ -202,12 +212,41 @@ Ein Menü wird automatisch als zweispaltige Liste mit Titelleiste gezeichnet. Tr
 | USERLIST | | Liste aller User |
 | USERINFO | | Statistik des Anrufers |
 | SETTINGS | | Ort, Passwort, Modemgeschwindigkeit, Expertenmodus |
-| PAGE | | Sysop rufen, danach Nachricht hinterlassen |
+| PAGE | | Sysop rufen: Ist ein Sysop online, wird er benachrichtigt, sonst kann der Anrufer eine Nachricht hinterlassen |
 | COMMENT | | Private Nachricht direkt an den Sysop |
 | DOOR | Door-Id | Startet eine Door |
+| SYSOP | | Sysop-Menü im Terminal, nur für User mit Sysop-Level |
 | LOGOFF | | Ausloggen mit Rückfrage |
 
 Beispiel: Ein neues Bulletin „Termine“ anlegen. Unter „Screens“ einen Text-Screen `termine` anlegen und füllen, dann im Menü `bull` einen Punkt mit Taste `3`, Text „Termine“, Befehl `SCREEN`, Daten `termine` ergänzen.
+
+### Sysop-Menü im Terminal
+
+Im Hauptmenü gibt es den Punkt `!` „Sysop-Menü“. Ihn sehen und nutzen nur User, deren Level mindestens dem Wert „Level mit Sysop-Rechten“ entspricht. Die Tasten sind in beiden Sprachen gleich:
+
+| Taste | Funktion |
+|---|---|
+| N | Neue User prüfen: zuerst alle, die auf Freischaltung warten, danach alle mit dem Level für neue User. Pro User: F freischalten (fragt das Level, Enter nimmt das Level für neue User), H hochstufen (Enter nimmt das nächsthöhere vorhandene Level), S sperren, L löschen (nur wartende User, mit Rückfrage), W weiter, Q Ende |
+| U | Wartende Uploads: Name, Bereich, Uploader, Größe und Beschreibung. F freigeben, L löschen (Datei und Eintrag), W weiter, Q Ende |
+| E | User bearbeiten: Handle eingeben, dann L Level setzen, S Sperre umschalten, Z Zeit und Downloadzähler für heute zurücksetzen, P neues Passwort (verdeckt, zweimal), Q zurück |
+| T | User trennen: zeigt die belegten Nodes und fragt die Nummer ab |
+| R | Rundruf an alle anderen Nodes |
+| C | Chat mit einer Node |
+| Q | Zurück ins Hauptmenü |
+
+Es gelten dieselben Grenzen wie im Backend: Level vergibst du höchstens bis zu deinem eigenen, User mit höherem Level als deinem kannst du nicht bearbeiten, deinen eigenen Account kannst du weder sperren noch im Level ändern, und deine eigene Node kannst du nicht trennen. Jede Aktion steht im Log.
+
+Im Nachrichtenleser hat ein Sysop bei öffentlichen Nachrichten zusätzlich die Taste M. Sie zeigt die Nachrichtenbereiche, fragt eine Nummer ab und verschiebt die Nachricht dorthin. Danach geht es mit der nächsten Nachricht weiter.
+
+### Chat, Rundruf und Sysop rufen
+
+Webspace kann keine dauerhaften Verbindungen halten. Das Terminal fragt deshalb alle 10 Sekunden nach, ob etwas für seine Node da ist, im Chat alle 1,5 Sekunden. Ein Rundruf oder eine Benachrichtigung kommt also mit bis zu 10 Sekunden Verzögerung an. Was der Anrufer gerade tippt, bleibt dabei erhalten.
+
+**Rundruf:** Im Sysop-Menü die Taste R oder in der Übersicht des Backends. Die Zeile erscheint bei allen anderen Nodes gelb als „*** Nachricht vom Sysop: …“ mit einem Klingelton.
+
+**Chat:** Im Sysop-Menü die Taste C und die Nodenummer. Beim Anrufer erscheint „Der Sysop hat sich zugeschaltet. /Q beendet den Chat.“ Jede Zeile, die einer von euch mit Enter abschickt, landet bei der anderen Seite, die Zeilen der Gegenseite erscheinen hellcyan mit Handle davor. `/Q` auf einer der beiden Seiten beendet den Chat, beide kommen ins Hauptmenü. Legt eine Seite auf, bekommt die andere die Meldung, dass der Chat beendet ist. Schreibt der Anrufer gerade eine Nachricht im Editor oder lädt eine Datei hoch, startet der Chat erst, wenn er damit fertig ist.
+
+**Sysop rufen:** Wählt ein Anrufer „Sysop rufen“ und du bist im Terminal eingeloggt, bekommst du „*** Handle auf Node n ruft dich. Sysop-Menü, Taste C zum Chatten.“ mit Klingelton, und der Anrufer erfährt, dass du benachrichtigt wurdest. Ist kein Sysop online, kann er wie bisher eine Nachricht hinterlassen.
 
 ## 9. Screens, Pipe-Codes und Makros
 
@@ -257,8 +296,11 @@ Makros werden nur in Screens und in den Sprachtexten ersetzt. Was Anrufer eintip
 | `newuser` | Zu Beginn der Neuanmeldung |
 | `logon` | Direkt nach dem Login |
 | `logoff` | Beim Ausloggen |
+| `pending` | Für User, die auf Freischaltung warten, nach der Anmeldung und bei jedem Login (siehe Abschnitt 7) |
 
 Fehlt einer davon, zeigt die Box einen einfachen Standardtext. Die Vorschau im Backend benutzt denselben Renderer wie das Terminal, du siehst also genau, was Anrufer sehen.
+
+Die mitgelieferten Vorlagen liegen in `core/defaults/de/` und `core/defaults/en/`. Der Installer kopiert sie nach `data/screens/`, neue Vorlagen späterer Versionen kopiert das Update dorthin, sofern es noch keinen Screen mit dem Namen gibt. Deine eigenen Screens werden nie überschrieben.
 
 ## 10. Dateien: Bereiche, Freigabe, Import
 

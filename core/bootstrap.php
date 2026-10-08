@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 define('CB_ROOT', dirname(__DIR__));
 define('CB_DATA', CB_ROOT . '/data');
-define('CB_VERSION', '1.3.0');
+define('CB_VERSION', '1.4.0');
 define('CB_AUTHOR', 'Christoph Scheel');
 define('CB_AUTHOR_URL', 'https://chrisscheel.de');
 // AGPL section 13: users of a networked installation must be able to get the source.
@@ -135,6 +135,26 @@ function cb_dangerous_filename(string $name): bool
     $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
     return (bool)preg_match('/^(php\d*|pht|phtml|phar|phps|cgi|pl|asp|aspx|jsp|shtml?|x?html?|xht|js|mjs|svgz?|htaccess)$/', $ext)
         || (bool)preg_match('/\.(php\d*|pht|phtml|phar|cgi|pl|py|asp|jsp)\./i', $name);
+}
+
+/** Delete a user with read pointers, door data and private mail. Public messages stay. */
+function cb_delete_user(int $id): void
+{
+    DB::q('DELETE FROM {users} WHERE id=?', [$id]);
+    DB::q('DELETE FROM {lastread} WHERE user_id=?', [$id]);
+    DB::q('DELETE FROM {door_data} WHERE user_id=?', [$id]);
+    DB::q('DELETE FROM {messages} WHERE private=1 AND (to_id=? OR from_id=?)', [$id, $id]);
+}
+
+/** Delete a stored file and its row. False if the file could not be removed from the disk (row is kept). */
+function cb_delete_file(array $f): bool
+{
+    $p = CB_DATA . '/files/' . $f['storage'];
+    if ($f['storage'] !== '' && is_file($p) && !@unlink($p)) {
+        return false;
+    }
+    DB::q('DELETE FROM {files} WHERE id=?', [(int)$f['id']]);
+    return true;
 }
 
 /** Credit line for the backend and installer pages. */

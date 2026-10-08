@@ -1,0 +1,10 @@
+|17|15 Anmeldung eingegangen                                                         |16|07
+
+  |07Danke für deine Anmeldung bei |15@BBSNAME@|07.
+
+  |07Der Sysop prüft deinen Zugang und schaltet dich frei. Bis dahin
+  |07kannst du dich zwar einloggen, die Box aber noch nicht nutzen.
+
+  |07Ruf später wieder an. Bis bald!
+
+  |08@SYSOP@|07

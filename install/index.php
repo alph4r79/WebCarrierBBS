@@ -167,7 +167,7 @@ function cb_install_defaults(array $f): void
         'baud' => '14400', 'sound' => '1', 'allow_new' => '1', 'new_level' => '10', 'sysop_level' => '255',
         'upload_max_kb' => '8192', 'upload_ext' => 'zip,arj,lzh,rar,7z,lha,txt,ans,asc,nfo,diz,gif,png,jpg',
         'upload_auto_approve' => '0', 'max_msg_lines' => '200', 'logon_oneliners' => '1', 'show_footer' => '1',
-        'noindex' => '0', 'legal_impressum' => '', 'legal_privacy' => '', 'update_check' => '0', 'db_version' => (string)CB_DB_VERSION,
+        'noindex' => '0', 'legal_impressum' => '', 'legal_privacy' => '', 'update_check' => '0', 'new_validate' => '0', 'db_version' => (string)CB_DB_VERSION,
     ];
     foreach ([[10, $de ? 'Neuer User' : 'New user', 30, 2048, 0], [20, $de ? 'Mitglied' : 'Member', 60, 10240, 0],
                  [50, $de ? 'Stammgast' : 'Regular', 120, 0, 0], [100, 'Co-Sysop', 240, 0, 0], [255, 'Sysop', 0, 0, 0]] as $l) {
@@ -214,6 +214,7 @@ function cb_install_defaults(array $f): void
             ['I', $de ? 'Impressum' : 'Imprint', 'LEGAL', 'impressum'],
             ['X', $de ? 'Datenschutz' : 'Privacy policy', 'LEGAL', 'privacy'],
             ['G', $de ? 'Ausloggen' : 'Goodbye', 'LOGOFF', ''],
+            ['!', $de ? 'Sysop-Menü' : 'Sysop menu', 'SYSOP', '', 255],
         ]],
         'msg' => [$de ? 'Nachrichten' : 'Messages', [
             ['A', $de ? 'Bereich wählen' : 'Select area', 'MSG_AREA', ''],
@@ -245,9 +246,9 @@ function cb_install_defaults(array $f): void
     ];
     foreach ($menus as $name => [$title, $items]) {
         $mid = DB::insert('menus', ['name' => $name, 'title' => $title, 'screen' => '', 'min_level' => 0]);
-        foreach ($items as $i => [$k, $label, $cmd, $data]) {
-            DB::insert('menu_items', ['menu_id' => $mid, 'hotkey' => $k, 'label' => $label, 'command' => $cmd, 'data' => $data,
-                'min_level' => 0, 'sort' => ($i + 1) * 10]);
+        foreach ($items as $i => $it) {
+            DB::insert('menu_items', ['menu_id' => $mid, 'hotkey' => $it[0], 'label' => $it[1], 'command' => $it[2], 'data' => $it[3],
+                'min_level' => $it[4] ?? 0, 'sort' => ($i + 1) * 10]);
         }
     }
 
@@ -261,9 +262,9 @@ function cb_install_defaults(array $f): void
     ]);
     DB::insert('oneliners', ['user_id' => $sid, 'handle' => $sysop, 'text' => $de ? 'Die Box ist online!' : 'The board is online!', 'time' => $now]);
 
-    $src = __DIR__ . '/defaults/' . ($de ? 'de' : 'en');
+    $src = CB_ROOT . '/core/defaults/' . ($de ? 'de' : 'en');
     @mkdir(CB_DATA . '/screens', 0775, true);
-    foreach (glob($src . '/*.ans') ?: [] as $file) {
+    foreach (array_merge(glob($src . '/*.ans') ?: [], glob($src . '/*.txt') ?: []) as $file) {
         $dst = CB_DATA . '/screens/' . basename($file);
         if (!is_file($dst)) {
             copy($file, $dst);

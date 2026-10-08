@@ -32,7 +32,7 @@ Mit **F11** schaltest du den Browser in den Vollbildmodus.
 
 Eine E-Mail-Adresse brauchst du nicht. Ein vergessenes Passwort kann nur der Sysop zurücksetzen. Die Kontaktdaten stehen im Impressum (im Hauptmenü oder als Link unter dem Terminal).
 
-Neue User haben oft eingeschränkte Rechte, bis der Sysop sie freischaltet.
+Neue User haben oft eingeschränkte Rechte, bis der Sysop sie freischaltet. Manche Boxen lassen neue User erst nach einer Prüfung durch den Sysop hinein. Dann siehst du am Ende der Anmeldung den Hinweis, dass der Sysop deinen Zugang prüft, und die Verbindung wird getrennt. Bis zur Freischaltung erscheint dieser Hinweis auch bei jedem weiteren Login. Ruf einfach später wieder an.
 
 ## 3. Nach dem Login
 
@@ -141,7 +141,11 @@ Manche Boxen begrenzen die Downloads pro Tag oder verlangen eine **Ratio**: Bei 
 
 **Doors:** Kleine Spiele innerhalb der Mailbox. Mit dabei ist „Hi-Lo“: eine Zahl zwischen 1 und 100 in sieben Versuchen erraten, die besten Ergebnisse kommen in die Bestenliste.
 
-**Sysop rufen:** Klingelt beim Sysop. Antwortet niemand, kannst du eine Nachricht hinterlassen.
+**Sysop rufen:** Ist der Sysop gerade eingeloggt, wird er benachrichtigt und kann sich zu dir in den Chat schalten. Ist er nicht online, kannst du ihm eine Nachricht hinterlassen.
+
+**Chat mit dem Sysop:** Schaltet sich der Sysop zu, erscheint „Der Sysop hat sich zugeschaltet.“ Was du dann tippst und mit Enter abschickst, sieht der Sysop, seine Antworten erscheinen mit seinem Handle davor. `/Q` beendet den Chat, danach bist du wieder im Hauptmenü. Schreibst du gerade eine Nachricht oder lädst eine Datei hoch, wartet der Chat, bis du fertig bist.
+
+**Nachrichten vom Sysop:** Ein Rundruf des Sysops erscheint als gelbe Zeile mit Klingelton, auch mitten in einer Eingabe. Was du gerade tippst, bleibt erhalten.
 
 ## 9. Deine Einstellungen
 

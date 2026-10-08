@@ -258,6 +258,22 @@
     this.dirty[this.y * COLS + this.x] = 1;
   };
 
+  function sgrOf(a) {
+    var f = a & 15, b = (a >> 4) & 7;
+    return '\x1b[0;' + (f > 7 ? '1;' : '') + (a & 128 ? '5;' : '') + '3' + ANSI2VGA[f & 7] + ';4' + ANSI2VGA[b] + 'm';
+  }
+
+  /** Current row up to the cursor as a byte string with colour codes, ending in the current colour. */
+  Term.prototype.rowPrefix = function () {
+    var out = '', last = -1, s = this.y * COLS;
+    for (var i = 0; i < this.x; i++) {
+      var a = this.at[s + i];
+      if (a !== last) { out += sgrOf(a); last = a; }
+      out += String.fromCharCode(this.ch[s + i]);
+    }
+    return out + sgrOf(this.attr());
+  };
+
   /** Write unicode text (converted to CP437). */
   Term.prototype.print = function (s) { this.write(toCP(s)); };
 
