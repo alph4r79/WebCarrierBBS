@@ -17,6 +17,65 @@ function a_handle_error(string $handle, int $exceptId = 0): ?string
     return $err === 'taken' ? t('This handle is already taken or reserved.') : null;
 }
 
+/** Warning (no block) if a handle the sysop sets is on the ban list. */
+function a_ban_warning(string $handle): void
+{
+    $hit = cb_banned_handle($handle);
+    if ($hit !== null) {
+        a_flash(t('The handle {1} matches the entry "{2}" of the ban list. It was saved anyway.', $handle, $hit), 'warn');
+    }
+}
+
+/** Ban list: handles and words, one per line. */
+function page_banlist(array $admin): void
+{
+    if (a_post()) {
+        foreach (['ban_handles', 'ban_words'] as $k) {
+            $seen = [];
+            $lines = [];
+            foreach (preg_split('/\R/u', (string)($_POST[$k] ?? '')) ?: [] as $l) {
+                $l = trim(preg_replace('/[\x00-\x1F\x7F]/u', '', $l) ?? '');
+                $lc = mb_strtolower($l);
+                if ($l !== '' && !isset($seen[$lc])) {
+                    $seen[$lc] = true;
+                    $lines[] = mb_substr($l, 0, 60);
+                }
+            }
+            Settings::set($k, implode("\n", $lines));
+        }
+        cb_log((int)$admin['id'], $admin['handle'], 'Saved the ban list');
+        a_flash(t('Ban list saved.'));
+        a_go('banlist');
+    }
+    echo '<h1>' . h(t('Ban list')) . '</h1>';
+    echo '<p class="note">' . h(t('One entry per line, upper and lower case do not matter. * stands for any characters, for example admin* or *sysop*.')) . '</p>';
+    echo '<form method="post" class="form panel">' . a_csrf() . '<div class="grid2">' .
+        '<label>' . h(t('Banned handles')) . '<textarea name="ban_handles" class="mono">' . h(Settings::get('ban_handles')) . '</textarea>' .
+        '<span class="hint">' . h(t('An entry matches the whole handle. Blocks new registrations, in the backend you only get a warning.')) . '</span></label>' .
+        '<label>' . h(t('Banned words')) . '<textarea name="ban_words" class="mono">' . h(Settings::get('ban_words')) . '</textarea>' .
+        '<span class="hint">' . h(t('An entry matches whole words only, spam* also matches words starting with spam. Checked in oneliners, subjects, messages, private mail, locations and upload descriptions. Sysops are not affected.')) . '</span></label>' .
+        '</div><button class="btn" type="submit">' . h(t('Save ban list')) . '</button></form>';
+
+    $hits = [];
+    foreach (DB::all('SELECT id, handle FROM {users} ORDER BY handle_lc') as $u) {
+        if (($e = cb_banned_handle($u['handle'])) !== null) {
+            $hits[] = [$u, $e];
+        }
+    }
+    echo '<h2>' . h(t('Existing users on the ban list')) . '</h2>';
+    if (!$hits) {
+        echo '<div class="panel"><p class="note">' . h(t('No existing handle matches the ban list.')) . '</p></div>';
+        return;
+    }
+    echo '<p class="note">' . h(t('These users are not locked automatically. Check them and decide yourself.')) . '</p>';
+    echo '<div class="tablewrap"><table><tr><th>' . h(t('Handle')) . '</th><th>' . h(t('Entry')) . '</th><th></th></tr>';
+    foreach ($hits as [$u, $e]) {
+        echo '<tr><td>' . h($u['handle']) . '</td><td><code>' . h($e) . '</code></td><td><a class="btn small ghost" href="' .
+            h(a_url('user', ['id' => $u['id']])) . '">' . h(t('Edit')) . '</a></td></tr>';
+    }
+    echo '</table></div>';
+}
+
 /** Validate (with a level up to the own one) or delete users that wait for validation. */
 function a_pending_post(array $admin): void
 {
@@ -91,6 +150,7 @@ function page_users(array $admin): void
         ]);
         cb_log((int)$admin['id'], $admin['handle'], 'Created user ' . $handle);
         a_flash(t('User {1} created.', $handle));
+        a_ban_warning($handle);
         a_go('user', ['id' => $id]);
     }
 
@@ -226,6 +286,9 @@ function page_user(array $admin): void
         DB::q('UPDATE {messages} SET from_name=? WHERE from_id=?', [$handle, $id]);
         cb_log((int)$admin['id'], $admin['handle'], 'Edited user ' . $handle);
         a_flash(t('User saved.'));
+        if ($lc !== $u['handle_lc']) {
+            a_ban_warning($handle);
+        }
         a_go('user', ['id' => $id]);
     }
     echo '<h1>' . h(t('User {1}', $u['handle'])) . '</h1>';

@@ -204,6 +204,9 @@ return [
 
     /* doors and legal */
     'door_missing' => '|12The door {1} is not installed.|07',
+    'door_failed' => '|12The door {1} reported an error and was ended.|07',
+    'ban_word' => '|12The word "{1}" is not allowed here.|07',
+    'ban_word_editor' => '|12The word "{1}" is not allowed here. Your text is still there.|CR|15/L|07 shows it, |15/D n|07 deletes line n.',
     'legal_missing' => '|12The sysop has not entered this text yet.|07',
     'legal_impressum' => 'Imprint',
     'legal_privacy' => 'Privacy policy',
@@ -238,18 +241,6 @@ return [
     'js_ed_help' => '/S save  /A abort  /L list  /C continue  /D n delete line n  /?  this help',
     'js_ed_full' => 'Maximum number of lines reached. /S to save.',
 
-    /* doors: Hi-Lo */
-    'hilo_title' => 'Hi-Lo, the number guessing door',
-    'hilo_intro' => '|07I am thinking of a number between |151|07 and |15100|07. You have |157|07 tries.',
-    'hilo_guess' => '|07Try {1} of 7, your guess|08: |15',
-    'hilo_higher' => '|11Higher!|07',
-    'hilo_lower' => '|11Lower!|07',
-    'hilo_win' => '|10Correct! You found {1} in {2} tries.|07',
-    'hilo_lose' => '|12Out of tries. The number was {1}.|07',
-    'hilo_best' => '|14New personal best!|07',
-    'hilo_again' => '|07Play again',
-    'hilo_top' => '|03Hall of fame (fewest tries)',
-    'hilo_none' => '|07Nobody has won yet.',
     /* sysop menu, chat, broadcast, validation */
     'kicked' => '|12The sysop has disconnected you.|07',
     'pending_text' => '|07Thank you for signing up. The sysop checks your account.|CR|07Please call again later.',

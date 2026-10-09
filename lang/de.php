@@ -192,6 +192,9 @@ return [
     'page_leave' => '|07Nachricht für den Sysop hinterlassen',
 
     'door_missing' => '|12Die Door {1} ist nicht installiert.|07',
+    'door_failed' => '|12Die Door {1} hat einen Fehler gemeldet und wurde beendet.|07',
+    'ban_word' => '|12Das Wort "{1}" ist hier nicht erlaubt.|07',
+    'ban_word_editor' => '|12Das Wort "{1}" ist hier nicht erlaubt. Dein Text ist noch da.|CR|07Mit |15/L|07 siehst du ihn, mit |15/D n|07 löschst du Zeile n.',
     'legal_missing' => '|12Der Sysop hat diesen Text noch nicht eingetragen.|07',
     'legal_impressum' => 'Impressum',
     'legal_privacy' => 'Datenschutzerklärung',
@@ -224,17 +227,6 @@ return [
     'js_ed_help' => '/S speichern  /A abbrechen  /L Liste  /C weiter  /D n Zeile n löschen  /? Hilfe',
     'js_ed_full' => 'Maximale Zeilenzahl erreicht. /S zum Speichern.',
 
-    'hilo_title' => 'Hi-Lo, die Zahlenrate-Door',
-    'hilo_intro' => '|07Ich denke an eine Zahl zwischen |151|07 und |15100|07. Du hast |157|07 Versuche.',
-    'hilo_guess' => '|07Versuch {1} von 7, dein Tipp|08: |15',
-    'hilo_higher' => '|11Höher!|07',
-    'hilo_lower' => '|11Niedriger!|07',
-    'hilo_win' => '|10Richtig! Du hast die {1} in {2} Versuchen gefunden.|07',
-    'hilo_lose' => '|12Keine Versuche mehr. Die Zahl war {1}.|07',
-    'hilo_best' => '|14Neuer persönlicher Rekord!|07',
-    'hilo_again' => '|07Nochmal spielen',
-    'hilo_top' => '|03Ruhmeshalle (wenigste Versuche)',
-    'hilo_none' => '|07Noch hat niemand gewonnen.',
     /* sysop menu, chat, broadcast, validation */
     'kicked' => '|12Der Sysop hat die Verbindung getrennt.|07',
     'pending_text' => '|07Danke für deine Anmeldung. Der Sysop prüft deinen Zugang.|CR|07Ruf später wieder an.',

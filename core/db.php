@@ -100,7 +100,7 @@ final class DB
         $pk = $my ? 'INT NOT NULL AUTO_INCREMENT PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT';
         $opt = $my ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' : '';
         $t = [
-            "CREATE TABLE {settings} (name VARCHAR(64) NOT NULL PRIMARY KEY, value TEXT)",
+            "CREATE TABLE {settings} (name VARCHAR(64) NOT NULL PRIMARY KEY, value " . ($my ? 'MEDIUMTEXT' : 'TEXT') . ")",
             "CREATE TABLE {levels} (level INT NOT NULL PRIMARY KEY, name VARCHAR(40) NOT NULL DEFAULT '',
                 minutes INT NOT NULL DEFAULT 60, dl_kb INT NOT NULL DEFAULT 0, ratio INT NOT NULL DEFAULT 0)",
             "CREATE TABLE {users} (id $pk, handle VARCHAR(30) NOT NULL, handle_lc VARCHAR(30) NOT NULL,

@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 define('CB_ROOT', dirname(__DIR__));
 define('CB_DATA', CB_ROOT . '/data');
-define('CB_VERSION', '1.4.0');
+define('CB_VERSION', '1.5.0');
 define('CB_AUTHOR', 'Christoph Scheel');
 define('CB_AUTHOR_URL', 'https://chrisscheel.de');
 // AGPL section 13: users of a networked installation must be able to get the source.
@@ -137,6 +137,42 @@ function cb_dangerous_filename(string $name): bool
         || (bool)preg_match('/\.(php\d*|pht|phtml|phar|cgi|pl|py|asp|jsp)\./i', $name);
 }
 
+/** Lines of a list setting (ban_handles, ban_words) without empty lines, doubles ignoring case removed. */
+function cb_list_setting(string $name): array
+{
+    $out = [];
+    foreach (preg_split('/\R/u', Settings::get($name)) ?: [] as $l) {
+        $l = trim($l);
+        if ($l !== '') {
+            $out[mb_strtolower($l)] ??= $l;
+        }
+    }
+    return array_values($out);
+}
+
+/** Entry of the handle ban list that matches the whole handle, or null. * stands for any characters. */
+function cb_banned_handle(string $handle): ?string
+{
+    foreach (cb_list_setting('ban_handles') as $e) {
+        if (preg_match('/^' . str_replace('\*', '.*', preg_quote($e, '/')) . '$/iu', $handle)) {
+            return $e;
+        }
+    }
+    return null;
+}
+
+/** First banned word in $text (whole words, * for any letters), as found in the text, or null. */
+function cb_banned_word(string $text): ?string
+{
+    foreach (cb_list_setting('ban_words') as $e) {
+        // case-insensitive on the original text, so the caller sees the word as typed
+        if (preg_match('/\b' . str_replace('\*', '\w*', preg_quote($e, '/')) . '\b/iu', $text, $m)) {
+            return $m[0];
+        }
+    }
+    return null;
+}
+
 /** Delete a user with read pointers, door data and private mail. Public messages stay. */
 function cb_delete_user(int $id): void
 {
@@ -183,6 +219,15 @@ final class Lang
         $own = is_file(CB_ROOT . "/lang/$code.php") ? require CB_ROOT . "/lang/$code.php" : [];
         self::$s = array_merge($en, $own);
         self::$code = $code;
+        // texts of the sysop from the backend, only for keys the language file still has
+        if (DB::$pdo !== null) {
+            $over = json_decode(Settings::get('lang_override_' . $code), true);
+            foreach (is_array($over) ? $over : [] as $k => $v) {
+                if (isset($own[$k]) && is_string($v)) {
+                    self::$s[$k] = $v;
+                }
+            }
+        }
     }
 
     public static function get(string $k, array $a = []): string
@@ -452,19 +497,51 @@ function cb_strip_sauce(string $bytes): string
     return $p === false ? $bytes : substr($bytes, 0, $p);
 }
 
-/** Installed doors: doors/*.php each return ['id','name','class','description']. */
+/**
+ * Doors in doors/*.php, each file returns ['id', 'name', 'class', 'description', optional 'version'].
+ * Every file is loaded on its own, a broken one is skipped and listed in 'errors'
+ * as file => [code, detail, line]. Codes: php, noarray, fields, id, class, iface, dupe.
+ */
+function cb_door_registry(): array
+{
+    static $reg = null;
+    if ($reg !== null) {
+        return $reg;
+    }
+    $reg = ['doors' => [], 'errors' => []];
+    $files = glob(CB_ROOT . '/doors/*.php') ?: [];
+    sort($files);
+    foreach ($files as $f) {
+        $file = basename($f);
+        try {
+            $d = (static fn() => require $f)();
+        } catch (Throwable $e) {
+            $reg['errors'][$file] = ['php', str_replace(CB_ROOT, '', $e->getMessage()), $e->getLine()];
+            continue;
+        }
+        $id = is_array($d) ? (string)($d['id'] ?? '') : '';
+        $cls = is_array($d) ? (string)($d['class'] ?? '') : '';
+        $err = match (true) {
+            !is_array($d) => ['noarray', '', 0],
+            $id === '' || $cls === '' => ['fields', '', 0],
+            !preg_match('/^[a-z0-9]{1,30}$/', $id) => ['id', $id, 0],
+            !class_exists($cls, false) => ['class', $cls, 0],
+            !is_subclass_of($cls, 'CarrierDoor') => ['iface', $cls, 0],
+            isset($reg['doors'][$id]) => ['dupe', $reg['doors'][$id]['file'], 0],
+            default => null,
+        };
+        if ($err !== null) {
+            $reg['errors'][$file] = $err;
+            continue;
+        }
+        $reg['doors'][$id] = ['id' => $id, 'name' => (string)($d['name'] ?? $id), 'class' => $cls,
+            'description' => (string)($d['description'] ?? ''), 'version' => (string)($d['version'] ?? ''), 'file' => $file];
+    }
+    return $reg;
+}
+
+/** Installed and valid doors, id => registration. */
 function cb_doors(): array
 {
-    static $list = null;
-    if ($list !== null) {
-        return $list;
-    }
-    $list = [];
-    foreach (glob(CB_ROOT . '/doors/*.php') ?: [] as $f) {
-        $d = require $f;
-        if (is_array($d) && !empty($d['id']) && !empty($d['class'])) {
-            $list[$d['id']] = $d;
-        }
-    }
-    return $list;
+    return cb_door_registry()['doors'];
 }

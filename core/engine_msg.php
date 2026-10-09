@@ -513,6 +513,12 @@ trait EngineMessages
             $this->postBack();
             return;
         }
+        if (($w = $this->bannedWord($v)) !== null) {
+            $this->say('ban_word', cb_esc($w));
+            $this->nl();
+            $this->go('p_subj');
+            return;
+        }
         $this->S['post']['subj'] = $v;
         $this->afterSubject();
     }
@@ -558,6 +564,14 @@ trait EngineMessages
         if (trim($v) === '') {
             $this->say('post_aborted');
             $this->postBack();
+            return;
+        }
+        if (($w = $this->bannedWord($v)) !== null) {
+            // back into the editor with the text, /L shows it
+            $this->nl();
+            $this->say('ban_word_editor', cb_esc($w));
+            $this->nl();
+            $this->editor(explode("\n", $v), 75, Settings::int('max_msg_lines', 200));
             return;
         }
         $newId = DB::insert('messages', [

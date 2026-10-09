@@ -2,6 +2,24 @@
 
 All notable changes to WebCarrier BBS. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version numbers follow [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] - 2026-10-08
+
+### Added
+
+- Ban list in the backend: banned handles (with * as wildcard) block new registrations, banned words are rejected in oneliners, subjects, messages, private mail and locations. A message with a banned word goes back into the editor with the text kept. Uploads with a banned word in the description wait for the sysop. Sysops are not affected, existing users on the list are shown in the backend.
+- Own texts: every terminal text can be changed per language in the backend, with a preview in the terminal font and warnings for missing placeholders and overlong lines. Own texts are stored in the database and survive updates.
+- Statistics page: calls per day, new users, uploads and downloads per month and top lists for files, writers and callers.
+- Doors page: version and menu of every door, add a door to the doors menu or remove it with one click, reset scores, and a list of door files that could not be loaded with the reason. The overview shows a task when a door file is faulty.
+- Doors can wait: Engine::wait() shows the output, pauses for up to five seconds and continues without a key, for example to show the move of the computer after the move of the caller. Keys during the pause are dropped, the automatic input does not count as activity.
+- Door guide (docs/DOOR_GUIDE.md): how doors work, output, input, saved data, own texts in two languages, interruptions, a complete example door and a reference of the methods doors can use.
+
+### Changed
+
+- A faulty door file no longer breaks the board, it is skipped and listed in the backend. An error inside a running door takes the caller back to the menu and is logged.
+- pause() inside a door returns to the door, hot() inside a door delivers upper case letters.
+- Hi-Lo keeps its texts in its own file and serves as the template for new doors.
+- Clearing the log asks again and says that the upload and download statistics are cleared as well.
+
 ## [1.4.0] - 2026-10-08
 
 ### Added
@@ -80,6 +98,7 @@ First public release.
 - Web installer for SQLite or MySQL/MariaDB
 - German and English
 
+[1.5.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.1.0...v1.2.0

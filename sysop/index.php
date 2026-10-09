@@ -22,6 +22,9 @@ require __DIR__ . '/pages_msgs.php';
 require __DIR__ . '/pages_files.php';
 require __DIR__ . '/pages_menus.php';
 require __DIR__ . '/pages_backup.php';
+require __DIR__ . '/pages_stats.php';
+require __DIR__ . '/pages_texts.php';
+require __DIR__ . '/pages_doors.php';
 
 header('X-Frame-Options: DENY');
 header('X-Content-Type-Options: nosniff');
@@ -187,12 +190,14 @@ if (!$admin) {
 
 $pages = [
     'dash' => ['Overview', 'page_dash'],
+    'stats' => ['Statistics', 'page_stats'],
     'settings' => ['Settings', 'page_settings'],
     'legal' => ['Imprint and privacy', 'page_legal'],
     '-1' => null,
     'users' => ['Users', 'page_users'],
     'user' => [null, 'page_user'],
     'levels' => ['Levels', 'page_levels'],
+    'banlist' => ['Ban list', 'page_banlist'],
     '-2' => null,
     'msgareas' => ['Message areas', 'page_msgareas'],
     'messages' => ['Messages', 'page_messages'],
@@ -206,6 +211,7 @@ $pages = [
     'menu' => [null, 'page_menu'],
     'screens' => ['Screens', 'page_screens'],
     'screen' => [null, 'page_screen'],
+    'texts' => ['Texts', 'page_texts'],
     'doors' => ['Doors', 'page_doors'],
     'log' => ['Log', 'page_log'],
     'backup' => ['Backup', 'page_backup'],

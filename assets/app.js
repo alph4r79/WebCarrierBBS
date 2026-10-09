@@ -19,6 +19,7 @@
   var ask = null;          // what the BBS expects next
   var pending = false;     // request running
   var polling = false;     // poll request running
+  var autoSent = false;    // running request is the automatic input after wait()
   var lastPoll = 0;
   var prompt = '';         // current prompt line incl. colours, redrawn after poll output
   var uploading = false;
@@ -161,6 +162,7 @@
 
   function send(a, v) {
     pending = true;
+    autoSent = a === 'wait';
     ask = null;
     term.showCursor(false);
     fetch(CFG.base + 'api.php', {
@@ -188,7 +190,8 @@
     if (r.dl) { document.getElementById('dlframe').src = r.dl; }
     term.enqueue(r.o || '');
     var after = function () {
-      if (r.hang) { hangup(); } else { setAsk(r.ask); }
+      // the answer to an automatic input after wait() does not reset the idle timer
+      if (r.hang) { hangup(); } else { setAsk(r.ask, autoSent); }
     };
     if (term.busy()) {
       term.onDrain = function () { term.onDrain = null; after(); };
@@ -212,8 +215,24 @@
     if (!ask) { return; }
     prompt = term.rowPrefix();
     if (ask.t === 'edit') { startEditor(ask); }
+    if (ask.t === 'wait') {
+      keybuf = [];
+      startWait(ask);
+      return;
+    }
     term.showCursor(true);
     drainKeys();
+  }
+
+  /* wait(): no keys, after ms the terminal sends an empty input by itself */
+  function startWait(a) {
+    var fire = function () {
+      if (phase !== 'online' || ask !== a) { return; }
+      if (pending || polling || uploading || term.busy()) { setTimeout(fire, 200); return; }
+      ask = null;
+      send('wait', '');
+    };
+    setTimeout(fire, a.ms || 0);
   }
 
   function drainKeys() {
@@ -234,6 +253,7 @@
       term.write(prompt);
       if (ask.t === 'line' || ask.t === 'chat') { term.print(ask.p ? '*'.repeat(line.length) : line); }
     }
+    if (ask.t === 'wait') { return; }
     term.showCursor(true);
   }
 
@@ -297,6 +317,7 @@
       if (k === '\x1b') { term.flush(); } else if (keybuf.length < 64) { keybuf.push(k); }
       return;
     }
+    if (ask && ask.t === 'wait') { return; }
     if (pending || polling || !ask) {
       if (keybuf.length < 64) { keybuf.push(k); }
       return;
@@ -341,7 +362,7 @@
   }
 
   function handleKey(k) {
-    if (!ask) { return; }
+    if (!ask || ask.t === 'wait') { return; }
     if (ask.t === 'hot' || ask.t === 'upload') {
       var up = k.length === 1 ? k.toUpperCase() : k;
       if (up === '\b' || up === '\x1b') { return; }

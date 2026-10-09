@@ -38,7 +38,7 @@ $v = is_array($in) ? (string)($in['v'] ?? '') : '';
 // max. message is 20000 chars, up to 4 bytes each
 $v = substr($v, 0, 100000);
 
-if (!in_array($a, ['start', 'in', 'idle', 'bye', 'ping', 'poll'], true)) {
+if (!in_array($a, ['start', 'in', 'wait', 'idle', 'bye', 'ping', 'poll'], true)) {
     http_response_code(400);
     echo json_encode(['err' => 'bad request']);
     exit;

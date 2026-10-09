@@ -1,6 +1,6 @@
 # WebCarrier BBS: Sysop-Handbuch
 
-Version 1.4.0
+Version 1.5.0
 
 Für Betreiber der Mailbox: Installation, Einrichtung, Backend, Menüs, Screens, Dateiimport, Doors und Betrieb.
 
@@ -129,10 +129,12 @@ Beim Speichern der Einstellungen prüft das Backend zwei Werte: Der Sysop-Level 
 | Bereich | Wofür |
 |---|---|
 | Übersicht | Meldungen, belegte Nodes mit Trennen und Rundruf, Kennzahlen, letzte Ereignisse, Systeminfos (siehe unten) |
+| Statistik | Anrufe, neue User, Uploads und Downloads im Verlauf, Bestenlisten (siehe unten) |
 | Einstellungen | Name, Sprache, Zeitzone, Nodes, Neuanmeldung, Terminal, Uploads, Update-Prüfung |
 | Impressum und Datenschutz | Rechtstexte als reiner Text |
 | User | Anlegen, suchen, bearbeiten, Level ändern, sperren, Passwort setzen, löschen, neue User freischalten |
 | Level | Zeit, Downloadlimit und Ratio je Level |
+| Sperrliste | Gesperrte Handles und Wörter (siehe unten) |
 | Nachrichtenbereiche | Anlegen, umbenennen, Rechte, Reihenfolge, löschen |
 | Nachrichten | Öffentliche Nachrichten lesen, löschen und in andere Bereiche verschieben. Private Post wird hier bewusst nicht angezeigt |
 | Oneliner | Moderieren |
@@ -141,7 +143,8 @@ Beim Speichern der Einstellungen prüft das Backend zwei Werte: Der Sysop-Level 
 | Dateiimport | Viele Dateien auf einmal aus `data/import` übernehmen |
 | Menüs | Menüstruktur und Hotkeys bearbeiten |
 | Screens | ANSI- und Text-Screens hochladen, bearbeiten, mit Vorschau |
-| Doors | Installierte Doors und ob sie in einem Menü stehen |
+| Texte | Eigene Fassungen der Terminaltexte, siehe Abschnitt 12 |
+| Doors | Installierte Doors, ins Menü aufnehmen, Spielstände zurücksetzen, fehlerhafte Dateien, siehe Abschnitt 11 |
 | Log | Logins, Uploads, Downloads, Änderungen |
 | Backup | Sicherung als ZIP herunterladen, siehe Abschnitt 13 |
 
@@ -152,14 +155,20 @@ Ganz oben stehen die **Meldungen**, sortiert nach Wichtigkeit. Vor jedem Titel s
 | Art | Beispiele |
 |---|---|
 | Sicherheit | Der Ordner `install` liegt noch auf dem Server, ein abgebrochenes Update wurde aufgeräumt |
-| Aufgabe | Impressum oder Datenschutzerklärung leer, Uploads warten auf deine Freigabe, neue User warten auf Freischaltung |
+| Aufgabe | Impressum oder Datenschutzerklärung leer, Uploads warten auf deine Freigabe, neue User warten auf Freischaltung, Door-Dateien konnten nicht geladen werden |
 | Update | Neue Version verfügbar, Ergebnis des letzten Updates (einmalig) |
 | Hinweis | Noch kein Backup oder letztes Backup älter als 30 Tage, Update-Prüfung ausgeschaltet |
 | Neuigkeit | Meldungen des Projekts, nur bei eingeschalteter Update-Prüfung |
 
 Hinweise und Neuigkeiten kannst du mit „Ausblenden“ wegklicken. Sicherheitsmeldungen, Aufgaben und Updates lassen sich nicht ausblenden, sie verschwinden, sobald die Ursache behoben ist. Gibt es nichts zu melden, steht dort, dass alles in Ordnung ist.
 
-Darunter folgen die belegten Nodes. Neben jeder Node steht der Knopf „Trennen“, deine eigene Sitzung im Terminal ist davon ausgenommen. Unter der Liste schickst du mit „Rundruf an alle Nodes“ eine Zeile an alle, die gerade online sind. Getrennte Anrufer sehen „Der Sysop hat die Verbindung getrennt.“, ein Rundruf erscheint beim Anrufer gelb mit einem Klingelton. Dann folgen die Kennzahlen (User, Anrufe heute, gerade online, öffentliche Nachrichten, Dateien, wartende Uploads), die letzten Ereignisse aus dem Log und der Kasten „System“ mit Version, PHP-Version, Datenbank, letztem Backup und dem Stand der Update-Prüfung. Auf dem Handy steht alles untereinander, auf breiten Bildschirmen stehen Kennzahlen und System in einer schmalen Spalte rechts.
+Darunter folgen die belegten Nodes. Neben jeder Node steht der Knopf „Trennen“, deine eigene Sitzung im Terminal ist davon ausgenommen. Unter der Liste schickst du mit „Rundruf an alle Nodes“ eine Zeile an alle, die gerade online sind. Getrennte Anrufer sehen „Der Sysop hat die Verbindung getrennt.“, ein Rundruf erscheint beim Anrufer gelb mit einem Klingelton. Dann folgen die Kennzahlen (User, Anrufe heute, gerade online, öffentliche Nachrichten, Dateien, wartende Uploads), die letzten Ereignisse aus dem Log und der Kasten „System“ mit Version, PHP-Version, Datenbank, letztem Backup und dem Stand der Update-Prüfung. Unter den Kennzahlen führt ein Link zur Statistik. Auf dem Handy steht alles untereinander, auf breiten Bildschirmen stehen Kennzahlen und System in einer schmalen Spalte rechts.
+
+### Statistik
+
+Die Seite „Statistik“ zeigt als Balken die Anrufe pro Tag der letzten 30 Tage sowie neue User, Uploads und Downloads pro Monat der letzten 12 Monate. Neben jedem Balken steht die Zahl. Darunter folgen drei Bestenlisten mit je zehn Einträgen: die meistgeladenen Dateien, die fleißigsten Schreiber und die häufigsten Anrufer. Sysops und User, die auf ihre Freischaltung warten, stehen nicht in den Bestenlisten. Tage und Monate richten sich nach der Zeitzone aus den Einstellungen.
+
+Uploads und Downloads zählt die Statistik aus dem Log. Leerst du das Log, sind auch diese Zahlen weg, deshalb fragt die Seite „Log“ vorher noch einmal nach. Anrufe und neue User kommen aus eigenen Tabellen und bleiben erhalten.
 
 ### Userverwaltung
 
@@ -178,6 +187,18 @@ Ist sie an, läuft die Neuanmeldung ganz normal, am Ende sieht der Anrufer aber 
 Bist du gerade im Terminal eingeloggt, bekommst du bei jeder neuen Anmeldung sofort eine Benachrichtigung. In der Übersicht steht die Aufgabe „x neue User warten auf Freischaltung“ mit Link auf die gefilterte Userliste. Dort schaltest du einzeln frei (mit Auswahl des Levels, vorbelegt mit dem Level für neue User) oder löschst den Account, über die Häkchen auch für mehrere auf einmal. Im Terminal geht das im Sysop-Menü mit der Taste N.
 
 Schaltest du die Freischaltung wieder aus, bleiben bereits wartende User wartend, bis du sie freischaltest oder löschst. Die Einstellungsseite weist dann darauf hin.
+
+Handles, die auf der Sperrliste stehen, kann sich bei der Neuanmeldung niemand geben (siehe nächster Abschnitt).
+
+### Sperrliste
+
+Unter „Sperrliste“ trägst du zwei Listen ein, jeweils ein Eintrag pro Zeile. Groß- und Kleinschreibung spielt keine Rolle, doppelte Einträge werden beim Speichern entfernt.
+
+**Gesperrte Handles:** Ein Eintrag gilt für den ganzen Handle, `*` steht für beliebige Zeichen. `admin*` sperrt also Admin, Administrator und admin2, `*sysop*` jeden Handle, in dem „sysop“ vorkommt. Bei der Neuanmeldung bekommt der Anrufer dieselbe Meldung wie bei einem vergebenen Handle und erfährt nicht, dass der Name gesperrt ist. Legst du im Backend einen User mit gesperrtem Handle an oder benennst ihn so um, wird er trotzdem gespeichert, du bekommst nur eine Warnung.
+
+**Gesperrte Wörter:** Ein Eintrag gilt nur für ganze Wörter. `arsch` trifft „Arsch“, aber nicht „Barschfilet“. Mit `*` am Ende trifft ein Eintrag auch Wörter, die so beginnen: `spam*` trifft „Spammer“. Geprüft werden Oneliner, Betreffs, Nachrichten, private Post, der Wohnort bei Anmeldung und in den Einstellungen sowie Upload-Beschreibungen. Der Anrufer sieht, welches Wort nicht erlaubt ist, und kann neu eingeben. Bei einer Nachricht landet er mit seinem Text wieder im Editor, `/L` zeigt den Text. Ein Upload mit gesperrtem Wort in der Beschreibung wird angenommen, wartet aber immer auf deine Freigabe, auch wenn Uploads sonst automatisch freigegeben werden. Das Log nennt das Wort.
+
+Für Sysops gilt die Sperrliste nicht. Vorhandene User, deren Handle auf die Liste passt, zeigt die Seite unter der Liste an. Sie werden nicht automatisch gesperrt, das entscheidest du selbst.
 
 ### Nachrichten
 
@@ -327,7 +348,9 @@ Dateien wie `index.html`, `FILES.BBS` und versteckte Dateien werden beim Import 
 
 ## 11. Doors
 
-Doors sind kleine Programme innerhalb der Mailbox, früher meist Spiele. Bei WebCarrier BBS ist eine Door eine PHP-Datei im Ordner `doors/`. Mitgeliefert ist `hilo.php`, ein Zahlenratespiel mit Bestenliste, das sich gut als Vorlage eignet.
+Doors sind kleine Programme innerhalb der Mailbox, früher meist Spiele. Bei WebCarrier BBS ist eine Door eine PHP-Datei im Ordner `doors/`. Mitgeliefert ist `hilo.php`, ein Zahlenratespiel mit Bestenliste.
+
+Wie Doors funktionieren und wie man eigene schreibt, erklärt ausführlich das [Door-Handbuch](DOOR_GUIDE.md), mit einem vollständigen Beispiel. Hier folgt nur ein kurzer Überblick.
 
 Eine Door-Datei definiert eine Klasse, die das Interface `CarrierDoor` erfüllt, und gibt ihre Registrierung zurück:
 
@@ -354,10 +377,20 @@ if (!class_exists('MeineDoor')) {
     }
 }
 return ['id' => 'hund', 'name' => 'Hundenamen', 'class' => 'MeineDoor',
-        'description' => 'Fragt nach dem Hund.'];
+        'description' => 'Fragt nach dem Hund.', 'version' => '1.0.0'];
 ```
 
-Danach im Menü `doors` einen Punkt mit Befehl `DOOR` und Daten `hund` anlegen.
+### Doors im Backend
+
+Lade die Door-Datei per FTP in den Ordner `doors/`. Sie erscheint danach im Backend unter „Doors“ mit Name, Id, Beschreibung, Version und dem Menü, in dem sie steht. „Ins Menü aufnehmen“ legt sie mit der nächsten freien Taste (zuerst 1 bis 9, dann A bis Z ohne Q) ins Menü `doors`. Als Mindestlevel bekommt sie das niedrigste Level der Doors, die dort schon stehen, sonst das Level für neue User. Gibt es das Menü `doors` nicht mehr, wird es angelegt, samt Punkt im Hauptmenü. Text, Taste und Level änderst du danach im Menü-Editor. „Aus dem Menü nehmen“ entfernt alle Menüpunkte der Door, die Datei bleibt liegen.
+
+„Spielstände zurücksetzen“ löscht nach einer Rückfrage alles, was die Door dauerhaft gespeichert hat, bei Hi-Lo also die Bestenliste.
+
+Eine Door-Datei, die sich nicht laden lässt, legt die Mailbox nicht lahm. Sie steht im Backend unter „Fehlerhafte Dateien“ mit dem Grund, etwa einem PHP-Fehler mit Zeilennummer, einer ungültigen Id oder einer Id, die schon eine andere Datei benutzt. Die Übersicht zeigt dazu eine Aufgabe. Bricht eine Door während des Spiels mit einem Fehler ab, landet der Anrufer mit einer kurzen Meldung im Menü und der Fehler steht im Log.
+
+Doors laufen als PHP-Code mit allen Rechten der Mailbox. Installiere nur Doors aus Quellen, denen du vertraust. Doors für WebCarrier BBS sammelt [webcarrier-bbs.de/doors](https://webcarrier-bbs.de/doors).
+
+Als Vorlage für eigene Doors eignet sich `hilo.php`: Die Datei ist kurz, bringt ihre Texte in Deutsch und Englisch selbst mit und nutzt Bestenliste und Spielstand.
 
 Wichtige Methoden der Engine für Doors:
 
@@ -368,16 +401,27 @@ Wichtige Methoden der Engine für Doors:
 | `hot($tasten, $prompt)` | Auf eine Taste warten, `''` = beliebige Taste |
 | `line($max, $prompt, $maske)` | Eine Zeile einlesen |
 | `yn($prompt, $standardJa)` und `yes($v, $standardJa)` | Ja/Nein-Frage |
+| `wait($ms, $prompt)` | Ausgabe kurz stehen lassen (0 bis 5000 ms), dann ohne Taste weiter mit `input()` und `''`. Doors für ältere Versionen prüfen vorher mit `method_exists($e, 'wait')` und machen sonst direkt weiter |
 | `&doorState()` | Array, das bis zum Verlassen der Door erhalten bleibt |
 | `doorGet($k)`, `doorSet($k, $v)`, `doorAll($k)` | Dauerhafte Daten pro User, etwa Highscores |
 | `leaveDoor()` | Door beenden, zurück ins Menü |
 | `$e->user` | Datensatz des Anrufers |
 
-Am Ende von `start()` und `input()` muss eine Methode aufgerufen werden, die eine Eingabe erwartet (`hot`, `line`, `yn`), sonst landet der Anrufer im Menü. Text von Anrufern immer mit `cb_esc()` ausgeben, damit eingegebene Pipe-Codes nicht als Farben wirken.
+Die Id besteht nur aus Kleinbuchstaben und Ziffern, höchstens 30 Zeichen. Am Ende von `start()` und `input()` muss eine Methode aufgerufen werden, die eine Eingabe erwartet (`hot`, `line`, `yn`, `pause`, `wait`), sonst landet der Anrufer im Menü. Text von Anrufern immer mit `cb_esc()` ausgeben, damit eingegebene Pipe-Codes nicht als Farben wirken.
 
 ## 12. Sprache und Texte anpassen
 
 Alle Texte der Mailbox stehen in `lang/de.php` und `lang/en.php`. Fehlt ein Text in einer Sprache, wird der englische verwendet. Die Sprache stellst du in den Einstellungen um. Menütexte liegen in der Datenbank und werden im Menü-Editor geändert.
+
+### Eigene Texte im Backend
+
+Jeden Text, den Anrufer im Terminal sehen, kannst du unter „Texte“ ändern, ohne eine Datei anzufassen. Oben wählst du die Sprache, suchst nach Schlüssel oder Text und zeigst auf Wunsch nur die geänderten Texte. Neben jedem Text steht der Standard aus der Sprachdatei, darunter eine Vorschau in der Terminalschrift. Pipe-Codes für Farben funktionieren wie in Screens, Zeilenumbrüche im Eingabefeld werden zu `|CR`. Platzhalter wie `{1}` füllt die Mailbox mit Namen oder Zahlen.
+
+Gespeichert werden nur Texte, die vom Standard abweichen, und zwar in der Datenbank. Sie überstehen deshalb jedes Update. Ein leeres Feld oder „Auf Standard zurücksetzen“ stellt den Standard wieder her. Fehlt ein Platzhalter des Standards oder wird eine Zeile länger als 79 Zeichen, bekommst du eine Warnung, gespeichert wird trotzdem. Kennt eine neue Version einen Schlüssel nicht mehr, steht dein Text unten unter „Eigene Texte, die nicht mehr verwendet werden“ und kann dort entfernt werden.
+
+Eigene Texte gelten pro Sprache. Änderst du einen deutschen Text, bleibt der englische unverändert.
+
+### Weitere Sprachen
 
 Eine weitere Sprache legst du an, indem du `lang/en.php` kopierst, übersetzt und zum Beispiel als `lang/nl.php` speicherst. Sie erscheint danach automatisch in den Einstellungen zur Auswahl. Die Tasten für Ja und Nein (`key_yes`, `key_no`) gehören mit in die Sprachdatei. Das Backend selbst gibt es auf Deutsch und Englisch.
 
@@ -434,7 +478,7 @@ Bringt eine neue Version Änderungen an der Datenbank mit, werden sie beim erste
 - Downloads laufen über Einmal-Links, die nur für den angemeldeten Anrufer und zehn Minuten gelten. Dateien im Ordner `data/` sind direkt nicht erreichbar.
 - Die Box speichert keine IP-Adressen und keine E-Mail-Adressen. Gespeichert werden Handle, Ort, Passwort-Hash, Nutzungsstatistik, Nachrichten, Uploads und das Ereignislog. Es wird nur ein technisch notwendiges Session-Cookie gesetzt. Externe Schriften oder Dienste werden nicht geladen. Die Zugriffslogs des Webservers bei deinem Hoster sind davon unabhängig und gehören mit in die Datenschutzerklärung.
 - Private Post ist im Backend nicht einsehbar. Mit Sysop-Level kannst du sie im Terminal aber lesen und löschen. Schreib in die Datenschutzerklärung, wie du damit umgehst.
-- Das Log lässt sich im Backend jederzeit leeren.
+- Das Log lässt sich im Backend jederzeit leeren. Damit sind auch die Upload- und Download-Zahlen der Statistik weg.
 
 ## 15. Fehlersuche
 
@@ -443,7 +487,7 @@ Bringt eine neue Version Änderungen an der Datenbank mit, werden sie beim erste
 | Installer meldet „core/ writable“ oder „data/ writable“ rot | Rechte der Ordner per FTP auf 775 setzen |
 | Terminal zeigt „NO CARRIER“ direkt nach CONNECT | PHP-Fehlerlog des Hosters prüfen. Meist fehlende Rechte auf `data/` oder falsche Datenbankdaten |
 | Immer „Alle Leitungen sind besetzt“ | Mehr Nodes einstellen. Verwaiste Nodes werden nach der Idle-Zeit plus zwei Minuten automatisch frei |
-| Login meldet „Zu viele Fehlversuche“ | 15 Minuten warten. Als Sysop kannst du die Sperre sofort aufheben, indem du im Backend das Log leerst |
+| Login meldet „Zu viele Fehlversuche“ | 15 Minuten warten. Als Sysop kannst du die Sperre sofort aufheben, indem du im Backend das Log leerst. Dabei gehen auch die Upload- und Download-Zahlen der Statistik verloren |
 | Upload schlägt fehl | Dateityp erlaubt? PHP-Limit in den Einstellungen ansehen und ggf. beim Hoster erhöhen |
 | Umlaute in ANSI-Screens kaputt | Screen muss in CP437 gespeichert sein, nicht in UTF-8. Für UTF-8-Text einen .txt-Screen nehmen |
 | Kein Ton beim Wählen | Einstellung „Modem- und Klingeltöne“ prüfen. Browser spielen Töne erst nach dem ersten Tastendruck ab |

@@ -452,6 +452,13 @@ trait EngineFiles
             return;
         }
         $approved = (Settings::get('upload_auto_approve', '0') === '1' || $this->isSysop()) ? 1 : 0;
+        $banned = $this->bannedWord($desc);
+        if ($banned !== null) {
+            // never online without a check, the sysop decides
+            $approved = 0;
+            // not "Upload ...", the statistics count those lines
+            cb_log((int)$this->user['id'], $this->user['handle'], 'Banned word "' . $banned . '" in the description of upload ' . $name . ', waits for review');
+        }
         DB::insert('files', [
             'area_id' => $area, 'filename' => $name, 'size' => (int)$up['size'], 'description' => mb_substr($desc, 0, 2000),
             'uploader_id' => (int)$this->user['id'], 'uploader' => $this->user['handle'], 'added' => time(),

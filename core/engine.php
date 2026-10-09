@@ -85,13 +85,17 @@ final class Engine
                 $this->nl();
                 $this->say('time_up');
                 $this->hangup();
-            } else {
-                $m = 'i_' . $this->S['st'];
-                if (method_exists($this, $m)) {
-                    $this->$m($v);
+            } elseif (!empty($this->S['wt']) || $a === 'wait') {
+                if (!empty($this->S['wt']) && $a === 'wait') {
+                    // end of a wait(): the handler gets an empty input
+                    unset($this->S['wt']);
+                    $this->input('');
                 } else {
-                    $this->menu();
+                    // keys during a wait, or a wait nobody asked for: same prompt again
+                    $this->ask = $this->S['ask'] ?? null;
                 }
+            } else {
+                $this->input($v);
             }
         }
         if ($this->ask === null && !$this->hang) {
@@ -101,6 +105,16 @@ final class Engine
             $this->touch();
         }
         return $this->resp();
+    }
+
+    private function input(string $v): void
+    {
+        $m = 'i_' . $this->S['st'];
+        if (method_exists($this, $m)) {
+            $this->$m($v);
+        } else {
+            $this->menu();
+        }
     }
 
     /** Keepalive, keeps the node alive while the caller is in the editor or uploading. */
@@ -146,6 +160,15 @@ final class Engine
 
     private function resp(): array
     {
+        if ($this->ask !== null && !$this->hang) {
+            // kept for a repeated prompt, wt marks a running wait()
+            $this->S['ask'] = $this->ask;
+            if ($this->ask['t'] === 'wait') {
+                $this->S['wt'] = 1;
+            } else {
+                unset($this->S['wt']);
+            }
+        }
         return [
             'o' => CP437::transport($this->w->buf),
             'ask' => $this->hang ? null : $this->ask,
@@ -234,6 +257,10 @@ final class Engine
     /** Single key prompt. $keys = allowed keys (uppercase), "" = any key, "\r" = Enter. */
     public function hot(string $keys, string $prompt = '', bool $clear = false): void
     {
+        // inside a door the answer to hot() is passed on in upper case
+        if (($this->S['st'] ?? '') === 'door') {
+            $this->S['dhot'] = true;
+        }
         if ($prompt !== '') {
             $this->w->write($prompt);
         }
@@ -242,6 +269,7 @@ final class Engine
 
     public function line(int $max, string $prompt, bool $mask = false): void
     {
+        unset($this->S['dhot']);
         $this->w->write($prompt);
         $this->ask = ['t' => 'line', 'm' => $max, 'p' => $mask];
     }
@@ -265,6 +293,10 @@ final class Engine
     /** "Press Enter" and continue with another state. */
     public function pause(string $next = 'menu', array $args = []): void
     {
+        // a door that pauses gets the key itself ("\r"), instead of the menu
+        if (($this->S['st'] ?? '') === 'door' && !empty($this->S['door']) && $next === 'menu') {
+            $next = '#door';
+        }
         $this->S['st'] = 'pause';
         $this->S['pn'] = [$next, $args];
         $this->hot('', $this->L('pause'), true);
@@ -274,6 +306,11 @@ final class Engine
     {
         [$next, $args] = $this->S['pn'] ?? ['menu', []];
         unset($this->S['pn']);
+        if ($next === '#door') {
+            $this->S['st'] = 'door';
+            $this->i_door("\r");
+            return;
+        }
         if ($next === 'menu') {
             $this->menu();
         } else {
@@ -281,8 +318,22 @@ final class Engine
         }
     }
 
+    /**
+     * Show the output, wait $ms milliseconds (0 to 5000) and continue without a key: the terminal
+     * sends an empty input by itself. Keys during the wait are dropped. Not counted as activity.
+     */
+    public function wait(int $ms, string $prompt = ''): void
+    {
+        unset($this->S['dhot']);
+        if ($prompt !== '') {
+            $this->w->write($prompt);
+        }
+        $this->ask = ['t' => 'wait', 'ms' => max(0, min(5000, $ms))];
+    }
+
     public function editor(array $lines, int $width = 75, int $max = 200): void
     {
+        unset($this->S['dhot']);
         $this->ask = ['t' => 'edit', 'l' => array_values($lines), 'w' => $width, 'm' => $max];
     }
 
@@ -361,6 +412,12 @@ final class Engine
     public function lvl(): int
     {
         return $this->user ? (int)$this->user['level'] : 0;
+    }
+
+    /** Banned word in $text, null if there is none or the caller is a sysop. */
+    public function bannedWord(string $text): ?string
+    {
+        return $this->isSysop() ? null : cb_banned_word($text);
     }
 
     public function isSysop(): bool
@@ -684,7 +741,7 @@ final class Engine
     private function i_nu_handle(string $v): void
     {
         $v = CP437::clean($v, 20);
-        $err = cb_handle_check($v);
+        $err = cb_handle_check($v) ?? (cb_banned_handle($v) !== null ? 'taken' : null);
         if ($err !== null) {
             $this->say($err === 'bad' ? 'nu_handle_bad' : 'nu_handle_taken');
             $this->go('nu_handle');
@@ -703,6 +760,12 @@ final class Engine
     {
         $v = CP437::clean($v, 30);
         if (mb_strlen($v) < 2) {
+            $this->go('nu_loc');
+            return;
+        }
+        if (($w = cb_banned_word($v)) !== null) {
+            $this->say('ban_word', cb_esc($w));
+            $this->nl();
             $this->go('nu_loc');
             return;
         }

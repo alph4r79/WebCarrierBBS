@@ -71,6 +71,13 @@ trait EngineMisc
     private function i_one_add(string $v): void
     {
         $v = CP437::clean($v, 60);
+        if ($v !== '' && ($w = $this->bannedWord($v)) !== null) {
+            $this->nl();
+            $this->say('ban_word', cb_esc($w));
+            $this->nl();
+            $this->pause('one');
+            return;
+        }
         if ($v !== '') {
             DB::insert('oneliners', ['user_id' => (int)$this->user['id'], 'handle' => $this->user['handle'], 'text' => $v, 'time' => time()]);
             $keep = (int)(DB::val('SELECT id FROM {oneliners} ORDER BY id DESC LIMIT 1 OFFSET 199') ?? 0);
@@ -242,6 +249,12 @@ trait EngineMisc
     private function i_uset_loc(string $v): void
     {
         $v = CP437::clean($v, 30);
+        if (mb_strlen($v) >= 2 && ($w = $this->bannedWord($v)) !== null) {
+            $this->say('ban_word', cb_esc($w));
+            $this->nl();
+            $this->pause('uset');
+            return;
+        }
         if (mb_strlen($v) >= 2) {
             DB::q('UPDATE {users} SET location=? WHERE id=?', [$v, (int)$this->user['id']]);
             $this->user['location'] = $v;
@@ -340,7 +353,7 @@ trait EngineMisc
     private function openDoor(string $id): void
     {
         $doors = cb_doors();
-        if (!isset($doors[$id]) || !class_exists($doors[$id]['class'])) {
+        if (!isset($doors[$id])) {
             $this->say('door_missing', cb_esc($id));
             $this->nl();
             $this->pause();
@@ -350,8 +363,7 @@ trait EngineMisc
         $this->S['dd'] = [];
         $this->S['st'] = 'door';
         $this->act(Lang::get('act_door', [$doors[$id]['name']]));
-        $cls = $doors[$id]['class'];
-        (new $cls())->start($this);
+        $this->runDoor($doors[$id], null);
     }
 
     private function i_door(string $v): void
@@ -359,12 +371,36 @@ trait EngineMisc
         $doors = cb_doors();
         $id = (string)($this->S['door'] ?? '');
         if (!isset($doors[$id])) {
-            $this->menu();
+            unset($this->S['door'], $this->S['dd'], $this->S['dhot']);
+            $this->say('door_missing', cb_esc($id));
+            $this->nl();
+            $this->pause();
             return;
         }
+        // keys of a hot() prompt arrive in upper case, Enter stays "\r"
+        if (!empty($this->S['dhot']) && $v !== "\r") {
+            $v = mb_strtoupper($v);
+        }
+        unset($this->S['dhot']);
         $this->S['st'] = 'door';
-        $cls = $doors[$id]['class'];
-        (new $cls())->input($this, $v);
+        $this->runDoor($doors[$id], $v);
+    }
+
+    /** start() ($v null) or input() of a door. An exception ends the door with a short notice and a log entry. */
+    private function runDoor(array $door, ?string $v): void
+    {
+        try {
+            $obj = new $door['class']();
+            $v === null ? $obj->start($this) : $obj->input($this, $v);
+        } catch (Throwable $e) {
+            cb_log((int)($this->user['id'] ?? 0), (string)($this->user['handle'] ?? ''),
+                'Door ' . $door['name'] . ' failed: ' . mb_substr(str_replace(CB_ROOT, '', $e->getMessage()), 0, 180));
+            unset($this->S['door'], $this->S['dd'], $this->S['dhot']);
+            $this->nl();
+            $this->say('door_failed', cb_esc($door['name']));
+            $this->nl();
+            $this->pause();
+        }
     }
 
     /** Door helpers: per user and per door storage. */
@@ -400,7 +436,7 @@ trait EngineMisc
 
     public function leaveDoor(): void
     {
-        unset($this->S['door'], $this->S['dd']);
+        unset($this->S['door'], $this->S['dd'], $this->S['dhot']);
         $this->menu();
     }
 }

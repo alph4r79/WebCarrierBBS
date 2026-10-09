@@ -82,6 +82,12 @@ function a_dash_notices(): array
         $n[] = ['id' => 'uploads', 'kind' => 'task', 'title' => t('{1} upload(s) waiting for your check', $pending),
             'text' => t('Uploads are only visible to callers after you approved them.'), 'actions' => [['link', t('Check uploads'), a_url('files')]]];
     }
+    $broken = cb_door_registry()['errors'];
+    if ($broken) {
+        $n[] = ['id' => 'doors', 'kind' => 'task', 'title' => t('{1} door file(s) could not be loaded', count($broken)),
+            'text' => t('Callers do not see these doors. The doors page shows the reason.'), 'items' => array_keys($broken),
+            'actions' => [['link', t('Doors'), a_url('doors')]]];
+    }
     $res = json_decode(Settings::get('update_result'), true);
     if (is_array($res)) {
         if (!empty($res['ok'])) {
@@ -300,7 +306,7 @@ function page_dash(array $admin): void
     foreach ($stats as [$num, $label, $url]) {
         echo '<dt>' . h($label) . '</dt><dd>' . ($url !== '' && $num > 0 ? '<a href="' . h($url) . '">' . $num . '</a>' : $num) . '</dd>';
     }
-    echo '</dl></section>';
+    echo '</dl><p><a class="btn small ghost" href="' . h(a_url('stats')) . '">' . h(t('Statistics')) . '</a></p></section>';
 
     $last = Settings::int('last_backup', 0);
     echo '<section class="panel dash-system"><h2>' . h(t('System')) . '</h2><dl class="kv">' .
@@ -473,19 +479,6 @@ function page_oneliners(array $admin): void
     echo '</table></div>';
 }
 
-function page_doors(array $admin): void
-{
-    echo '<h1>' . h(t('Doors')) . '</h1>';
-    echo '<p class="note">' . h(t('Doors are small programs in the doors folder. To offer a door, add a menu item with the command DOOR and the door id as data.')) . '</p>';
-    echo '<div class="tablewrap"><table><tr><th>' . h(t('Id')) . '</th><th>' . h(t('Name')) . '</th><th>' . h(t('Description')) . '</th><th>' . h(t('In a menu')) . '</th></tr>';
-    foreach (cb_doors() as $d) {
-        $used = (int)DB::val("SELECT COUNT(*) FROM {menu_items} WHERE command='DOOR' AND data=?", [$d['id']]);
-        echo '<tr><td><code>' . h($d['id']) . '</code></td><td>' . h($d['name']) . '</td><td>' . h($d['description'] ?? '') . '</td><td>' .
-            ($used ? '<span class="tag ok">' . h(t('yes')) . '</span>' : '<span class="tag">' . h(t('no')) . '</span>') . '</td></tr>';
-    }
-    echo '</table></div>';
-}
-
 function page_log(array $admin): void
 {
     if (a_post() && isset($_POST['clear'])) {
@@ -494,8 +487,9 @@ function page_log(array $admin): void
         a_go('log');
     }
     echo '<h1>' . h(t('Log')) . '</h1>';
-    echo '<form method="post"' . a_confirm(t('Clear the whole log?')) . '>' . a_csrf() . '<p><button class="btn small danger ghost" name="clear" value="1">' .
-        h(t('Clear log')) . '</button></p></form>';
+    echo '<p class="note">' . h(t('The statistics count uploads and downloads from the log. Clearing the log also removes these numbers.')) . '</p>';
+    echo '<form method="post"' . a_confirm(t('Clear the whole log? The upload and download statistics are cleared as well.')) . '>' . a_csrf() .
+        '<p><button class="btn small danger ghost" name="clear" value="1">' . h(t('Clear log')) . '</button></p></form>';
     echo '<div class="tablewrap"><table><tr><th>' . h(t('Date')) . '</th><th>' . h(t('User')) . '</th><th>' . h(t('Event')) . '</th></tr>';
     foreach (DB::all('SELECT * FROM {log} ORDER BY id DESC LIMIT 300') as $l) {
         echo '<tr><td class="num">' . date('d.m.y H:i:s', (int)$l['time']) . '</td><td>' . h($l['handle']) . '</td><td>' . h($l['text']) . '</td></tr>';

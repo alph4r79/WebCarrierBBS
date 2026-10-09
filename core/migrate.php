@@ -10,7 +10,7 @@
  */
 declare(strict_types=1);
 
-define('CB_DB_VERSION', 4);
+define('CB_DB_VERSION', 5);
 
 /** Run all pending steps. Costs only the (cached) settings lookup when up to date. */
 function cb_migrate(): void
@@ -139,4 +139,13 @@ function cb_migrate_4(): void
             'sort' => (int)DB::val('SELECT COALESCE(MAX(sort),0)+10 FROM {menu_items} WHERE menu_id=?', [$main])]);
     }
     cb_copy_default_screen('pending');
+}
+
+/** 5: settings.value as MEDIUMTEXT on MySQL (TEXT ends at 64 KB, too small for long legal texts and own texts). */
+function cb_migrate_5(): void
+{
+    if (DB::$driver === 'mysql' && strtolower((string)DB::val('SELECT DATA_TYPE FROM information_schema.columns
+            WHERE table_schema=DATABASE() AND table_name=? AND column_name=?', [DB::$prefix . 'settings', 'value'])) !== 'mediumtext') {
+        DB::q('ALTER TABLE {settings} MODIFY value MEDIUMTEXT');
+    }
 }
