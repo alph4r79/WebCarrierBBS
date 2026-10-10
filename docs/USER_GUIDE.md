@@ -36,7 +36,7 @@ Neue User haben oft eingeschränkte Rechte, bis der Sysop sie freischaltet. Manc
 
 ## 3. Nach dem Login
 
-Du siehst, wie oft du schon angerufen hast, wie viel Zeit du heute noch hast, ob private Post auf dich wartet und die letzten Oneliner. Mit Enter geht es ins Hauptmenü.
+Du siehst, wie oft du schon angerufen hast, wie viel Zeit du heute noch hast, ob private Post auf dich wartet, eine Nachricht des Sysops, falls er eine hinterlassen hat, und die letzten Oneliner. Mit Enter geht es ins Hauptmenü.
 
 **Zeitlimit:** Die Zeit pro Tag ist begrenzt. Deine Restzeit steht in jeder Menüzeile. Ist sie aufgebraucht, wird aufgelegt, am nächsten Tag geht es weiter.
 
@@ -140,6 +140,8 @@ Manche Boxen begrenzen die Downloads pro Tag oder verlangen eine **Ratio**: Bei 
 **Letzte Anrufer und Wer ist online:** Wer zuletzt da war und wer gerade auf welcher Node was macht.
 
 **Doors:** Kleine Spiele innerhalb der Mailbox. Mit dabei ist „Hi-Lo“: eine Zahl zwischen 1 und 100 in sieben Versuchen erraten, die besten Ergebnisse kommen in die Bestenliste.
+
+**Bestenlisten:** Jedes Spiel hat seine eigene Bestenliste. Über der Spieleauswahl steht ein Kasten mit dem Spitzenreiter jedes Spiels. Mit `B` siehst du die ersten drei jedes Spiels, mit der Ziffer davor die ersten zehn eines Spiels, deine eigene Zeile ist hervorgehoben. Bist du nicht unter den ersten zehn, steht darunter dein Platz. Bei vielen Spielen blätterst du mit `N` und `P`, `Q` führt zurück.
 
 **Sysop rufen:** Ist der Sysop gerade eingeloggt, wird er benachrichtigt und kann sich zu dir in den Chat schalten. Ist er nicht online, kannst du ihm eine Nachricht hinterlassen.
 

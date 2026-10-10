@@ -148,6 +148,9 @@ final class DB
                 text VARCHAR(80) NOT NULL DEFAULT '', time BIGINT NOT NULL DEFAULT 0)",
             "CREATE TABLE {door_data} (door VARCHAR(30) NOT NULL, user_id INT NOT NULL, k VARCHAR(30) NOT NULL, v TEXT,
                 PRIMARY KEY (door, user_id, k))",
+            "CREATE TABLE {door_scores} (door VARCHAR(30) NOT NULL, user_id INT NOT NULL, value BIGINT NOT NULL DEFAULT 0,
+                label VARCHAR(20) NOT NULL DEFAULT '', time BIGINT NOT NULL DEFAULT 0, PRIMARY KEY (door, user_id))",
+            "CREATE INDEX {door_scores}_value ON {door_scores} (door, value)",
             "CREATE TABLE {log} (id $pk, time BIGINT NOT NULL DEFAULT 0, user_id INT NOT NULL DEFAULT 0,
                 handle VARCHAR(30) NOT NULL DEFAULT '', text VARCHAR(255) NOT NULL DEFAULT '')",
         ];

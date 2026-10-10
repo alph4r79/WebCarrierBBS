@@ -1,6 +1,6 @@
 # WebCarrier BBS: Sysop-Handbuch
 
-Version 1.5.0
+Version 1.6.0
 
 Für Betreiber der Mailbox: Installation, Einrichtung, Backend, Menüs, Screens, Dateiimport, Doors und Betrieb.
 
@@ -162,6 +162,8 @@ Ganz oben stehen die **Meldungen**, sortiert nach Wichtigkeit. Vor jedem Titel s
 
 Hinweise und Neuigkeiten kannst du mit „Ausblenden“ wegklicken. Sicherheitsmeldungen, Aufgaben und Updates lassen sich nicht ausblenden, sie verschwinden, sobald die Ursache behoben ist. Gibt es nichts zu melden, steht dort, dass alles in Ordnung ist.
 
+Unter den Nodes steht der Kasten **„Nachricht des Sysops“**. Was du dort einträgst, sieht jeder Anrufer nach dem Login unter der Zeile mit Restzeit und Post, mit „Nachricht von“ und deinem Namen darüber. Erlaubt sind bis zu 3 Zeilen mit je 76 Zeichen, Pipe-Codes für Farben wie `|14` zählen dabei nicht mit. `|CL`, `|CR` und andere Steuercodes werden entfernt. Ist eine Zeile zu lang oder sind es mehr als 3 Zeilen, wird nichts gespeichert und du bekommst einen Hinweis, dein Text bleibt im Feld stehen. Mit „Anzeigen bis“ legst du optional einen Tag fest, bis einschließlich dem die Nachricht erscheint. Danach sehen Anrufer sie nicht mehr, im Backend bleibt sie mit dem Hinweis „abgelaufen“ stehen, bis du sie änderst oder mit „Nachricht entfernen“ löschst. Jede Änderung steht im Log. Ohne Nachricht sieht die Begrüßung aus wie immer.
+
 Darunter folgen die belegten Nodes. Neben jeder Node steht der Knopf „Trennen“, deine eigene Sitzung im Terminal ist davon ausgenommen. Unter der Liste schickst du mit „Rundruf an alle Nodes“ eine Zeile an alle, die gerade online sind. Getrennte Anrufer sehen „Der Sysop hat die Verbindung getrennt.“, ein Rundruf erscheint beim Anrufer gelb mit einem Klingelton. Dann folgen die Kennzahlen (User, Anrufe heute, gerade online, öffentliche Nachrichten, Dateien, wartende Uploads), die letzten Ereignisse aus dem Log und der Kasten „System“ mit Version, PHP-Version, Datenbank, letztem Backup und dem Stand der Update-Prüfung. Unter den Kennzahlen führt ein Link zur Statistik. Auf dem Handy steht alles untereinander, auf breiten Bildschirmen stehen Kennzahlen und System in einer schmalen Spalte rechts.
 
 ### Statistik
@@ -236,6 +238,7 @@ Ein Menü wird automatisch als zweispaltige Liste mit Titelleiste gezeichnet. Tr
 | PAGE | | Sysop rufen: Ist ein Sysop online, wird er benachrichtigt, sonst kann der Anrufer eine Nachricht hinterlassen |
 | COMMENT | | Private Nachricht direkt an den Sysop |
 | DOOR | Door-Id | Startet eine Door |
+| DOORTOP | | Bestenlisten der Doors (siehe Abschnitt 11) |
 | SYSOP | | Sysop-Menü im Terminal, nur für User mit Sysop-Level |
 | LOGOFF | | Ausloggen mit Rückfrage |
 
@@ -304,8 +307,12 @@ Die DOS-Farben: 0 Schwarz, 1 Blau, 2 Grün, 3 Cyan, 4 Rot, 5 Magenta, 6 Braun, 7
 | `@DATE@`, `@TIME@` | Datum und Uhrzeit |
 | `@USERS@`, `@MSGS@`, `@FILES@`, `@TOTALCALLS@` | Statistik der Box |
 | `@VERSION@` | Version von WebCarrier BBS |
+| `@DOORTOP@` | Kasten mit dem Spitzenreiter jeder Door, mehrzeilig, leer ohne Einträge (siehe Abschnitt 11) |
+| `@SYSOPMSG@` | Die gültige Nachricht des Sysops ohne Kopfzeile, mehrzeilig, sonst leer (siehe Abschnitt 7) |
 
 Für saubere Rahmen in ANSI-Screens kannst du Breite und Ausrichtung festlegen: `@BBSNAME:40C@` füllt den Namen auf genau 40 Zeichen auf und zentriert ihn. `L` ist linksbündig, `R` rechtsbündig. Längere Werte werden auf die Breite gekürzt.
+
+`@DOORTOP@` und `@SYSOPMSG@` liefern mehrere Zeilen. Setz sie an den Anfang einer eigenen Zeile, eine Breite wie `:40` wirkt bei ihnen nicht.
 
 Makros werden nur in Screens und in den Sprachtexten ersetzt. Was Anrufer eintippen (Betreff, Oneliner usw.), erscheint immer wörtlich, `@SYSOP@` in einem Betreff bleibt also `@SYSOP@`.
 
@@ -384,7 +391,15 @@ return ['id' => 'hund', 'name' => 'Hundenamen', 'class' => 'MeineDoor',
 
 Lade die Door-Datei per FTP in den Ordner `doors/`. Sie erscheint danach im Backend unter „Doors“ mit Name, Id, Beschreibung, Version und dem Menü, in dem sie steht. „Ins Menü aufnehmen“ legt sie mit der nächsten freien Taste (zuerst 1 bis 9, dann A bis Z ohne Q) ins Menü `doors`. Als Mindestlevel bekommt sie das niedrigste Level der Doors, die dort schon stehen, sonst das Level für neue User. Gibt es das Menü `doors` nicht mehr, wird es angelegt, samt Punkt im Hauptmenü. Text, Taste und Level änderst du danach im Menü-Editor. „Aus dem Menü nehmen“ entfernt alle Menüpunkte der Door, die Datei bleibt liegen.
 
-„Spielstände zurücksetzen“ löscht nach einer Rückfrage alles, was die Door dauerhaft gespeichert hat, bei Hi-Lo also die Bestenliste.
+„Spielstände zurücksetzen“ löscht nach einer Rückfrage alles, was die Door dauerhaft gespeichert hat, und ihre Einträge in der Bestenliste der Box.
+
+### Bestenlisten
+
+Doors können pro Anrufer einen Wert melden, etwa die wenigsten Versuche bei Hi-Lo. Jede Door hat ihre eigene Liste, Doors werden nie miteinander verglichen. Enthält ein Menü mindestens einen Punkt mit dem Befehl DOOR, zeigt die Box zwischen Titelleiste und Menüpunkten einen Kasten mit dem Spitzenreiter jeder Door: Name, Handle und Bestwert, höchstens 8 Doors, die mit dem jüngsten Eintrag zuerst. Unten im Rahmen steht die Taste des Punkts mit dem Befehl DOORTOP, im Menü `doors` ist das `B`. Ohne Einträge erscheint kein Kasten. Gezeigt werden nur installierte Doors, die in einem Menüpunkt stehen, den der Anrufer mit seinem Level erreicht. Für eigene Screens gibt es denselben Kasten als Makro `@DOORTOP@`.
+
+DOORTOP zeigt für jede Door mit Einträgen die ersten drei, nach Namen sortiert und mit 1 bis 9 wählbar, bei mehr als 9 Doors seitenweise mit N und P. Eine Ziffer öffnet die ersten zehn dieser Door mit Datum, die eigene Zeile ist hervorgehoben. Steht der Anrufer weiter hinten, folgt darunter sein Platz. Gesperrte User und User, die auf die Freischaltung warten, stehen in keiner Liste.
+
+Auf der Seite „Doors“ im Backend siehst du pro Door die Zahl der Einträge und die ersten drei. Neue Installationen haben den Punkt „B Bestenliste“ im Menü `doors`, beim Update auf 1.6.0 wird er dort ergänzt (ist B belegt, die nächste freie Taste). Gibt es das Menü `doors` nicht, legst du den Punkt bei Bedarf im Menü-Editor selbst an.
 
 Eine Door-Datei, die sich nicht laden lässt, legt die Mailbox nicht lahm. Sie steht im Backend unter „Fehlerhafte Dateien“ mit dem Grund, etwa einem PHP-Fehler mit Zeilennummer, einer ungültigen Id oder einer Id, die schon eine andere Datei benutzt. Die Übersicht zeigt dazu eine Aufgabe. Bricht eine Door während des Spiels mit einem Fehler ab, landet der Anrufer mit einer kurzen Meldung im Menü und der Fehler steht im Log.
 
@@ -404,6 +419,7 @@ Wichtige Methoden der Engine für Doors:
 | `wait($ms, $prompt)` | Ausgabe kurz stehen lassen (0 bis 5000 ms), dann ohne Taste weiter mit `input()` und `''`. Doors für ältere Versionen prüfen vorher mit `method_exists($e, 'wait')` und machen sonst direkt weiter |
 | `&doorState()` | Array, das bis zum Verlassen der Door erhalten bleibt |
 | `doorGet($k)`, `doorSet($k, $v)`, `doorAll($k)` | Dauerhafte Daten pro User, etwa Highscores |
+| `doorScore($wert, $label)`, `doorScoreClear()` | Wert des Anrufers in der Bestenliste der Box melden bzw. entfernen, ab 1.6.0. Reihenfolge über `'score' => 'high'` oder `'low'` in der Registrierung |
 | `leaveDoor()` | Door beenden, zurück ins Menü |
 | `$e->user` | Datensatz des Anrufers |
 
@@ -444,7 +460,7 @@ Fehlt auf deinem Webspace die PHP-Erweiterung ZipArchive, kann das Backend kein 
 
 Die Box kann selbst nachsehen, ob es eine neue Version gibt. Die Prüfung ist ab Werk **ausgeschaltet**, auch nach einem Update von einer älteren Version. Einschalten kannst du sie unter „Einstellungen“ im Abschnitt „Updates“ oder direkt über die Meldung in der Übersicht.
 
-Bei eingeschalteter Prüfung fragt die Box höchstens einmal am Tag, wenn du die Übersicht öffnest, die Datei `https://webcarrier-bbs.de/update.json` ab. Gesendet wird nur diese Anfrage mit der Kennung „WebCarrierBBS“, ohne Versionsnummer und ohne Daten deiner Box. Nach spätestens drei Sekunden wird aufgegeben, ist der Server nicht erreichbar, zeigt der Kasten „System“ nur „Prüfung fehlgeschlagen“. Mit „Jetzt prüfen“ stößt du die Prüfung von Hand an.
+Bei eingeschalteter Prüfung fragt die Box höchstens alle 12 Stunden, wenn du die Übersicht öffnest, die Datei `https://webcarrier-bbs.de/update.json` ab. Gesendet wird nur diese Anfrage mit der Kennung „WebCarrierBBS“, ohne Versionsnummer und ohne Daten deiner Box. Nach spätestens drei Sekunden wird aufgegeben, ist der Server nicht erreichbar, zeigt der Kasten „System“ nur „Prüfung fehlgeschlagen“. Mit „Jetzt prüfen“ stößt du die Prüfung von Hand an. Das verschiebt die nächste automatische Prüfung nicht, sie folgt weiter 12 Stunden nach der letzten automatischen. Eine Meldung zu einer neuen Version bleibt stehen, bis du die Version überspringst oder einspielst, auch wenn eine spätere Prüfung fehlschlägt.
 
 Gibt es eine neuere Version, erscheint in der Übersicht die Meldung „Update: Version x ist verfügbar“ mit Datum und Änderungen. Du kannst sie mit „Diese Version überspringen“ ausblenden. Erscheint später eine noch neuere Version, wird sie wieder angezeigt. Ältere oder gleiche Versionen werden nie angeboten.
 

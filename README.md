@@ -4,7 +4,7 @@ A real mailbox from the nineties, running on ordinary PHP webspace.
 
 Callers open your domain and land in an 80×25 DOS screen with the IBM VGA font, ANSI colours and a dial tone. From there on everything works like a BBS in 1994: log in or register, read and write messages, send private mail, browse file areas, download and upload, play doors, leave a oneliner. No mouse, keyboard only.
 
-For the sysop there is a modern web backend: settings, users, levels, message and file areas with bulk actions, menu editor, ANSI screen editor with live preview, approval of uploads, a ban list, own versions of every terminal text, statistics, a bulk import for whole shareware CDs and backups as ZIP download.
+For the sysop there is a modern web backend: settings, users, levels, message and file areas with bulk actions, menu editor, ANSI screen editor with live preview, approval of uploads, a ban list, own versions of every terminal text, statistics, a message of the sysop shown after the login, a bulk import for whole shareware CDs and backups as ZIP download.
 
 Installing it works like WordPress: upload the folder, open `/install/`, fill in a form, done.
 
@@ -18,6 +18,7 @@ Installing it works like WordPress: upload the folder, open `/install/`, fill in
 - Sysop menu in the terminal: chat with callers, broadcast, disconnect a node, review new users and uploads; optional validation of new users
 - Menu system configurable in the backend (26 commands), ANSI or pipe code screens with macros
 - Doors as small PHP classes, added to the menu with one click, example door included; a faulty door file is skipped instead of breaking the board
+- A high score list for every door, with the leaders shown above the door menu
 - Ban list for handles and words, own terminal texts per language that survive updates, statistics with calls, users, uploads and downloads
 - Optional update check and one-click updates from the backend, with signed packages, a backup before every update and automatic rollback on errors
 - German and English, SQLite (zero configuration) or MySQL/MariaDB

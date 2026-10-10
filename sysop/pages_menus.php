@@ -34,6 +34,7 @@ function a_command_help(): array
         'PAGE' => t('Page the sysop'),
         'COMMENT' => t('Private message to the sysop'),
         'DOOR' => t('Start a door. Data: door id'),
+        'DOORTOP' => t('High score lists of the doors'),
         'SYSOP' => t('Sysop menu in the terminal (only for users with sysop level)'),
         'LOGOFF' => t('Log off'),
     ];

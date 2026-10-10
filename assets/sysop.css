@@ -86,14 +86,18 @@ p { margin: 0 0 12px; }
 }
 .note { color: var(--muted); font-size: 14px; }
 
-/* Dashboard: one column in the order notices, nodes, figures, events, system */
+/* Dashboard: one column in the order notices, nodes, sysop message, figures, events, system */
 .dash { display: flex; flex-direction: column; }
 .dash-main, .dash-side { display: contents; }
 .dash-notices { order: 1; }
 .dash-nodes { order: 2; }
-.dash-stats { order: 3; }
-.dash-events { order: 4; }
-.dash-system { order: 5; }
+.dash-sysmsg { order: 3; }
+.dash-stats { order: 4; }
+.dash-events { order: 5; }
+.dash-system { order: 6; }
+.dash-sysmsg .form textarea { min-height: 7em; }
+.dash-sysmsg .form label { margin-bottom: 8px; }
+.dash-sysmsg input[type=date] { max-width: 200px; }
 .dash .panel { min-width: 0; }
 .dash .tablewrap { margin: 0; }
 .notices { list-style: none; margin: 0; padding: 0; }
@@ -224,6 +228,10 @@ tr.pending td { background: #fff8e6; }
 .bars th { width: 4.5em; background: none; font-weight: 400; color: var(--muted); }
 .bars td.num { width: 3em; }
 .bar { display: block; height: 12px; background: var(--vga); }
+
+/* Top 3 of a door on the doors page */
+.top3 { margin: 4px 0 0; padding-left: 20px; font-size: 13px; }
+.top3 li { white-space: nowrap; }
 
 /* Installer checks */
 .checks { list-style: none; padding: 0; margin: 0; }

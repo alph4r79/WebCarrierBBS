@@ -25,6 +25,8 @@ if (!class_exists('HiLoDoor')) {
                 'again' => '|07Nochmal spielen',
                 'top' => '|03Ruhmeshalle (wenigste Versuche)',
                 'none' => '|07Noch hat niemand gewonnen.',
+                'try1' => '{1} Versuch',
+                'tries' => '{1} Versuche',
             ],
             'en' => [
                 'title' => 'Hi-Lo, the number guessing door',
@@ -38,6 +40,8 @@ if (!class_exists('HiLoDoor')) {
                 'again' => '|07Play again',
                 'top' => '|03Hall of fame (fewest tries)',
                 'none' => '|07Nobody has won yet.',
+                'try1' => '{1} try',
+                'tries' => '{1} tries',
             ],
         ];
 
@@ -51,8 +55,20 @@ if (!class_exists('HiLoDoor')) {
             return $s;
         }
 
+        /** Best result of the caller to the high score list of the board (fewer tries are better). */
+        private function reportBest(Engine $e): void
+        {
+            $best = $e->doorGet('best');
+            if ($best !== null) {
+                $n = (int)$best;
+                $e->doorScore($n, $this->t($e, $n === 1 ? 'try1' : 'tries', $n));
+            }
+        }
+
         public function start(Engine $e): void
         {
+            // players from before 1.2.0 get into the list right away
+            $this->reportBest($e);
             $e->cls();
             $e->bar($this->t($e, 'title'));
             $e->nl();
@@ -96,6 +112,7 @@ if (!class_exists('HiLoDoor')) {
                     $e->write($this->t($e, 'best'));
                     $e->nl();
                 }
+                $this->reportBest($e);
                 $this->askAgain($e, $st);
                 return;
             }
@@ -142,5 +159,6 @@ return [
     'name' => 'Hi-Lo',
     'class' => 'HiLoDoor',
     'description' => 'Guess a number between 1 and 100 in seven tries. Keeps a hall of fame.',
-    'version' => '1.1.0',
+    'version' => '1.2.0',
+    'score' => 'low',
 ];

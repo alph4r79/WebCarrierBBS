@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 define('CB_ROOT', dirname(__DIR__));
 define('CB_DATA', CB_ROOT . '/data');
-define('CB_VERSION', '1.5.0');
+define('CB_VERSION', '1.6.0');
 define('CB_AUTHOR', 'Christoph Scheel');
 define('CB_AUTHOR_URL', 'https://chrisscheel.de');
 // AGPL section 13: users of a networked installation must be able to get the source.
@@ -179,6 +179,7 @@ function cb_delete_user(int $id): void
     DB::q('DELETE FROM {users} WHERE id=?', [$id]);
     DB::q('DELETE FROM {lastread} WHERE user_id=?', [$id]);
     DB::q('DELETE FROM {door_data} WHERE user_id=?', [$id]);
+    DB::q('DELETE FROM {door_scores} WHERE user_id=?', [$id]);
     DB::q('DELETE FROM {messages} WHERE private=1 AND (to_id=? OR from_id=?)', [$id, $id]);
 }
 
@@ -535,7 +536,8 @@ function cb_door_registry(): array
             continue;
         }
         $reg['doors'][$id] = ['id' => $id, 'name' => (string)($d['name'] ?? $id), 'class' => $cls,
-            'description' => (string)($d['description'] ?? ''), 'version' => (string)($d['version'] ?? ''), 'file' => $file];
+            'description' => (string)($d['description'] ?? ''), 'version' => (string)($d['version'] ?? ''), 'file' => $file,
+            'score' => ($d['score'] ?? 'high') === 'low' ? 'low' : 'high'];
     }
     return $reg;
 }
@@ -544,4 +546,71 @@ function cb_door_registry(): array
 function cb_doors(): array
 {
     return cb_door_registry()['doors'];
+}
+
+/* High score lists: one value per door and user, never compared between doors. */
+
+const CB_SCORE_VISIBLE = 'FROM {door_scores} s JOIN {users} u ON u.id=s.user_id WHERE s.door=? AND u.locked=0 AND u.pending=0';
+
+/** Entries of a door in list order: by value ('high' or 'low'), on a tie the earlier entry first. */
+function cb_door_top(string $door, string $order, int $limit, int $offset = 0): array
+{
+    $dir = $order === 'low' ? 'ASC' : 'DESC';
+    return DB::all('SELECT s.user_id, s.value, s.label, s.time, u.handle ' . CB_SCORE_VISIBLE .
+        " ORDER BY s.value $dir, s.time ASC, s.user_id ASC LIMIT " . max(1, $limit) . ' OFFSET ' . max(0, $offset), [$door]);
+}
+
+/** Place and entry of a user in the list of a door, or null. */
+function cb_door_rank(string $door, string $order, int $uid): ?array
+{
+    $me = DB::row('SELECT s.user_id, s.value, s.label, s.time, u.handle ' . CB_SCORE_VISIBLE . ' AND s.user_id=?', [$door, $uid]);
+    if (!$me) {
+        return null;
+    }
+    $cmp = $order === 'low' ? '<' : '>';
+    $better = (int)DB::val('SELECT COUNT(*) ' . CB_SCORE_VISIBLE . " AND (s.value $cmp ? OR (s.value=? AND (s.time<? OR (s.time=? AND s.user_id<?))))",
+        [$door, (int)$me['value'], (int)$me['value'], (int)$me['time'], (int)$me['time'], $uid]);
+    return [$better + 1, $me];
+}
+
+function cb_door_score_count(string $door): int
+{
+    return (int)DB::val('SELECT COUNT(*) ' . CB_SCORE_VISIBLE, [$door]);
+}
+
+/** Text of an entry: the label, or the value as number. */
+function cb_score_label(array $row): string
+{
+    return (string)$row['label'] !== '' ? (string)$row['label'] : (string)$row['value'];
+}
+
+/** Menu item DOORTOP in a menu: key B, otherwise the next free one of A-Z without Q, before the menu links. */
+function cb_add_doortop_item(int $menu): void
+{
+    $used = array_map('mb_strtoupper', array_column(DB::all('SELECT hotkey FROM {menu_items} WHERE menu_id=?', [$menu]), 'hotkey'));
+    $key = null;
+    foreach (array_merge(['B'], array_diff(range('A', 'Z'), ['B', 'Q'])) as $k) {
+        if (!in_array($k, $used, true)) {
+            $key = $k;
+            break;
+        }
+    }
+    if ($key === null) {
+        return;
+    }
+    $last = (int)DB::val("SELECT MAX(sort) FROM {menu_items} WHERE menu_id=? AND command<>'MENU'", [$menu]);
+    DB::q("UPDATE {menu_items} SET sort=sort+10 WHERE menu_id=? AND command='MENU' AND sort>?", [$menu, $last]);
+    DB::insert('menu_items', ['menu_id' => $menu, 'hotkey' => $key, 'label' => Settings::get('language', 'en') === 'de' ? 'Bestenliste' : 'High scores',
+        'command' => 'DOORTOP', 'data' => '', 'min_level' => 0, 'sort' => $last + 10]);
+}
+
+/** Lines of the sysop message if it is set and not expired (valid up to and including sysop_msg_until). */
+function cb_sysop_msg(): array
+{
+    $text = trim(Settings::get('sysop_msg'));
+    $until = Settings::get('sysop_msg_until');
+    if ($text === '' || ($until !== '' && date('Y-m-d') > $until)) {
+        return [];
+    }
+    return explode("\n", $text);
 }

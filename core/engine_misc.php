@@ -439,4 +439,210 @@ trait EngineMisc
         unset($this->S['door'], $this->S['dd'], $this->S['dhot']);
         $this->menu();
     }
+
+    /* ------------------------------------------------------------ high score lists */
+
+    /**
+     * Value of the caller in the list of the running door, replaces the old entry. $label is the text
+     * shown (max. 20 characters), empty = the value. The same value and label again keep the old time,
+     * so a door can report the best value on every start without losing a tie. Errors are only logged.
+     */
+    public function doorScore(int $value, string $label = ''): void
+    {
+        $door = (string)($this->S['door'] ?? '');
+        if ($door === '' || !$this->user) {
+            return;
+        }
+        try {
+            $label = CP437::clean($label, 20);
+            $uid = (int)$this->user['id'];
+            $old = DB::row('SELECT value, label FROM {door_scores} WHERE door=? AND user_id=?', [$door, $uid]);
+            if ($old && (int)$old['value'] === $value && (string)$old['label'] === $label) {
+                return;
+            }
+            DB::q('DELETE FROM {door_scores} WHERE door=? AND user_id=?', [$door, $uid]);
+            DB::insert('door_scores', ['door' => $door, 'user_id' => $uid, 'value' => $value, 'label' => $label, 'time' => time()]);
+        } catch (Throwable $e) {
+            cb_log($uid ?? 0, (string)$this->user['handle'], 'High score of door ' . $door . ' not saved: ' . mb_substr($e->getMessage(), 0, 150));
+        }
+    }
+
+    /** Remove the own entry of the running door. */
+    public function doorScoreClear(): void
+    {
+        $door = (string)($this->S['door'] ?? '');
+        if ($door === '' || !$this->user) {
+            return;
+        }
+        try {
+            DB::q('DELETE FROM {door_scores} WHERE door=? AND user_id=?', [$door, (int)$this->user['id']]);
+        } catch (Throwable $e) {
+            cb_log((int)$this->user['id'], (string)$this->user['handle'], 'High score of door ' . $door . ' not removed: ' . mb_substr($e->getMessage(), 0, 150));
+        }
+    }
+
+    /** Installed doors that are in a menu the caller may open, id => registration. */
+    private function reachableDoors(): array
+    {
+        $lvl = $this->lvl();
+        $ids = array_column(DB::all("SELECT DISTINCT i.data FROM {menu_items} i JOIN {menus} m ON m.id=i.menu_id
+            WHERE i.command='DOOR' AND i.min_level<=? AND m.min_level<=?", [$lvl, $lvl]), 'data');
+        return array_intersect_key(cb_doors(), array_flip(array_map('strval', $ids)));
+    }
+
+    /** Visible length of a text with pipe codes. */
+    private static function visLen(string $s): int
+    {
+        return mb_strlen(str_replace('||', '|', preg_replace('/\|(\d\d|CL|CR)/', '', $s) ?? ''));
+    }
+
+    /**
+     * Box with the leader of every door, at most 8 doors with the latest entries first, as text with
+     * pipe codes and |CR. Empty if there is no entry. The hint names the key of DOORTOP in the current menu.
+     */
+    public function doorTopBox(): string
+    {
+        $doors = $this->reachableDoors();
+        if (!$doors) {
+            return '';
+        }
+        $rows = [];
+        foreach (DB::all('SELECT s.door, MAX(s.time) AS t FROM {door_scores} s JOIN {users} u ON u.id=s.user_id
+                WHERE u.locked=0 AND u.pending=0 GROUP BY s.door ORDER BY t DESC') as $r) {
+            $d = $doors[(string)$r['door']] ?? null;
+            if ($d === null) {
+                continue;
+            }
+            $top = cb_door_top($d['id'], $d['score'], 1);
+            if ($top) {
+                $rows[] = [$d, $top[0]];
+            }
+            if (count($rows) === 8) {
+                break;
+            }
+        }
+        if (!$rows) {
+            return '';
+        }
+        $key = null;
+        $menu = DB::row('SELECT id FROM {menus} WHERE name=?', [(string)($this->S['menu'] ?? 'main')]);
+        if ($menu) {
+            $key = DB::val("SELECT hotkey FROM {menu_items} WHERE menu_id=? AND command='DOORTOP' AND min_level<=? ORDER BY sort, id",
+                [(int)$menu['id'], $this->lvl()]);
+        }
+        // inner width 72: name 28, handle 20, value 20, spaces in between
+        $title = cb_pad(preg_replace('/\|\d\d/', '', $this->L('dtop_title')) ?? '', 40);
+        $title = rtrim($title);
+        $lines = ['  |03┌─ |11' . $title . ' |03' . str_repeat('─', max(0, 72 - 3 - mb_strlen($title))) . '┐'];
+        foreach ($rows as [$d, $top]) {
+            $lines[] = '  |03│ |07' . cb_esc(cb_pad($d['name'], 28)) . ' |11' . cb_esc(cb_pad((string)$top['handle'], 20)) .
+                ' |14' . cb_esc(cb_pad(cb_score_label($top), 20)) . ' |03│';
+        }
+        if ($key !== null) {
+            $hint = $this->L('dtop_hint', '|15' . cb_esc(mb_strtoupper((string)$key)) . '|07');
+            $len = self::visLen($hint);
+            $lines[] = '  |03└' . str_repeat('─', max(0, 72 - 3 - $len)) . ' |07' . $hint . ' |03─┘';
+        } else {
+            $lines[] = '  |03└' . str_repeat('─', 72) . '┘';
+        }
+        return implode('|CR', $lines) . '|07';
+    }
+
+    /** Doors with entries for the overview, sorted by name. */
+    private function scoredDoors(): array
+    {
+        $list = array_filter($this->reachableDoors(), static fn($d) => cb_door_score_count($d['id']) > 0);
+        uasort($list, static fn($a, $b) => strnatcasecmp($a['name'], $b['name']));
+        return array_values($list);
+    }
+
+    /** DOORTOP: top 3 of every door, nine per page. */
+    private function e_dtop(int $page = 0): void
+    {
+        $this->act(Lang::get('act_doortop'));
+        $list = $this->scoredDoors();
+        if (!$list) {
+            $this->nl();
+            $this->say('dtop_empty');
+            $this->nl();
+            $this->pause();
+            return;
+        }
+        $pages = (int)ceil(count($list) / 9);
+        $page = max(0, min($pages - 1, $page));
+        $show = array_slice($list, $page * 9, 9);
+        $this->S['dtp'] = $page;
+        $this->S['dtl'] = array_column($show, 'id');
+        $this->cls();
+        $this->bar($this->L('dtop_title'), $pages > 1 ? $this->L('dtop_page', $page + 1, $pages) : '');
+        $this->nl();
+        foreach ($show as $i => $d) {
+            $this->write(' |08[|15' . ($i + 1) . '|08] |14' . cb_esc(cb_pad($d['name'], 60)));
+            $this->nl();
+            $cells = [];
+            foreach (cb_door_top($d['id'], $d['score'], 3) as $p => $r) {
+                $cells[] = '|15' . ($p + 1) . '.|11' . cb_esc(cb_pad((string)$r['handle'], 10)) . ' |07' . cb_esc(cb_pad(cb_score_label($r), 10));
+            }
+            $this->write('     ' . implode(' ', $cells));
+            $this->nl();
+        }
+        $this->nl();
+        $keys = implode('', array_map('strval', range(1, count($show)))) . 'Q' . ($pages > 1 ? 'NP' : '');
+        $this->hot($keys, $this->L($pages > 1 ? 'dtop_choose_pages' : 'dtop_choose', count($show)));
+    }
+
+    private function i_dtop(string $v): void
+    {
+        $k = mb_strtoupper($v);
+        $page = (int)($this->S['dtp'] ?? 0);
+        if ($k === 'N' || $k === 'P') {
+            $this->go('dtop', $page + ($k === 'N' ? 1 : -1));
+            return;
+        }
+        $id = ctype_digit($k) ? ($this->S['dtl'][(int)$k - 1] ?? null) : null;
+        if ($id === null) {
+            unset($this->S['dtp'], $this->S['dtl']);
+            $this->menu();
+            return;
+        }
+        $this->go('dtopd', (string)$id);
+    }
+
+    /** Top 10 of one door, the own line highlighted, the own place below if it is further down. */
+    private function e_dtopd(string $id): void
+    {
+        $d = $this->reachableDoors()[$id] ?? null;
+        $rows = $d ? cb_door_top($id, $d['score'], 10) : [];
+        $this->cls();
+        $this->bar($this->L('dtop_title') . ': ' . ($d['name'] ?? $id));
+        $this->nl();
+        if (!$rows) {
+            $this->say('dtop_empty');
+            $this->nl();
+        } else {
+            $this->write('|03  ' . cb_pad($this->L('dtop_col_rank'), 6) . cb_pad($this->L('dtop_col_user'), 22) .
+                cb_pad($this->L('dtop_col_value'), 22) . $this->L('dtop_col_date'));
+            $this->nl();
+            $mine = false;
+            foreach ($rows as $p => $r) {
+                $own = (int)$r['user_id'] === (int)$this->user['id'];
+                $mine = $mine || $own;
+                $this->write(($own ? '|14> ' : '|07  ') . cb_pad(($p + 1) . '.', 6) . ($own ? '' : '|11') . cb_esc(cb_pad((string)$r['handle'], 22)) .
+                    ($own ? '' : '|07') . cb_esc(cb_pad(cb_score_label($r), 22)) . ($own ? '' : '|08') . cb_date((int)$r['time']) . '|07');
+                $this->nl();
+            }
+            if (!$mine && ($me = cb_door_rank($id, $d['score'], (int)$this->user['id'])) !== null) {
+                $this->nl();
+                $this->say('dtop_own', $me[0], cb_esc(cb_score_label($me[1])));
+                $this->nl();
+            }
+        }
+        $this->nl();
+        $this->hot('', $this->L('dtop_back'), true);
+    }
+
+    private function i_dtopd(string $v): void
+    {
+        $this->go('dtop', (int)($this->S['dtp'] ?? 0));
+    }
 }

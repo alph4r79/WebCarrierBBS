@@ -29,7 +29,7 @@ final class Engine
         'MENU', 'SCREEN', 'LEGAL', 'MSG_AREA', 'MSG_READ', 'MSG_NEW', 'MSG_POST', 'MSG_MAIL', 'MSG_SEND',
         'FILE_AREA', 'FILE_LIST', 'FILE_NEW', 'FILE_SEARCH', 'FILE_DOWNLOAD', 'FILE_UPLOAD',
         'ONELINERS', 'LASTCALLERS', 'WHO', 'USERLIST', 'USERINFO', 'SETTINGS', 'PAGE', 'COMMENT',
-        'DOOR', 'SYSOP', 'LOGOFF',
+        'DOOR', 'DOORTOP', 'SYSOP', 'LOGOFF',
     ];
 
     public array $S;
@@ -359,7 +359,7 @@ final class Engine
         $data = (string)file_get_contents($p);
         if (str_ends_with($p, '.ans')) {
             $data = cb_strip_sauce($data);
-            $this->w->raw(cb_macros($data, fn($n) => $this->macro($n), true));
+            $this->w->raw(cb_macros($data, fn($n) => $this->ansMacro($n), true));
             $this->w->buf .= "\e[0m";
             $this->w->reset();
         } else {
@@ -374,6 +374,18 @@ final class Engine
     public function macros(string $s): string
     {
         return cb_macros($s, fn($n) => $this->macro($n));
+    }
+
+    /** Macro for an ANSI screen: block macros with pipe codes and |CR become ANSI sequences there. */
+    private function ansMacro(string $n): ?string
+    {
+        $v = $this->macro($n);
+        if ($v === null || !in_array($n, ['DOORTOP', 'SYSOPMSG'], true) || $v === '') {
+            return $v;
+        }
+        $w = new AnsiWriter();
+        $w->write($v);
+        return CP437::toUtf8($w->buf);
     }
 
     public function macro(string $n): ?string
@@ -402,6 +414,8 @@ final class Engine
             'MSGS' => (string)DB::val('SELECT COUNT(*) FROM {messages} WHERE private=0'),
             'FILES' => (string)DB::val('SELECT COUNT(*) FROM {files} WHERE approved=1'),
             'TOTALCALLS' => (string)DB::val('SELECT COUNT(*) FROM {calls}'),
+            'DOORTOP' => $u ? $this->doorTopBox() : '',
+            'SYSOPMSG' => implode('|CR', cb_sysop_msg()),
             default => null,
         };
         return $this->mcache[$n] = $v;
@@ -697,6 +711,16 @@ final class Engine
             $this->w->buf .= "\x07";
             $this->nl();
         }
+        $msg = cb_sysop_msg();
+        if ($msg) {
+            $this->nl();
+            $this->say('sysmsg_head', cb_esc(Settings::get('sysop_name', 'Sysop')));
+            $this->nl();
+            foreach ($msg as $l) {
+                $this->write('  |15' . $l . '|07');
+                $this->nl();
+            }
+        }
         if (Settings::get('logon_oneliners', '1') === '1') {
             $rows = array_reverse(DB::all('SELECT * FROM {oneliners} ORDER BY id DESC LIMIT 5'));
             if ($rows) {
@@ -887,6 +911,13 @@ final class Engine
     {
         $this->bar(Settings::get('bbs_name', 'WebCarrier BBS'), $menu['title']);
         $this->nl();
+        if (in_array('DOOR', array_map('strtoupper', array_column($items, 'command')), true)) {
+            $box = $this->doorTopBox();
+            if ($box !== '') {
+                $this->write($box);
+                $this->nl(2);
+            }
+        }
         $col = [];
         foreach ($items as $it) {
             $col[] = '|08[|15' . cb_esc(strtoupper($it['hotkey'])) . '|08] |07' . cb_esc(cb_pad($it['label'], 33));
@@ -1001,6 +1032,9 @@ final class Engine
                 break;
             case 'DOOR':
                 $this->openDoor($data);
+                break;
+            case 'DOORTOP':
+                $this->go('dtop', 0);
                 break;
             case 'SYSOP':
                 if ($this->isSysop()) {

@@ -2,6 +2,22 @@
 
 All notable changes to WebCarrier BBS. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version numbers follow [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] - 2026-10-09
+
+### Added
+
+- High score lists for doors: a door reports one value per caller with doorScore() and removes it with doorScoreClear(), every door keeps its own list, doors are never compared. The registration can say whether more ('high', default) or less ('low') is better; on a tie the earlier entry wins. Locked users and users waiting for validation are not listed.
+- Menus with doors show a box with the leader of every door (up to 8 doors, latest entries first). The new menu command DOORTOP (key B in the doors menu) shows the top 3 of every door and the top 10 of one door with the own place. New macro @DOORTOP@ for own screens.
+- Message of the sysop: up to three lines with colours, set on the overview in the backend with an optional last day, shown to every caller after the login. New macro @SYSOPMSG@.
+- The doors page in the backend shows the number of entries and the top 3 of every door.
+
+### Changed
+
+- Hi-Lo reports the fewest tries of every player to its high score list (version 1.2.0).
+- Reset scores on the doors page also clears the high score list of the door.
+- The automatic update check runs every 12 hours instead of once a day. Check now does not move the next automatic check.
+- Database version 6: new table door_scores, the doors menu gets the item High scores.
+
 ## [1.5.0] - 2026-10-08
 
 ### Added
@@ -98,6 +114,7 @@ First public release.
 - Web installer for SQLite or MySQL/MariaDB
 - German and English
 
+[1.6.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.2.0...v1.3.0

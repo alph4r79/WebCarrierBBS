@@ -241,6 +241,7 @@ function cb_install_defaults(array $f): void
         ]],
         'doors' => ['Doors', [
             ['1', $de ? 'Hi-Lo (Zahlenraten)' : 'Hi-Lo (guess the number)', 'DOOR', 'hilo'],
+            ['B', $de ? 'Bestenliste' : 'High scores', 'DOORTOP', ''],
             ['Q', $de ? 'Hauptmenü' : 'Main menu', 'MENU', 'main'],
         ]],
     ];

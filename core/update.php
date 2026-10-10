@@ -2,7 +2,7 @@
 /**
  * WebCarrier BBS: update check and automatic update.
  *
- * The check fetches update.json (only when switched on, at most once a day). An update
+ * The check fetches update.json (only when switched on, automatically at most every 12 hours). An update
  * runs in two requests: cb_update_run() verifies and copies the new files with the old
  * code loaded, the next request runs with the new code, applies the migrations in
  * cb_boot() and cb_update_housekeeping() finishes the update. Every copied file is
@@ -158,8 +158,13 @@ function cb_update_check(bool $force = false): void
     if (Settings::get('update_check', '0') !== '1') {
         return;
     }
-    if (!$force && time() - Settings::int('update_last_check', 0) < 86400) {
-        return;
+    if (!$force) {
+        // own timestamp for the automatic check, "Check now" does not move it; older boards start from update_last_check
+        $auto = Settings::get('update_last_auto');
+        if (time() - ($auto !== '' ? (int)$auto : Settings::int('update_last_check', 0)) < 43200) {
+            return;
+        }
+        Settings::set('update_last_auto', (string)time());
     }
     Settings::set('update_last_check', (string)time());
     $body = cb_http_get(cb_update_source()['url'], 3, null, 65536);

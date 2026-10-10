@@ -181,6 +181,8 @@ function a_dash_post(array $admin): void
             Settings::set('update_skip', $up['version']);
             cb_log((int)$admin['id'], $admin['handle'], 'Skipped update ' . $up['version']);
         }
+    } elseif (isset($_POST['sysmsg_save']) || isset($_POST['sysmsg_clear'])) {
+        a_sysmsg_post($admin);
     } elseif (isset($_POST['update_now'])) {
         try {
             cb_update_run((int)$admin['id'], $admin['handle']);
@@ -191,6 +193,64 @@ function a_dash_post(array $admin): void
         }
     }
     a_go('dash');
+}
+
+/**
+ * Sysop message as lines: colour codes |00 to |23 and || stay, |CL, |CR, other codes and control
+ * characters are removed. Second value: error text if there are more than 3 lines or a line is too long.
+ */
+function a_sysmsg_clean(string $text): array
+{
+    $text = str_replace(["\r\n", "\r"], "\n", $text);
+    $text = preg_replace('/[\x00-\x09\x0B-\x1F\x7F]/u', '', $text) ?? '';
+    $lines = [];
+    foreach (explode("\n", trim($text, "\n")) as $l) {
+        $l = preg_replace_callback('/\|(\d\d|CL|CR|\|)/', static fn($m) => $m[1] === '|' || (ctype_digit($m[1]) && (int)$m[1] < 24) ? $m[0] : '', $l) ?? '';
+        $lines[] = rtrim($l);
+    }
+    if ($lines === ['']) {
+        return [[], null];
+    }
+    if (count($lines) > 3) {
+        return [$lines, t('The message has more than 3 lines.')];
+    }
+    foreach ($lines as $i => $l) {
+        $len = mb_strlen(str_replace('||', '|', preg_replace('/\|\d\d/', '', $l) ?? ''));
+        if ($len > 76) {
+            return [$lines, t('Line {1} has {2} characters, at most 76 are allowed.', $i + 1, $len)];
+        }
+    }
+    return [$lines, null];
+}
+
+/** Save or clear the sysop message (dashboard). */
+function a_sysmsg_post(array $admin): void
+{
+    $old = [Settings::get('sysop_msg'), Settings::get('sysop_msg_until')];
+    if (isset($_POST['sysmsg_clear'])) {
+        $new = ['', ''];
+    } else {
+        $raw = (string)($_POST['sysmsg'] ?? '');
+        $until = trim((string)($_POST['sysmsg_until'] ?? ''));
+        [$lines, $err] = a_sysmsg_clean($raw);
+        if ($err === null && $until !== '' && (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $until, $m) || !checkdate((int)$m[2], (int)$m[3], (int)$m[1]))) {
+            $err = t('The date is not valid.');
+        }
+        if ($err !== null) {
+            // keep the input for the form
+            $_SESSION['cb_sysmsg_draft'] = [$raw, $until];
+            a_flash($err . ' ' . t('The message was not saved.'), 'bad');
+            return;
+        }
+        $new = $lines ? [implode("\n", $lines), $until] : ['', ''];
+    }
+    if ($new === $old) {
+        return;
+    }
+    Settings::set('sysop_msg', $new[0]);
+    Settings::set('sysop_msg_until', $new[1]);
+    cb_log((int)$admin['id'], $admin['handle'], $new[0] === '' ? 'Cleared the sysop message' : 'Saved the sysop message');
+    a_flash($new[0] === '' ? t('The message of the sysop was removed.') : t('The message of the sysop was saved.'));
 }
 
 /** Status of the update check for the system box. */
@@ -286,6 +346,26 @@ function page_dash(array $admin): void
     }
     echo '</section>';
 
+    $draft = $_SESSION['cb_sysmsg_draft'] ?? null;
+    unset($_SESSION['cb_sysmsg_draft']);
+    $msg = is_array($draft) ? (string)$draft[0] : Settings::get('sysop_msg');
+    $until = is_array($draft) ? (string)$draft[1] : Settings::get('sysop_msg_until');
+    $saved = Settings::get('sysop_msg');
+    $savedUntil = Settings::get('sysop_msg_until');
+    echo '<section class="panel dash-sysmsg"><h2>' . h(t('Message from the sysop')) . '</h2>';
+    if ($saved !== '' && $savedUntil !== '' && date('Y-m-d') > $savedUntil) {
+        echo '<p><span class="tag bad">' . h(t('expired')) . '</span> <span class="note">' .
+            h(t('Shown until {1}, callers no longer see it.', date('d.m.Y', (int)strtotime($savedUntil)))) . '</span></p>';
+    }
+    echo '<form method="post" action="' . h(a_url('dash')) . '" class="form">' . a_csrf() .
+        '<label>' . h(t('Text')) . '<textarea name="sysmsg" class="mono" rows="3">' . "\n" . h($msg) . '</textarea>' .
+        '<span class="hint">' . h(t('Shown to every caller after the login. Up to 3 lines of 76 characters, pipe codes for colours like |14 are allowed.')) . '</span></label>' .
+        '<label>' . h(t('Show until (optional)')) . '<input type="date" name="sysmsg_until" value="' . h($until) . '">' .
+        '<span class="hint">' . h(t('Up to and including this day. Empty: until you change or remove the message.')) . '</span></label>' .
+        '<div class="row-actions"><button class="btn small" name="sysmsg_save" value="1">' . h(t('Save message')) . '</button>' .
+        ($saved !== '' ? '<button class="btn small danger ghost" name="sysmsg_clear" value="1">' . h(t('Remove message')) . '</button>' : '') .
+        '</div></form></section>';
+
     echo '<section class="panel dash-events"><h2>' . h(t('Latest events')) . '</h2><table class="events"><tr><th>' . h(t('Time')) . '</th><th>' .
         h(t('User')) . '</th><th>' . h(t('Event')) . '</th></tr>';
     foreach (DB::all('SELECT * FROM {log} ORDER BY id DESC LIMIT 15') as $l) {
@@ -370,7 +450,7 @@ function page_settings(array $admin): void
             ['upload_auto_approve', t('Uploads are online without your check'), 'bool', ''],
         ],
         t('Updates') => [
-            ['update_check', t('Look for updates'), 'bool', t('Once a day the board requests webcarrier-bbs.de/update.json to see if there is a new version. Nothing about your board is sent.')],
+            ['update_check', t('Look for updates'), 'bool', t('Every 12 hours the board requests webcarrier-bbs.de/update.json to see if there is a new version. Nothing about your board is sent.')],
         ],
     ];
     if (a_post() && isset($_POST['check_now'])) {

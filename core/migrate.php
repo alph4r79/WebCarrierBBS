@@ -10,7 +10,7 @@
  */
 declare(strict_types=1);
 
-define('CB_DB_VERSION', 5);
+define('CB_DB_VERSION', 6);
 
 /** Run all pending steps. Costs only the (cached) settings lookup when up to date. */
 function cb_migrate(): void
@@ -148,4 +148,15 @@ function cb_migrate_5(): void
             WHERE table_schema=DATABASE() AND table_name=? AND column_name=?', [DB::$prefix . 'settings', 'value'])) !== 'mediumtext') {
         DB::q('ALTER TABLE {settings} MODIFY value MEDIUMTEXT');
     }
+}
+
+/** 6: high score lists of the doors (door_scores) and the item DOORTOP in the menu doors. */
+function cb_migrate_6(): void
+{
+    cb_create_table('door_scores');
+    $menu = (int)DB::val("SELECT id FROM {menus} WHERE name='doors'");
+    if ($menu <= 0 || DB::val("SELECT COUNT(*) FROM {menu_items} WHERE command='DOORTOP'")) {
+        return;
+    }
+    cb_add_doortop_item($menu);
 }

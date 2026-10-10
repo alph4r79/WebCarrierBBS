@@ -48,6 +48,9 @@ function a_doors_menu(): array
     $mid = DB::insert('menus', ['name' => 'doors', 'title' => 'Doors', 'screen' => '', 'min_level' => 0]);
     DB::insert('menu_items', ['menu_id' => $mid, 'hotkey' => 'Q', 'label' => $de ? 'Hauptmenü' : 'Main menu', 'command' => 'MENU',
         'data' => 'main', 'min_level' => 0, 'sort' => 990]);
+    if (!DB::val("SELECT COUNT(*) FROM {menu_items} WHERE command='DOORTOP'")) {
+        cb_add_doortop_item($mid);
+    }
     $main = DB::row("SELECT * FROM {menus} WHERE name='main'");
     if ($main && !DB::val("SELECT COUNT(*) FROM {menu_items} WHERE menu_id=? AND command='MENU' AND data='doors'", [$main['id']])) {
         $used = array_map('strtoupper', array_column(DB::all('SELECT hotkey FROM {menu_items} WHERE menu_id=?', [$main['id']]), 'hotkey'));
@@ -76,10 +79,10 @@ function page_doors(array $admin): void
                 // same level as the doors already offered, otherwise the level of new users
                 $min = DB::val("SELECT MIN(min_level) FROM {menu_items} WHERE menu_id=? AND command='DOOR'", [$menu['id']]);
                 $min = $min !== null ? (int)$min : Settings::int('new_level', 10);
-                // after the last item that is not a menu link, links like Q move back
-                $last = (int)DB::val("SELECT MAX(sort) FROM {menu_items} WHERE menu_id=? AND command<>'MENU'", [$menu['id']]);
+                // after the last door or other item, menu links like Q and the high scores move back
+                $last = (int)DB::val("SELECT MAX(sort) FROM {menu_items} WHERE menu_id=? AND command NOT IN ('MENU', 'DOORTOP')", [$menu['id']]);
                 $sort = $last + 10;
-                DB::q("UPDATE {menu_items} SET sort=sort+10 WHERE menu_id=? AND command='MENU' AND sort>?", [$menu['id'], $last]);
+                DB::q("UPDATE {menu_items} SET sort=sort+10 WHERE menu_id=? AND command IN ('MENU', 'DOORTOP') AND sort>?", [$menu['id'], $last]);
                 DB::insert('menu_items', ['menu_id' => $menu['id'], 'hotkey' => $key, 'label' => mb_substr($d['name'], 0, 40), 'command' => 'DOOR',
                     'data' => $id, 'min_level' => $min, 'sort' => $sort]);
                 cb_log((int)$admin['id'], $admin['handle'], 'Added door ' . $id . ' to menu ' . $menu['name'] . ' (' . $key . ')');
@@ -91,8 +94,9 @@ function page_doors(array $admin): void
             a_flash(t('{1} removed from the menus.', $d['name']));
         } elseif ($d && isset($_POST['reset'])) {
             DB::q('DELETE FROM {door_data} WHERE door=?', [$id]);
-            cb_log((int)$admin['id'], $admin['handle'], 'Reset the data of door ' . $id);
-            a_flash(t('Scores and stored data of {1} reset.', $d['name']));
+            DB::q('DELETE FROM {door_scores} WHERE door=?', [$id]);
+            cb_log((int)$admin['id'], $admin['handle'], 'Reset the data and the high score list of door ' . $id);
+            a_flash(t('Scores, high score list and stored data of {1} reset.', $d['name']));
         }
         a_go('doors');
     }
@@ -105,18 +109,28 @@ function page_doors(array $admin): void
     } else {
         $items = DB::all("SELECT i.data, i.hotkey, m.name, m.id FROM {menu_items} i JOIN {menus} m ON m.id=i.menu_id WHERE i.command='DOOR' ORDER BY m.name, i.hotkey");
         echo '<div class="tablewrap"><table class="doors"><tr><th>' . h(t('Door')) . '</th><th>' . h(t('Version')) . '</th><th>' . h(t('Menu')) . '</th><th>' .
-            h(t('Actions')) . '</th></tr>';
+            h(t('High score list')) . '</th><th>' . h(t('Actions')) . '</th></tr>';
         foreach ($doors as $id => $d) {
             $in = array_filter($items, static fn($i) => $i['data'] === $id);
             $menu = $in ? implode(', ', array_map(static fn($i) => '<a href="' . h(a_url('menu', ['id' => $i['id']])) . '">' . h($i['name']) . '</a> (' .
                 h($i['hotkey']) . ')', $in)) : '<span class="tag">' . h(t('not offered')) . '</span>';
+            $count = cb_door_score_count($id);
+            $scores = h(t('Entries: {1}', $count));
+            if ($count > 0) {
+                $scores .= '<ol class="top3">';
+                foreach (cb_door_top($id, $d['score'], 3) as $r) {
+                    $scores .= '<li>' . h((string)$r['handle']) . ' <span class="note">' . h(cb_score_label($r)) . '</span></li>';
+                }
+                $scores .= '</ol>';
+            }
             echo '<tr><td><strong>' . h($d['name']) . '</strong> <code>' . h($id) . '</code>' .
                 ($d['description'] !== '' ? '<br><span class="note">' . h($d['description']) . '</span>' : '') . '</td><td data-label="' . h(t('Version')) . '">' . h($d['version'] ?: '-') .
-                '</td><td data-label="' . h(t('Menu')) . '">' . $menu . '</td><td><form method="post" class="row-actions">' . a_csrf() .
+                '</td><td data-label="' . h(t('Menu')) . '">' . $menu . '</td><td data-label="' . h(t('High score list')) . '">' . $scores .
+                '</td><td><form method="post" class="row-actions">' . a_csrf() .
                 ($in ? '<button class="btn small ghost" name="remove" value="' . h($id) . '">' . h(t('Remove from the menu')) . '</button>'
                     : '<button class="btn small" name="add" value="' . h($id) . '">' . h(t('Add to the menu')) . '</button>') .
                 '<button class="btn small danger ghost" name="reset" value="' . h($id) . '" onclick="return confirm(' .
-                h((string)json_encode(t('Reset all scores and stored data of {1}? This cannot be undone.', $d['name']), JSON_UNESCAPED_UNICODE)) . ')">' .
+                h((string)json_encode(t('Reset all scores, the high score list and the stored data of {1}? This cannot be undone.', $d['name']), JSON_UNESCAPED_UNICODE)) . ')">' .
                 h(t('Reset scores')) . '</button></form></td></tr>';
         }
         echo '</table></div>';

@@ -66,6 +66,7 @@ return [
 | `class` | Name der Klasse |
 | `description` | Beschreibung für die Seite „Doors“ im Backend (optional) |
 | `version` | Versionsnummer der Door, erscheint auf der Seite „Doors“ im Backend (optional) |
+| `score` | Reihenfolge der Bestenliste (Abschnitt 6): `'high'` (mehr ist besser, Standard) oder `'low'` (weniger ist besser), optional, ab 1.6.0 |
 
 Einige Regeln für die Datei:
 
@@ -186,6 +187,35 @@ Beim Start der Door ist das Array leer. Es liegt in der Session des Anrufers und
 - Die Daten hängen an der `id` der Door. Wird ein User gelöscht, löscht die Box auch seine Door-Daten.
 
 Eigene Tabellen in der Datenbank sind für Doors nicht vorgesehen. Für die allermeisten Fälle reicht der Speicher oben.
+
+**Bestenliste der Box** (ab Version 1.6.0): Eine Door kann pro Anrufer einen Wert melden. Die Box führt daraus für jede Door eine eigene Bestenliste, zeigt über der Spieleauswahl den Spitzenreiter jeder Door und mit dem Menübefehl DOORTOP die ausführlichen Listen. Doors werden dabei nie miteinander verglichen.
+
+| Methode | Zweck |
+|---|---|
+| `$e->doorScore($wert, $label)` | Wert (ganze Zahl) des Anrufers für diese Door speichern, ersetzt seinen alten Eintrag. `$label` ist der angezeigte Text, etwa „Elo 1340“ oder „3 Versuche“, höchstens 20 Zeichen, Pipe-Codes erscheinen wörtlich. Ohne Label wird der Wert als Zahl angezeigt |
+| `$e->doorScoreClear()` | Eigenen Eintrag des Anrufers in dieser Door entfernen |
+
+- Welcher Wert in die Liste kommt, entscheidet die Door. Meist ist das der Bestwert des Anrufers, die Box speichert nur, was gemeldet wird. Die Reihenfolge legt `'score'` in der Registrierung fest, bei gleichem Wert steht der frühere Eintrag vorne.
+- Melde den vorhandenen Bestwert am besten schon in `start()`. So stehen auch Spieler in der Liste, die vor der Umstellung gespielt haben. Wird derselbe Wert mit demselben Label noch einmal gemeldet, ändert sich nichts, auch nicht die Zeit des Eintrags. Wer zuerst einen Wert erreicht hat, bleibt bei Gleichstand also vorne.
+- Gesperrte User und User, die noch auf ihre Freischaltung warten, erscheinen nicht in den Listen. Wird ein User gelöscht, verschwinden auch seine Einträge. Der Sysop kann die Liste einer Door mit „Spielstände zurücksetzen“ leeren.
+- Beide Methoden wirken nur in einer laufenden Door. Ein Fehler beim Speichern landet im Log, die Door läuft weiter.
+- Soll die Door auch auf Versionen vor 1.6.0 laufen, prüfe vorher mit `method_exists($e, 'doorScore')`, wie bei `wait()` in Abschnitt 5 beschrieben.
+
+So macht es Hi-Lo, wo weniger Versuche besser sind (`'score' => 'low'` in der Registrierung):
+
+```php
+/** Best result of the caller to the high score list of the board (fewer tries are better). */
+private function reportBest(Engine $e): void
+{
+    $best = $e->doorGet('best');
+    if ($best !== null) {
+        $n = (int)$best;
+        $e->doorScore($n, $this->t($e, $n === 1 ? 'try1' : 'tries', $n));
+    }
+}
+```
+
+`reportBest()` wird am Anfang von `start()` und nach jedem gewonnenen Spiel aufgerufen. `try1` und `tries` sind eigene Texte der Door („{1} Versuch“ und „{1} Versuche“, auf Englisch „{1} try“ und „{1} tries“).
 
 **Der Anrufer:** `$e->user` enthält den Datensatz des eingeloggten Anrufers als Array, unter anderem `id`, `handle`, `location`, `level` und `calls`. Behandle ihn als nur lesbar. Weitere Angaben bekommst du mit `$e->lvl()` (Level), `$e->isSysop()` und `$e->minutesLeft()` (Restzeit heute in Minuten).
 
@@ -382,6 +412,8 @@ Die Methoden der Engine, die für Doors gedacht sind. `$e` ist das Engine-Objekt
 | `doorGet($k, $userId = null)` | Gespeicherten Wert lesen |
 | `doorSet($k, $v, $userId = null)` | Wert speichern |
 | `doorAll($k)` | Alle Werte eines Schlüssels |
+| `doorScore($wert, $label = '')` | Wert des Anrufers in der Bestenliste der Box, ab 1.6.0 |
+| `doorScoreClear()` | Eigenen Eintrag aus der Bestenliste entfernen, ab 1.6.0 |
 | `leaveDoor()` | Door beenden, zurück ins Menü |
 | `act($text)` | Tätigkeit für „Wer ist online“ ändern (Standard: „Spielt <name>“) |
 | `user` | Datensatz des Anrufers |
@@ -414,6 +446,7 @@ Bevor du eine Door weitergibst:
 - [ ] Text von Anrufern geht durch `cb_esc()`.
 - [ ] Alle Texte stehen in der Door selbst, auf Deutsch und Englisch, und keine Zeile ist breiter als 79 Zeichen.
 - [ ] Wichtige Fortschritte werden sofort mit `doorSet()` gespeichert.
+- [ ] Mit Bestenliste: `'score'` steht in der Registrierung, `doorScore()` meldet den Bestwert auch schon in `start()`.
 - [ ] Im Kopf der Datei stehen dein Name und die Lizenz der Door.
 
 Eine Door im Ordner `doors/` wird Teil der Box. Wer eine Box öffentlich betreibt, muss den Quellcode samt eigener Doors nach der AGPL anbieten können, Näheres steht im Sysop-Handbuch im Abschnitt zur Lizenz.
