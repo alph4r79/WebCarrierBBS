@@ -138,20 +138,48 @@ trait EngineFiles
 
     public function startPager(string $kind, array $ids, string $title, array $lines = []): void
     {
-        $this->S['pg'] = ['kind' => $kind, 'ids' => array_values($ids), 'pos' => 0, 'title' => $title, 'lines' => $lines];
+        // a file viewer opened from a list returns to that list afterwards
+        $prev = in_array($kind, ['lines', 'raw'], true) && ($this->S['pg']['kind'] ?? '') === 'files' ? $this->S['pg'] : null;
+        $this->S['pg'] = ['kind' => $kind, 'ids' => array_values($ids), 'pos' => 0, 'start' => 0, 'hdr' => true, 'title' => $title, 'lines' => $lines, 'prev' => $prev];
+        if ($kind === 'files') {
+            // numbers in prompts refer to the last list shown
+            $this->S['fl'] = array_values($ids);
+        }
         $this->cls();
         $this->bar($title);
         $this->pagerHeader($kind);
         $this->go('pager');
     }
 
+    /** Show the current page of the pager again, from the top of the screen. */
+    private function pagerRedraw(): void
+    {
+        $pg = &$this->S['pg'];
+        $pg['pos'] = (int)($pg['start'] ?? 0);
+        $pg['hdr'] = true;
+        $this->cls();
+        $this->bar((string)$pg['title']);
+        $this->pagerHeader((string)$pg['kind']);
+        $this->go('pager');
+    }
+
+    private function e_pgback(): void
+    {
+        if (!empty($this->S['pg'])) {
+            $this->pagerRedraw();
+            return;
+        }
+        $this->menu();
+    }
+
     private function pagerHeader(string $kind): void
     {
         if ($kind === 'files') {
-            $this->write('|03' . cb_pad($this->L('col_file'), 19) . cb_pad($this->L('col_size'), 6, 'R') . ' ' .
-                cb_pad($this->L('col_date'), 9) . $this->L('col_desc'));
+            $this->write('|03' . cb_pad($this->L('col_nr'), 5, 'R') . '  ' . cb_pad($this->L('col_file'), 25) . '  ' . cb_pad($this->L('col_size'), 5, 'R') .
+                '  ' . cb_pad($this->L('col_date'), 8) . '  ' . $this->L('col_desc'));
             $this->nl();
-            $this->rule();
+            $this->write('|08   ──  ' . str_repeat('─', 25) . '  ' . str_repeat('─', 5) . '  ' . str_repeat('─', 8) . '  ' . str_repeat('─', 28) . '|07');
+            $this->nl();
         } elseif ($kind === 'users') {
             $this->write('|03' . cb_pad($this->L('col_user'), 21) . cb_pad($this->L('col_loc'), 31) .
                 cb_pad($this->L('col_calls'), 7, 'R') . '  ' . $this->L('col_last'));
@@ -160,9 +188,36 @@ trait EngineFiles
         }
     }
 
-    private function pagerItem(string $kind, int $id): array
+    /**
+     * Lines of one file in a list: one line if the name fits, otherwise the name alone and the rest below.
+     * Columns: number 5, mark 1, name 25, size 5 (from column 34), date 8, description 28 (from column 51).
+     */
+    private function fileLines(array $f, int $num): array
     {
-        if ($kind === 'lines') {
+        $desc = trim((string)$f['description']) !== '' ? (string)$f['description'] : $this->L('no_desc');
+        $desc = array_values(array_filter(cb_wrap($desc, 28), static fn($l) => trim($l) !== '')) ?: [''];
+        if (count($desc) > 4) {
+            $desc = array_slice($desc, 0, 4);
+            $desc[3] = mb_substr(rtrim($desc[3]), 0, 25) . '...';
+        }
+        $mark = in_array((int)$f['id'], $this->S['mark'] ?? [], true) ? '|14*' : ' ';
+        $num = '|08' . cb_pad((string)$num, 5, 'R') . ' ' . $mark;
+        $cols = '|10' . cb_pad(cb_size((int)$f['size']), 5, 'R') . '  |03' . cb_pad(date(Lang::get('fmt_date'), (int)$f['added']), 8) . '  |07' . cb_esc($desc[0]);
+        $name = (string)$f['filename'];
+        if (mb_strlen($name) > 25) {
+            $out = [$num . '|15' . cb_esc(mb_substr($name, 0, 72)), str_repeat(' ', 34) . $cols];
+        } else {
+            $out = [$num . '|15' . cb_esc(cb_pad($name, 25)) . '  ' . $cols];
+        }
+        foreach (array_slice($desc, 1) as $d) {
+            $out[] = str_repeat(' ', 51) . '|07' . cb_esc($d);
+        }
+        return $out;
+    }
+
+    private function pagerItem(string $kind, int $id, int $num): array
+    {
+        if ($kind === 'lines' || $kind === 'raw') {
             return [$this->S['pg']['lines'][$id] ?? ''];
         }
         if ($kind === 'users') {
@@ -174,49 +229,45 @@ trait EngineFiles
                 '|03' . cb_pad((string)$u['calls'], 7, 'R') . '  |08' . cb_date((int)$u['last_call'])];
         }
         $f = DB::row('SELECT * FROM {files} WHERE id=?', [$id]);
-        if (!$f) {
-            return [];
-        }
-        $desc = cb_wrap(trim((string)$f['description']) !== '' ? (string)$f['description'] : $this->L('no_desc'), 44);
-        $desc = array_slice(array_values(array_filter($desc, static fn($l) => trim($l) !== '')), 0, 6) ?: [''];
-        $cols = '|10' . cb_pad(cb_kb((int)$f['size']), 6, 'R') . ' |03' . cb_pad(date(Lang::get('fmt_date'), (int)$f['added']), 9);
-        $out = [];
-        $name = (string)$f['filename'];
-        if (mb_strlen($name) > 18) {
-            $out[] = '|15' . cb_esc($name);
-            $out[] = str_repeat(' ', 19) . $cols . '|07' . cb_esc($desc[0]);
-        } else {
-            $out[] = '|15' . cb_esc(cb_pad($name, 19)) . $cols . '|07' . cb_esc($desc[0]);
-        }
-        foreach (array_slice($desc, 1) as $d) {
-            $out[] = str_repeat(' ', 35) . '|07' . cb_esc($d);
-        }
-        return $out;
+        return $f ? $this->fileLines($f, $num) : [];
     }
 
     private function e_pager(): void
     {
         $pg = &$this->S['pg'];
         $used = 0;
-        $limit = $pg['pos'] === 0 ? 19 : 22;
+        $limit = !empty($pg['hdr']) ? 19 : 22;
+        $pg['hdr'] = false;
+        $pg['start'] = $pg['pos'];
         while ($pg['pos'] < count($pg['ids'])) {
-            $lines = $this->pagerItem($pg['kind'], (int)$pg['ids'][$pg['pos']]);
+            $lines = $this->pagerItem($pg['kind'], (int)$pg['ids'][$pg['pos']], $pg['pos'] + 1);
+            // an entry is never split by the page break
             if ($used > 0 && $used + count($lines) > $limit) {
                 break;
             }
             foreach ($lines as $l) {
-                $this->write($l);
+                if ($pg['kind'] === 'raw') {
+                    $this->w->raw($l);
+                } else {
+                    $this->write($l);
+                }
                 $this->nl();
             }
             $used += count($lines);
             $pg['pos']++;
         }
-        $files = $pg['kind'] === 'files';
-        $dkey = Lang::get('key_download');
-        if ($pg['pos'] < count($pg['ids'])) {
-            $this->hot("\r Q" . ($files ? $dkey : '') . Lang::get('key_no'), $this->L($files ? 'pager_more_files' : 'pager_more'), true);
+        if ($pg['kind'] === 'raw') {
+            $this->w->buf .= "\e[0m";
+            $this->w->reset();
+        }
+        $more = $pg['pos'] < count($pg['ids']);
+        if ($pg['kind'] === 'files') {
+            $keys = 'Q' . Lang::get('key_download') . 'VMK';
+            $this->hot($more ? "\r " . $keys . Lang::get('key_no') : "\r" . $keys, $this->L($more ? 'pager_more_files' : 'pager_end_files'), true);
+        } elseif ($pg['kind'] === 'users') {
+            $this->hot($more ? "\r QP" . Lang::get('key_no') : "\rQP", $this->L($more ? 'pager_more_users' : 'pager_end_users'), true);
         } else {
-            $this->hot("\rQ" . ($files ? $dkey : ''), $this->L($files ? 'pager_end_files' : 'pager_end'), true);
+            $this->hot($more ? "\r Q" . Lang::get('key_no') : "\rQ", $this->L($more ? 'pager_more' : 'pager_end'), true);
         }
     }
 
@@ -228,16 +279,182 @@ trait EngineFiles
             $this->menu();
             return;
         }
-        if ($k === Lang::get('key_download') && $pg['kind'] === 'files') {
-            $this->go('fdl');
+        if ($pg['kind'] === 'files' && in_array($k, [Lang::get('key_download'), 'V', 'M', 'K'], true)) {
+            $this->go(['V' => 'fview', 'M' => 'fmark', 'K' => 'fmarks'][$k] ?? 'fdl');
+            return;
+        }
+        if ($pg['kind'] === 'users' && $k === 'P') {
+            $this->S['profback'] = 'pager';
+            $this->go('prof_ask');
             return;
         }
         if (($k === "\r" || $k === ' ') && $pg['pos'] < count($pg['ids'])) {
             $this->go('pager');
             return;
         }
+        if (!empty($pg['prev'])) {
+            $this->S['pg'] = $pg['prev'];
+            $this->pagerRedraw();
+            return;
+        }
         unset($this->S['pg']);
         $this->menu();
+    }
+
+    /* ------------------------------------------------------------ choosing a file: number or name */
+
+    /** File by number of the last list or by name, readable for the caller. [file, error key]. */
+    private function pickFile(string $v): array
+    {
+        $v = CP437::clean($v, 120);
+        if (ctype_digit($v) && !empty($this->S['fl'])) {
+            $id = $this->S['fl'][(int)$v - 1] ?? null;
+            if ($id === null) {
+                return [null, 'fsel_badnum'];
+            }
+            $f = DB::row('SELECT f.* FROM {files} f JOIN {file_areas} a ON a.id=f.area_id WHERE f.id=? AND f.approved=1 AND a.dl_level<=?', [(int)$id, $this->lvl()]);
+            return [$f, $f ? '' : 'fsel_badnum'];
+        }
+        $cur = (int)($this->curFArea()['id'] ?? 0);
+        $f = DB::row('SELECT f.* FROM {files} f JOIN {file_areas} a ON a.id=f.area_id WHERE f.approved=1 AND a.dl_level<=?
+            AND LOWER(f.filename)=? ORDER BY CASE WHEN f.area_id=? THEN 0 ELSE 1 END, f.id', [$this->lvl(), mb_strtolower($v), $cur]);
+        return [$f, $f ? '' : 'fdl_notfound'];
+    }
+
+    /** Prompt text: with number if a list was shown in this session. */
+    private function pickPrompt(string $key): string
+    {
+        return $this->L(!empty($this->S['fl']) ? $key : $key . '_name');
+    }
+
+    /* ------------------------------------------------------------ view */
+
+    private function e_fview(): void
+    {
+        $this->nl();
+        $this->line(60, $this->pickPrompt('fview_prompt'));
+    }
+
+    private function i_fview(string $v): void
+    {
+        if (trim($v) === '') {
+            $this->go('pgback');
+            return;
+        }
+        [$f, $err] = $this->pickFile($v);
+        $path = $f ? CB_DATA . '/files/' . $f['storage'] : '';
+        $ext = $f ? strtolower(pathinfo((string)$f['filename'], PATHINFO_EXTENSION)) : '';
+        if (!$f) {
+            $this->say($err, cb_esc(trim($v)));
+        } elseif (!in_array($ext, ['txt', 'nfo', 'diz', 'asc', 'ans'], true)) {
+            $this->say('fview_type');
+        } elseif (!is_file($path)) {
+            $this->say('fdl_missing');
+        } elseif ((int)filesize($path) > 65536) {
+            $this->say('fview_big');
+        } else {
+            $this->viewFile($f, (string)file_get_contents($path), $ext);
+            return;
+        }
+        $this->nl();
+        $this->pause('pgback');
+    }
+
+    /** ANSI goes through the screen renderer (CP437, no SAUCE), text is CP437 unless it is valid UTF-8. Not a download. */
+    private function viewFile(array $f, string $data, string $ext): void
+    {
+        $this->act(Lang::get('act_files'));
+        $title = $this->L('fview_title', cb_esc((string)$f['filename']));
+        if ($ext === 'ans' || str_contains($data, "\e[")) {
+            $lines = explode("\n", str_replace("\r", '', cb_strip_sauce($data)));
+            $this->startPager('raw', array_keys($lines), $title, $lines);
+            return;
+        }
+        $text = mb_check_encoding($data, 'UTF-8') ? $data : CP437::toUtf8($data);
+        $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $text) ?? '';
+        $lines = array_map(static fn($l) => '|07' . cb_esc($l), cb_wrap($text, 79));
+        $this->startPager('lines', array_keys($lines), $title, $lines);
+    }
+
+    /* ------------------------------------------------------------ marked files */
+
+    private function e_fmark(): void
+    {
+        $this->nl();
+        $this->line(60, $this->pickPrompt('fmark_prompt'));
+    }
+
+    private function i_fmark(string $v): void
+    {
+        if (trim($v) === '') {
+            $this->go('pgback');
+            return;
+        }
+        [$f, $err] = $this->pickFile($v);
+        $mark = $this->S['mark'] ?? [];
+        if (!$f) {
+            $this->say($err, cb_esc(trim($v)));
+        } elseif (in_array((int)$f['id'], $mark, true)) {
+            $this->S['mark'] = array_values(array_diff($mark, [(int)$f['id']]));
+            $this->say('fmark_off', cb_esc(mb_substr((string)$f['filename'], 0, 40)));
+        } elseif (count($mark) >= 10) {
+            $this->say('fmark_full');
+        } else {
+            $this->S['mark'] = array_merge($mark, [(int)$f['id']]);
+            $this->say('fmark_on', cb_esc(mb_substr((string)$f['filename'], 0, 40)), count($this->S['mark']));
+        }
+        $this->nl();
+        $this->pause('pgback');
+    }
+
+    /** Marked files that still exist and may be read, in the order they were marked. */
+    private function markedFiles(): array
+    {
+        $out = [];
+        foreach ($this->S['mark'] ?? [] as $id) {
+            $f = DB::row('SELECT f.* FROM {files} f JOIN {file_areas} a ON a.id=f.area_id WHERE f.id=? AND f.approved=1 AND a.dl_level<=?', [(int)$id, $this->lvl()]);
+            if ($f) {
+                $out[] = $f;
+            }
+        }
+        $this->S['mark'] = array_map(static fn($f) => (int)$f['id'], $out);
+        return $out;
+    }
+
+    private function e_fmarks(): void
+    {
+        $files = $this->markedFiles();
+        if (!$files) {
+            $this->nl();
+            $this->say('fmarks_empty');
+            $this->nl();
+            $this->pause('pgback');
+            return;
+        }
+        $this->cls();
+        $this->bar($this->L('fmarks_title'), (string)count($files));
+        $this->pagerHeader('files');
+        foreach ($files as $i => $f) {
+            foreach ($this->fileLines($f, $i + 1) as $l) {
+                $this->write($l);
+                $this->nl();
+            }
+        }
+        $this->nl();
+        $this->line(3, $this->L('fmarks_prompt'));
+    }
+
+    private function i_fmarks(string $v): void
+    {
+        $v = trim($v);
+        $mark = $this->S['mark'] ?? [];
+        if (ctype_digit($v) && isset($mark[(int)$v - 1])) {
+            array_splice($mark, (int)$v - 1, 1);
+            $this->S['mark'] = $mark;
+            $this->go('fmarks');
+            return;
+        }
+        $this->go('pgback');
     }
 
     /* ------------------------------------------------------------ download */
@@ -246,53 +463,58 @@ trait EngineFiles
     {
         $this->act(Lang::get('act_download'));
         $this->nl();
-        $this->line(60, $this->L('fdl_prompt'));
+        $files = $this->markedFiles();
+        if ($files) {
+            $size = array_sum(array_map(static fn($f) => (int)$f['size'], $files));
+            $this->S['st'] = 'fdl_mq';
+            $this->yn($this->L('fdl_marked', count($files), cb_size($size)), true);
+            return;
+        }
+        $this->line(60, $this->pickPrompt('fdl_prompt'));
     }
 
-    private function i_fdl(string $v): void
+    private function i_fdl_mq(string $v): void
     {
-        unset($this->S['pg']);
-        $v = CP437::clean($v, 120);
-        if ($v === '') {
-            $this->menu();
+        if ($this->yes($v, true)) {
+            unset($this->S['pg']);
+            $this->S['dq'] = ['ids' => $this->S['mark'] ?? [], 'skip' => [], 'ok' => 0];
+            $this->go('fdlm');
             return;
         }
-        $cur = (int)($this->curFArea()['id'] ?? 0);
-        $f = DB::row('SELECT f.* FROM {files} f JOIN {file_areas} a ON a.id=f.area_id WHERE f.approved=1 AND a.dl_level<=?
-            AND LOWER(f.filename)=? ORDER BY CASE WHEN f.area_id=? THEN 0 ELSE 1 END, f.id', [$this->lvl(), mb_strtolower($v), $cur]);
-        if (!$f) {
-            $this->say('fdl_notfound', cb_esc($v));
-            $this->nl();
-            $this->pause();
-            return;
-        }
-        $path = CB_DATA . '/files/' . $f['storage'];
-        if (!is_file($path)) {
-            $this->say('fdl_missing');
-            $this->nl();
-            $this->pause();
-            return;
+        $this->nl();
+        $this->S['st'] = 'fdl';
+        $this->line(60, $this->pickPrompt('fdl_prompt'));
+    }
+
+    /** Reason why the caller may not download the file now, as [key, args], or null. */
+    private function dlRefusal(array $f): ?array
+    {
+        if (!is_file(CB_DATA . '/files/' . $f['storage'])) {
+            return ['fdl_missing', []];
         }
         $kb = (int)ceil((int)$f['size'] / 1024);
         $lv = $this->level();
         $u = $this->user;
         if ((int)$lv['dl_kb'] > 0 && (int)$u['dl_kb_today'] + $kb > (int)$lv['dl_kb'] && !$this->isSysop()) {
-            $this->say('fdl_limit', (int)$lv['dl_kb'], max(0, (int)$lv['dl_kb'] - (int)$u['dl_kb_today']));
-            $this->nl();
-            $this->pause();
-            return;
+            return ['fdl_limit', [(int)$lv['dl_kb'], max(0, (int)$lv['dl_kb'] - (int)$u['dl_kb_today'])]];
         }
         if ((int)$lv['ratio'] > 0 && !$this->isSysop() && ((int)$u['dl_files'] + 1) > ((int)$u['ul_files'] + 1) * (int)$lv['ratio']) {
-            $this->say('fdl_ratio', (int)$lv['ratio']);
-            $this->nl();
-            $this->pause();
-            return;
+            return ['fdl_ratio', [(int)$lv['ratio']]];
         }
+        return null;
+    }
+
+    /** One-time link, counters, log and the transfer lines. */
+    private function dlStart(array $f): void
+    {
+        $kb = (int)ceil((int)$f['size'] / 1024);
+        $u = $this->user;
         $token = bin2hex(random_bytes(12));
         $_SESSION['cb_dl'] = array_filter($_SESSION['cb_dl'] ?? [], static fn($t) => $t['x'] > time());
         $_SESSION['cb_dl'][$token] = ['f' => (int)$f['id'], 'x' => time() + 600];
         DB::q('UPDATE {files} SET downloads=downloads+1 WHERE id=?', [(int)$f['id']]);
         DB::q('UPDATE {users} SET dl_files=dl_files+1, dl_kb=dl_kb+?, dl_kb_today=dl_kb_today+? WHERE id=?', [$kb, $kb, (int)$u['id']]);
+        $this->user = DB::row('SELECT * FROM {users} WHERE id=?', [(int)$u['id']]);
         cb_log((int)$u['id'], $u['handle'], 'Download ' . $f['filename']);
         $baud = $this->baud();
         $secs = $baud > 0 ? (int)ceil(((int)$f['size'] * 10) / $baud) : 0;
@@ -306,7 +528,75 @@ trait EngineFiles
         $this->say('fdl_go');
         $this->nl();
         $this->download(cb_base_path() . 'download.php?t=' . $token);
+        $this->S['mark'] = array_values(array_diff($this->S['mark'] ?? [], [(int)$f['id']]));
+    }
+
+    private function i_fdl(string $v): void
+    {
+        unset($this->S['pg']);
+        if (trim($v) === '') {
+            $this->menu();
+            return;
+        }
+        [$f, $err] = $this->pickFile($v);
+        if (!$f) {
+            $this->say($err, cb_esc(CP437::clean($v, 120)));
+            $this->nl();
+            $this->pause();
+            return;
+        }
+        $no = $this->dlRefusal($f);
+        if ($no !== null) {
+            $this->say($no[0], ...$no[1]);
+            $this->nl();
+            $this->pause();
+            return;
+        }
+        $this->dlStart($f);
         $this->pause();
+    }
+
+    /** All marked files one after the other, a short wait between them so the browser starts each download. */
+    private function e_fdlm(): void
+    {
+        $q = &$this->S['dq'];
+        while ($q['ids']) {
+            $id = (int)array_shift($q['ids']);
+            $f = DB::row('SELECT f.* FROM {files} f JOIN {file_areas} a ON a.id=f.area_id WHERE f.id=? AND f.approved=1 AND a.dl_level<=?', [$id, $this->lvl()]);
+            if (!$f) {
+                continue;
+            }
+            $no = $this->dlRefusal($f);
+            if ($no !== null) {
+                $q['skip'][] = [(string)$f['filename'], $no[0]];
+                continue;
+            }
+            $this->dlStart($f);
+            $q['ok']++;
+            if ($q['ids']) {
+                $this->wait(2500, $this->L('fdl_next'));
+                return;
+            }
+            break;
+        }
+        $this->nl();
+        $this->say('fdl_marked_done', (int)$q['ok']);
+        $this->nl();
+        foreach ($q['skip'] as [$name, $why]) {
+            $this->write('  |12' . cb_esc($name) . '|08: |07' . $this->L($why === 'fdl_ratio' ? 'fdl_skip_ratio' : ($why === 'fdl_limit' ? 'fdl_skip_limit' : 'fdl_skip_missing')));
+            $this->nl();
+        }
+        unset($this->S['dq']);
+        $this->pause();
+    }
+
+    private function i_fdlm(string $v): void
+    {
+        if (empty($this->S['dq'])) {
+            $this->menu();
+            return;
+        }
+        $this->go('fdlm');
     }
 
     /* ------------------------------------------------------------ upload */

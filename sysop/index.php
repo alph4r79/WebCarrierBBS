@@ -25,6 +25,7 @@ require __DIR__ . '/pages_backup.php';
 require __DIR__ . '/pages_stats.php';
 require __DIR__ . '/pages_texts.php';
 require __DIR__ . '/pages_doors.php';
+require __DIR__ . '/pages_polls.php';
 
 header('X-Frame-Options: DENY');
 header('X-Content-Type-Options: nosniff');
@@ -202,6 +203,8 @@ $pages = [
     'msgareas' => ['Message areas', 'page_msgareas'],
     'messages' => ['Messages', 'page_messages'],
     'oneliners' => ['Oneliners', 'page_oneliners'],
+    'polls' => ['Polls', 'page_polls'],
+    'poll' => [null, 'page_poll'],
     '-3' => null,
     'fileareas' => ['File areas', 'page_fileareas'],
     'files' => ['Files', 'page_files'],
@@ -225,7 +228,7 @@ call_user_func($pages[$page][1], $admin);
 $content = (string)ob_get_clean();
 $flash = $_SESSION['cb_flash'] ?? [];
 unset($_SESSION['cb_flash']);
-$current = $page === 'user' ? 'users' : ($page === 'menu' ? 'menus' : ($page === 'screen' ? 'screens' : $page));
+$current = ['user' => 'users', 'menu' => 'menus', 'screen' => 'screens', 'poll' => 'polls'][$page] ?? $page;
 ?><!DOCTYPE html>
 <html lang="<?= h(Lang::$code) ?>">
 <head>

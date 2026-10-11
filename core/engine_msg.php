@@ -181,6 +181,110 @@ trait EngineMessages
         $this->startReader(array_map('intval', array_column($rows, 'id')), 'mail');
     }
 
+    /* ------------------------------------------------------------ search */
+
+    private function e_msrch(): void
+    {
+        $this->act(Lang::get('act_read'));
+        $this->nl();
+        $this->line(40, $this->L('msrch_prompt'));
+    }
+
+    private function i_msrch(string $v): void
+    {
+        $v = CP437::clean($v, 40);
+        if ($v === '') {
+            $this->menu();
+            return;
+        }
+        if (mb_strlen($v) < 3) {
+            $this->say('msrch_short');
+            $this->nl();
+            $this->go('msrch');
+            return;
+        }
+        $this->S['ms'] = ['q' => $v];
+        $this->nl();
+        $this->S['st'] = 'msrch_scope';
+        $a = $this->curMArea();
+        $this->hot("12Q\r", $this->L('msrch_scope', cb_esc(mb_substr((string)($a['name'] ?? ''), 0, 25))));
+    }
+
+    private function i_msrch_scope(string $v): void
+    {
+        $q = (string)($this->S['ms']['q'] ?? '');
+        if (($v !== '1' && $v !== '2' && $v !== "\r") || $q === '') {
+            unset($this->S['ms']);
+            $this->menu();
+            return;
+        }
+        $areas = $v === '2' ? array_map('intval', array_column($this->readableAreas(), 'id')) : [(int)($this->curMArea()['id'] ?? 0)];
+        $areas = $areas ?: [0];
+        $like = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], mb_strtolower($q)) . '%';
+        $in = implode(',', array_fill(0, count($areas), '?'));
+        $ids = array_map('intval', array_column(DB::all('SELECT id FROM {messages} WHERE private=0 AND area_id IN (' . $in . ') AND (' .
+            DB::lower('subject') . " LIKE ? ESCAPE '!' OR " . DB::lower('body') . " LIKE ? ESCAPE '!' OR " . DB::lower('from_name') . " LIKE ? ESCAPE '!')
+            ORDER BY id DESC LIMIT 51", array_merge($areas, [$like, $like, $like])), 'id'));
+        if (!$ids) {
+            unset($this->S['ms']);
+            $this->nl();
+            $this->say('msrch_none', cb_esc($q));
+            $this->nl();
+            $this->pause();
+            return;
+        }
+        $this->S['ms'] = ['q' => $q, 'ids' => array_slice($ids, 0, 50), 'more' => count($ids) > 50, 'page' => 0];
+        $this->go('msrch_list');
+    }
+
+    /** Hits as a list, 15 per page: number, area, date, from, subject. */
+    private function e_msrch_list(): void
+    {
+        $ms = &$this->S['ms'];
+        $pages = (int)ceil(count($ms['ids']) / 15);
+        $ms['page'] = max(0, min($pages - 1, (int)$ms['page']));
+        $this->cls();
+        $this->bar($this->L('msrch_title', cb_esc((string)$ms['q'])), $pages > 1 ? $this->L('dtop_page', $ms['page'] + 1, $pages) : '');
+        $this->write('|03' . cb_pad('#', 4, 'R') . '  ' . cb_pad($this->L('col_area'), 16) . cb_pad($this->L('col_date'), 10) . cb_pad($this->L('hdr_from'), 16) . $this->L('hdr_subj'));
+        $this->nl();
+        $this->rule();
+        foreach (array_slice($ms['ids'], $ms['page'] * 15, 15) as $i => $id) {
+            $m = DB::row('SELECT m.*, a.name AS area FROM {messages} m LEFT JOIN {msg_areas} a ON a.id=m.area_id WHERE m.id=?', [$id]);
+            if (!$m) {
+                continue;
+            }
+            $n = $ms['page'] * 15 + $i + 1;
+            $this->write('|15' . cb_pad((string)$n, 4, 'R') . '  |03' . cb_esc(cb_pad((string)$m['area'], 15)) . ' |08' . cb_pad(cb_date((int)$m['posted']), 10) .
+                '|11' . cb_esc(cb_pad((string)$m['from_name'], 15)) . ' |07' . cb_esc(mb_substr((string)$m['subject'], 0, 27)));
+            $this->nl();
+        }
+        if (!empty($ms['more'])) {
+            $this->say('msrch_more');
+            $this->nl();
+        }
+        $this->nl();
+        $this->line(3, $this->L($pages > 1 ? 'msrch_choose_pages' : 'msrch_choose', count($ms['ids'])));
+    }
+
+    private function i_msrch_list(string $v): void
+    {
+        $ms = &$this->S['ms'];
+        $v = strtoupper(trim($v));
+        if ($v === 'N' || $v === 'P') {
+            $ms['page'] += $v === 'N' ? 1 : -1;
+            $this->go('msrch_list');
+            return;
+        }
+        if (ctype_digit($v) && (int)$v >= 1 && (int)$v <= count($ms['ids'])) {
+            $this->S['rd'] = ['ids' => $ms['ids'], 'i' => (int)$v - 1, 'mode' => 'search', 'lines' => [], 'pos' => 0];
+            $this->act(Lang::get('act_read'));
+            $this->go('rmsg');
+            return;
+        }
+        unset($this->S['ms']);
+        $this->menu();
+    }
+
     private function startReader(array $ids, string $mode): void
     {
         $this->S['rd'] = ['ids' => array_values($ids), 'i' => 0, 'mode' => $mode, 'lines' => [], 'pos' => 0];
@@ -243,7 +347,8 @@ trait EngineMessages
         if ($private && (int)$m['to_id'] === (int)$this->user['id'] && (int)$m['is_read'] === 0) {
             DB::q('UPDATE {messages} SET is_read=1 WHERE id=?', [(int)$m['id']]);
         }
-        if (!$private) {
+        // reading from a search leaves the read pointer alone
+        if (!$private && ($rd['mode'] ?? '') !== 'search') {
             $this->setLastRead((int)$m['area_id'], (int)$m['id']);
         }
         $this->showReaderPage(22);
@@ -287,10 +392,31 @@ trait EngineMessages
         return false;
     }
 
+    /** Visible replies to a message. */
+    private function repliesTo(int $id): array
+    {
+        return array_values(array_filter(DB::all('SELECT * FROM {messages} WHERE reply_to=? ORDER BY id', [$id]), fn($r) => $this->canSee($r)));
+    }
+
     private function readerPrompt(): void
     {
         $m = DB::row('SELECT * FROM {messages} WHERE id=?', [(int)($this->S['rd']['mid'] ?? 0)]);
-        $keys = "NPRAQ\r";
+        if ($m) {
+            // thread info: what this answers and how many answers there are
+            $info = [];
+            if ((int)$m['reply_to'] > 0) {
+                $info[] = $this->L('thr_reply_to', (int)$m['reply_to']);
+            }
+            $n = count($this->repliesTo((int)$m['id']));
+            if ($n > 0) {
+                $info[] = $this->L($n === 1 ? 'thr_replies_one' : 'thr_replies', $n);
+            }
+            if ($info) {
+                $this->write('|08' . implode('|08, ', $info) . '|07');
+                $this->nl();
+            }
+        }
+        $keys = "NPRAQOTI?\r";
         $prompt = $this->L('reader_prompt');
         if ($m && $this->isSysop() && (int)$m['private'] === 0) {
             $keys .= 'DM';
@@ -320,6 +446,52 @@ trait EngineMessages
             case 'A':
                 $this->go('rmsg');
                 return;
+            case '?':
+                $this->nl();
+                $this->say($this->isSysop() ? 'reader_help_sys' : 'reader_help');
+                $this->nl();
+                $this->readerPrompt();
+                return;
+            case 'O':
+                $orig = $m && (int)$m['reply_to'] > 0 ? DB::row('SELECT * FROM {messages} WHERE id=?', [(int)$m['reply_to']]) : null;
+                if (!$orig || !$this->canSee($orig)) {
+                    $this->nl();
+                    $this->say($m && (int)$m['reply_to'] > 0 ? 'thr_orig_gone' : 'thr_no_orig');
+                    $this->nl();
+                    $this->readerPrompt();
+                    return;
+                }
+                $this->readerInsert((int)$orig['id']);
+                return;
+            case 'T':
+                $reps = $m ? $this->repliesTo((int)$m['id']) : [];
+                if (!$reps) {
+                    $this->nl();
+                    $this->say('thr_no_replies');
+                    $this->nl();
+                    $this->readerPrompt();
+                    return;
+                }
+                $this->nl();
+                foreach (array_slice($reps, 0, 20) as $i => $r) {
+                    $this->write(' |15' . cb_pad((string)($i + 1), 3, 'R') . '  |08' . cb_pad(cb_date((int)$r['posted']), 10) . '|11' .
+                        cb_esc(cb_pad((string)$r['from_name'], 20)) . ' |07' . cb_esc(mb_substr((string)$r['subject'], 0, 40)));
+                    $this->nl();
+                }
+                $rd['thr'] = array_map('intval', array_column(array_slice($reps, 0, 20), 'id'));
+                $this->S['st'] = 'rthr';
+                $this->line(2, $this->L('thr_choose', min(20, count($reps))));
+                return;
+            case 'I':
+                if ($m && (int)$m['from_id'] > 0) {
+                    $this->showProfile(DB::row('SELECT * FROM {users} WHERE id=?', [(int)$m['from_id']]), 'reader');
+                    return;
+                }
+                $this->nl();
+                $this->say('prof_none');
+                $this->nl();
+                $this->readerPrompt();
+                return;
             case 'R':
                 if ($m) {
                     $this->reply($m);
@@ -348,6 +520,28 @@ trait EngineMessages
         }
         $rd['i']++;
         $this->go('rmsg');
+    }
+
+    /** Show another message right after the current one; N continues where the reader was. */
+    private function readerInsert(int $id): void
+    {
+        $rd = &$this->S['rd'];
+        array_splice($rd['ids'], $rd['i'] + 1, 0, [$id]);
+        $rd['i']++;
+        $this->go('rmsg');
+    }
+
+    private function i_rthr(string $v): void
+    {
+        $ids = $this->S['rd']['thr'] ?? [];
+        unset($this->S['rd']['thr']);
+        $v = trim($v);
+        $id = ctype_digit($v) ? ($ids[(int)$v - 1] ?? null) : null;
+        if ($id === null) {
+            $this->readerPrompt();
+            return;
+        }
+        $this->readerInsert((int)$id);
     }
 
     private function i_rmove(string $v): void
@@ -401,8 +595,17 @@ trait EngineMessages
                 $ini .= mb_strtoupper(mb_substr($p, 0, 1));
             }
         }
+        // without the signature block, it starts with the line "-- "
+        $body = (string)$m['body'];
+        $lines = explode("\n", str_replace("\r", '', $body));
+        foreach ($lines as $i => $l) {
+            if (rtrim($l) === '--') {
+                $body = implode("\n", array_slice($lines, 0, $i));
+                break;
+            }
+        }
         $out = [];
-        foreach (cb_wrap((string)$m['body'], 70) as $l) {
+        foreach (cb_wrap($body, 70) as $l) {
             if (trim($l) === '') {
                 continue;
             }
@@ -573,6 +776,10 @@ trait EngineMessages
             $this->nl();
             $this->editor(explode("\n", $v), 75, Settings::int('max_msg_lines', 200));
             return;
+        }
+        $sig = trim((string)($this->user['signature'] ?? ''));
+        if ($sig !== '') {
+            $v .= "\n\n-- \n" . $sig;
         }
         $newId = DB::insert('messages', [
             'area_id' => (int)$p['area_id'], 'from_id' => (int)$this->user['id'], 'from_name' => $this->user['handle'],

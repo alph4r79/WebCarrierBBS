@@ -36,7 +36,7 @@ Neue User haben oft eingeschränkte Rechte, bis der Sysop sie freischaltet. Manc
 
 ## 3. Nach dem Login
 
-Du siehst, wie oft du schon angerufen hast, wie viel Zeit du heute noch hast, ob private Post auf dich wartet, eine Nachricht des Sysops, falls er eine hinterlassen hat, und die letzten Oneliner. Mit Enter geht es ins Hauptmenü.
+Du siehst, wie oft du schon angerufen hast, wie viel Zeit du heute noch hast, ob private Post auf dich wartet, eine Nachricht des Sysops, falls er eine hinterlassen hat, ob es neue Umfragen gibt und die letzten Oneliner. Mit Enter geht es ins Hauptmenü.
 
 **Zeitlimit:** Die Zeit pro Tag ist begrenzt. Deine Restzeit steht in jeder Menüzeile. Ist sie aufgebraucht, wird aufgelegt, am nächsten Tag geht es weiter.
 
@@ -61,6 +61,8 @@ Die Punkte können je nach Box anders aussehen. Typisch sind:
 | C | Nachricht an den Sysop |
 | P | Sysop rufen |
 | I / X | Impressum und Datenschutz |
+| T | Treffpunkt, der Chat für alle |
+| V | Umfragen |
 | G | Ausloggen |
 
 ## 5. Nachrichten
@@ -75,6 +77,7 @@ Nachrichten sind nach Themen in **Bereiche** sortiert. Im Nachrichtenmenü:
 | E | Neue Nachricht im aktuellen Bereich schreiben |
 | M | Deine private Post lesen |
 | S | Private Nachricht an einen User schicken |
+| F | Nachrichten suchen |
 
 **Beim Lesen** steht unter jeder Nachricht:
 
@@ -84,12 +87,20 @@ Nachrichten sind nach Themen in **Bereiche** sortiert. Im Nachrichtenmenü:
 | P | Vorige Nachricht |
 | R | Antworten |
 | A | Nachricht nochmal anzeigen |
+| O | Original: die Nachricht, auf die diese antwortet |
+| T | Antworten auf diese Nachricht als Liste, eine Nummer öffnet sie |
+| I | Profil des Absenders |
 | D | Löschen (nur private Post, die an dich ging) |
+| ? | Hilfe mit allen Tasten |
 | Q | Lesen beenden |
+
+Unter der Nachricht steht, falls zutreffend, „Antwort auf #123“ und wie viele Antworten es gibt. O, T, I und A stehen nicht in der Befehlszeile, `?` zeigt sie.
 
 Ist eine Nachricht länger als der Bildschirm, hält die Anzeige an. Enter zeigt die nächste Seite, Q springt direkt zu den Befehlen.
 
 Die Box merkt sich, was du gelesen hast. Beim nächsten Anruf siehst du nur noch, was dazugekommen ist.
+
+**Suchen (F):** Suchbegriff mit mindestens 3 Zeichen, dann wählst du, ob nur im aktuellen Bereich oder in allen Bereichen gesucht wird. Gesucht wird in Betreff, Text und Absender, Groß- und Kleinschreibung ist egal, auch bei Umlauten. Private Post wird nicht durchsucht. Die Treffer stehen als Liste, die neuesten zuerst (höchstens 50), mit `N` und `P` blätterst du, eine Nummer öffnet die Nachricht. Im Leser geht es dann mit `N` und `P` durch die Treffer. Was du über die Suche liest, gilt nicht als gelesen.
 
 ## 6. Der Editor
 
@@ -125,9 +136,18 @@ Im Dateimenü:
 | D | Download |
 | U | Upload |
 
-In jeder Dateiliste kannst du mit **D** direkt zum Download springen.
+Jede Datei steht mit Nummer, Name, Größe, Datum und Beschreibung in einer Zeile. Lange Namen stehen allein, der Rest folgt darunter. Am Ende der Liste stehen die Tasten:
 
-**Download:** Dateinamen genau so eintippen, wie er in der Liste steht (Groß- und Kleinschreibung ist egal). Die Box zeigt die geschätzte Übertragungszeit bei deiner Modemgeschwindigkeit, dann speichert dein Browser die Datei ganz normal.
+| Taste | Funktion |
+|---|---|
+| D | Download |
+| V | Ansehen: txt, nfo, diz, asc und ans bis 64 KB direkt im Terminal, zählt nicht als Download |
+| M | Markieren: die Datei kommt auf deine Merkliste (höchstens 10), nochmal M nimmt sie wieder herunter. Markierte Dateien haben einen * vor dem Namen |
+| K | Merkliste zeigen, eine Nummer nimmt eine Datei herunter |
+
+Wo die Box nach einer Datei fragt, gibst du die **Nummer aus der zuletzt gezeigten Liste** oder den Dateinamen ein (Groß- und Kleinschreibung ist egal).
+
+**Download:** Steht etwas auf deiner Merkliste, fragt die Box zuerst, ob alle markierten Dateien geladen werden sollen. Ja lädt sie nacheinander, mit einer kurzen Pause dazwischen. Dateien, die an Tageslimit oder Ratio scheitern, werden übersprungen und am Ende genannt, sie bleiben auf der Merkliste. Die Merkliste gilt bis zum Auflegen. Die Box zeigt die geschätzte Übertragungszeit bei deiner Modemgeschwindigkeit, dann speichert dein Browser die Datei ganz normal.
 
 Manche Boxen begrenzen die Downloads pro Tag oder verlangen eine **Ratio**: Bei einer Ratio von 1:3 darfst du drei Dateien laden, dann musst du selbst etwas hochladen. Deine Werte siehst du unter „Deine Statistik“.
 
@@ -137,7 +157,13 @@ Manche Boxen begrenzen die Downloads pro Tag oder verlangen eine **Ratio**: Bei 
 
 **Oneliner:** Eine Pinnwand für kurze Sprüche. Jeder darf eine Zeile hinterlassen.
 
-**Letzte Anrufer und Wer ist online:** Wer zuletzt da war und wer gerade auf welcher Node was macht.
+**Letzte Anrufer und Wer ist online:** Wer zuletzt da war und wer gerade auf welcher Node was macht. Unter „Wer ist online“ schickst du mit **N** eine Zeile an eine andere Node. Sie erscheint dort sofort mit Klingelton. Höchstens eine Nachricht alle 10 Sekunden. Wer keine Nachrichten möchte, schaltet das unter Einstellungen aus.
+
+**Treffpunkt (T):** Ein gemeinsamer Chat für alle, die gerade online sind. Beim Betreten siehst du die Zeilen der letzten halben Stunde und wer im Raum ist. Was du tippst und mit Enter abschickst, sehen alle anderen, ihre Zeilen erscheinen mit Handle davor. `/W` zeigt, wer im Raum ist, `/ME winkt` wird zu „* Dein Handle winkt“, `/?` zeigt die Hilfe, `/Q` führt zurück ins Menü. Wer nur mitliest, wird nach einiger Zeit ohne eigene Eingabe getrennt wie überall.
+
+**Profile:** In der Userliste zeigt **P** das Profil eines Users, im Nachrichtenleser **I** das des Absenders. Ein Profil zeigt Ort, Level, seit wann jemand dabei ist, Anrufe, Beiträge, Uploads, „Über mich“ und die besten Plätze in den Bestenlisten der Spiele.
+
+**Umfragen (V):** Offene Umfragen stehen oben, die neuen sind markiert. Du stimmst einmal ab, nach einer Rückfrage, und siehst danach das Ergebnis mit Balken. Bei beendeten Umfragen siehst du das Ergebnis auch ohne eigene Stimme.
 
 **Doors:** Kleine Spiele innerhalb der Mailbox. Mit dabei ist „Hi-Lo“: eine Zahl zwischen 1 und 100 in sieben Versuchen erraten, die besten Ergebnisse kommen in die Bestenliste.
 
@@ -157,7 +183,12 @@ Manche Boxen begrenzen die Downloads pro Tag oder verlangen eine **Ratio**: Bei 
 | P | Passwort ändern, du brauchst dafür dein altes |
 | B | Modemgeschwindigkeit: wie schnell der Text erscheint, von 300 bps (sehr langsam, sehr nostalgisch) bis „Aus“ für volle Geschwindigkeit |
 | E | Expertenmodus: Menüs werden nicht mehr angezeigt, nur noch die Eingabezeile. `?` zeigt das Menü bei Bedarf |
+| N | Node-Nachrichten annehmen: ein oder aus |
+| A | Über mich: bis zu 3 Zeilen mit je 60 Zeichen für dein Profil |
+| T | Signatur: bis zu 2 Zeilen mit je 70 Zeichen, sie steht unter jeder Nachricht, die du danach schreibst |
 | Q | Zurück zum Menü |
+
+Bei Über mich und Signatur gibst du Zeile für Zeile ein, eine leere Zeile beendet, eine leere erste Zeile löscht den Text. Pipe-Codes werden dabei nicht als Farben ausgegeben. Die Signatur wird beim Speichern unter die Nachricht gesetzt, mit einer Leerzeile und `-- ` davor, im Editor siehst du sie nicht. Beim Zitieren lässt die Box die Signatur weg.
 
 ## 10. Ausloggen
 
@@ -177,4 +208,7 @@ Den Browser-Tab einfach zu schließen geht auch, die Leitung wird dann automatis
 | Editor | `/A` | Abbrechen |
 | Liste mit „weiter“ | Enter | Nächste Seite |
 | Liste | Q | Abbrechen |
+| Dateiliste | D / V / M / K | Download, Ansehen, Markieren, Merkliste |
+| Nachrichtenleser | O / T / I | Original, Antworten, Profil des Absenders |
+| Treffpunkt | `/Q` / `/W` / `/ME` | Verlassen, wer ist da, Aktion |
 | Ja/Nein-Fragen | J / N (Y / N) | Die hell hervorgehobene Antwort gilt bei Enter |

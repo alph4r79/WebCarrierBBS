@@ -35,6 +35,10 @@ function a_command_help(): array
         'COMMENT' => t('Private message to the sysop'),
         'DOOR' => t('Start a door. Data: door id'),
         'DOORTOP' => t('High score lists of the doors'),
+        'TELECONF' => t('Meeting point: chat for all callers online'),
+        'PROFILE' => t('Show the profile of a user'),
+        'MSG_SEARCH' => t('Search public messages'),
+        'POLLS' => t('Polls'),
         'SYSOP' => t('Sysop menu in the terminal (only for users with sysop level)'),
         'LOGOFF' => t('Log off'),
     ];

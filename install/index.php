@@ -213,6 +213,8 @@ function cb_install_defaults(array $f): void
             ['P', $de ? 'Sysop rufen' : 'Page sysop', 'PAGE', ''],
             ['I', $de ? 'Impressum' : 'Imprint', 'LEGAL', 'impressum'],
             ['X', $de ? 'Datenschutz' : 'Privacy policy', 'LEGAL', 'privacy'],
+            ['T', $de ? 'Treffpunkt' : 'Meeting point', 'TELECONF', '', 10],
+            ['V', $de ? 'Umfragen' : 'Polls', 'POLLS', ''],
             ['G', $de ? 'Ausloggen' : 'Goodbye', 'LOGOFF', ''],
             ['!', $de ? 'Sysop-Menü' : 'Sysop menu', 'SYSOP', '', 255],
         ]],
@@ -223,6 +225,7 @@ function cb_install_defaults(array $f): void
             ['E', $de ? 'Nachricht schreiben' : 'Enter a message', 'MSG_POST', ''],
             ['M', $de ? 'Private Post lesen' : 'Read your mail', 'MSG_MAIL', ''],
             ['S', $de ? 'Private Nachricht senden' : 'Send private mail', 'MSG_SEND', ''],
+            ['F', $de ? 'Suchen' : 'Find', 'MSG_SEARCH', ''],
             ['Q', $de ? 'Hauptmenü' : 'Main menu', 'MENU', 'main'],
         ]],
         'file' => [$de ? 'Dateien' : 'Files', [

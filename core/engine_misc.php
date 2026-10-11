@@ -108,16 +108,6 @@ trait EngineMisc
         $this->pause();
     }
 
-    private function whoOnline(): void
-    {
-        $this->cls();
-        $this->bar($this->L('who_title'));
-        $this->nl();
-        $this->nodeTable();
-        $this->nl();
-        $this->pause();
-    }
-
     /** All nodes with user, activity and time, also used by the sysop menu. */
     private function nodeTable(): void
     {
@@ -176,6 +166,8 @@ trait EngineMisc
             $this->nl();
         }
         $this->nl();
+        $this->say('ui_profile_hint');
+        $this->nl(2);
         $this->pause();
     }
 
@@ -201,11 +193,15 @@ trait EngineMisc
         $this->cls();
         $this->bar($this->L('uset_title'));
         $this->nl();
+        $first = static fn(string $s) => $s === '' ? '-' : cb_esc(mb_substr(explode("\n", $s)[0], 0, 30)) . (str_contains($s, "\n") || mb_strlen($s) > 30 ? '...' : '');
         $rows = [
             ['L', 'uset_location', cb_esc($u['location'])],
             ['P', 'uset_password', '********'],
             ['B', 'uset_baud', $this->baudName((int)$u['baud'])],
             ['E', 'uset_expert', (int)$u['expert'] === 1 ? $this->L('on') : $this->L('off')],
+            ['N', 'uset_msgs', (int)$u['allow_msgs'] === 1 ? $this->L('on') : $this->L('off')],
+            ['A', 'uset_about', $first((string)$u['about'])],
+            ['T', 'uset_sig', $first((string)$u['signature'])],
         ];
         foreach ($rows as [$k, $label, $val]) {
             $this->write('  |08[|15' . $k . '|08] |07' . cb_pad($this->L($label), 31) . '|11' . $val);
@@ -213,7 +209,7 @@ trait EngineMisc
         }
         $this->write('  |08[|15Q|08] |07' . $this->L('back'));
         $this->nl(2);
-        $this->hot("LPBEQ\r", $this->L('choose'));
+        $this->hot("LPBENATQ\r", $this->L('choose'));
     }
 
     private function i_uset(string $v): void
@@ -241,6 +237,17 @@ trait EngineMisc
                 DB::q('UPDATE {users} SET expert=? WHERE id=?', [(int)$this->user['expert'] === 1 ? 0 : 1, $uid]);
                 $this->user = DB::row('SELECT * FROM {users} WHERE id=?', [$uid]);
                 $this->go('uset');
+                return;
+            case 'N':
+                DB::q('UPDATE {users} SET allow_msgs=? WHERE id=?', [(int)$this->user['allow_msgs'] === 1 ? 0 : 1, $uid]);
+                $this->user = DB::row('SELECT * FROM {users} WHERE id=?', [$uid]);
+                $this->go('uset');
+                return;
+            case 'A':
+                $this->startLines('about');
+                return;
+            case 'T':
+                $this->startLines('signature');
                 return;
         }
         $this->menu();

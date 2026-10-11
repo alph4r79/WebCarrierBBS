@@ -1,6 +1,6 @@
 # WebCarrier BBS: Sysop-Handbuch
 
-Version 1.6.0
+Version 1.7.0
 
 Für Betreiber der Mailbox: Installation, Einrichtung, Backend, Menüs, Screens, Dateiimport, Doors und Betrieb.
 
@@ -129,7 +129,7 @@ Beim Speichern der Einstellungen prüft das Backend zwei Werte: Der Sysop-Level 
 | Bereich | Wofür |
 |---|---|
 | Übersicht | Meldungen, belegte Nodes mit Trennen und Rundruf, Kennzahlen, letzte Ereignisse, Systeminfos (siehe unten) |
-| Statistik | Anrufe, neue User, Uploads und Downloads im Verlauf, Bestenlisten (siehe unten) |
+| Statistik | Zahlenband mit den wichtigsten Werten, Diagramme zu Anrufen, Uhrzeiten, neuen Usern, Uploads und Downloads, Bestenlisten (siehe unten) |
 | Einstellungen | Name, Sprache, Zeitzone, Nodes, Neuanmeldung, Terminal, Uploads, Update-Prüfung |
 | Impressum und Datenschutz | Rechtstexte als reiner Text |
 | User | Anlegen, suchen, bearbeiten, Level ändern, sperren, Passwort setzen, löschen, neue User freischalten |
@@ -137,7 +137,8 @@ Beim Speichern der Einstellungen prüft das Backend zwei Werte: Der Sysop-Level 
 | Sperrliste | Gesperrte Handles und Wörter (siehe unten) |
 | Nachrichtenbereiche | Anlegen, umbenennen, Rechte, Reihenfolge, löschen |
 | Nachrichten | Öffentliche Nachrichten lesen, löschen und in andere Bereiche verschieben. Private Post wird hier bewusst nicht angezeigt |
-| Oneliner | Moderieren |
+| Oneliner | Oneliner und Zeilen des Treffpunkts moderieren |
+| Umfragen | Umfragen anlegen, Ergebnis ansehen, beenden, löschen (siehe unten) |
 | Dateibereiche | Anlegen, Rechte, Uploads erlauben |
 | Dateien | Uploads freigeben, umbenennen, Beschreibungen ändern, verschieben, löschen, Dateien per Browser hochladen |
 | Dateiimport | Viele Dateien auf einmal aus `data/import` übernehmen |
@@ -168,7 +169,11 @@ Darunter folgen die belegten Nodes. Neben jeder Node steht der Knopf „Trennen�
 
 ### Statistik
 
-Die Seite „Statistik“ zeigt als Balken die Anrufe pro Tag der letzten 30 Tage sowie neue User, Uploads und Downloads pro Monat der letzten 12 Monate. Neben jedem Balken steht die Zahl. Darunter folgen drei Bestenlisten mit je zehn Einträgen: die meistgeladenen Dateien, die fleißigsten Schreiber und die häufigsten Anrufer. Sysops und User, die auf ihre Freischaltung warten, stehen nicht in den Bestenlisten. Tage und Monate richten sich nach der Zeitzone aus den Einstellungen.
+Oben auf der Seite „Statistik“ steht ein Zahlenband mit den wichtigsten Werten: Anrufe heute, Anrufe der letzten 7 und der letzten 30 Tage, aktive User der letzten 30 Tage (verschiedene Anrufer), neue User, neue öffentliche Nachrichten sowie Uploads und Downloads der letzten 30 Tage. Unter jeder Zahl steht der Vergleich mit dem Zeitraum davor, etwa „+3 zu den 7 Tagen davor“, bei Gleichstand „wie den 7 Tagen davor“. Anrufe heute werden mit gestern verglichen. Bei den neuen Usern steht zusätzlich, wie viele davon noch auf ihre Freischaltung warten. Sysops und User, die auf ihre Freischaltung warten, zählen bei den Anrufen und den aktiven Usern nicht mit.
+
+Darunter folgen Säulendiagramme, alle gleich hoch: Anrufe pro Tag (über die Links umschaltbar auf 7, 30 oder 90 Tage, Standard 30), Anrufe nach Uhrzeit über denselben Zeitraum, damit du siehst, wann deine Anrufer kommen, neue User pro Monat und Uploads und Downloads pro Monat der letzten 12 Monate (zwei Säulen nebeneinander, Downloads schraffiert). Rechts über jedem Diagramm stehen Höchstwert und Summe, jede Säule zeigt beim Darüberfahren Datum und Wert. Tage ohne Wert haben keine Säule, die Grundlinie läuft trotzdem durch. Ohne Werte bleibt das Diagramm gleich groß und zeigt einen Hinweis. Für Screenreader steht unter jedem Diagramm eine versteckte Tabelle mit allen Werten.
+
+Ganz unten folgen drei Bestenlisten mit je zehn Einträgen: die meistgeladenen Dateien, die fleißigsten Schreiber und die häufigsten Anrufer. Sysops und User, die auf ihre Freischaltung warten, stehen nicht in den Bestenlisten. Tage, Stunden und Monate richten sich nach der Zeitzone aus den Einstellungen. Gezählt wird in der Datenbank, die Seite bleibt deshalb auch bei vielen tausend Anrufen schnell.
 
 Uploads und Downloads zählt die Statistik aus dem Log. Leerst du das Log, sind auch diese Zahlen weg, deshalb fragt die Seite „Log“ vorher noch einmal nach. Anrufe und neue User kommen aus eigenen Tabellen und bleiben erhalten.
 
@@ -177,6 +182,8 @@ Uploads und Downloads zählt die Statistik aus dem Log. Leerst du das Log, sind 
 Unter „User“ legst du neue Accounts direkt an: Handle, Ort, Passwort (zweimal, mindestens 6 Zeichen) und Level. Für den Handle gelten dieselben Regeln wie bei der Neuanmeldung im Terminal: 3 bis 20 Zeichen, eindeutig, und die reservierten Namen NEW, Sysop und All sind gesperrt, bei deutscher Sprache der Box zusätzlich NEU und Alle. Das gilt auch, wenn du einen User umbenennst.
 
 Level vergeben kannst du höchstens bis zu deinem eigenen. User mit einem höheren Level als deinem lassen sich nicht bearbeiten. Das betrifft vor allem Co-Sysops, wenn du den Sysop-Level niedriger als 255 eingestellt hast. Dein eigenes Level kannst du nicht ändern.
+
+**Über mich und Signatur:** Anrufer schreiben beides selbst unter Einstellungen im Terminal. Auf der Seite eines Users siehst du die Texte und kannst sie leeren, bearbeiten kannst du sie nicht. Das Leeren steht im Log.
 
 **Passwort vergessen:** Anrufer können ihr Passwort nicht selbst zurücksetzen, weil die Box keine E-Mail-Adressen speichert. Das machst du in der Userverwaltung unter „Neues Passwort“.
 
@@ -202,6 +209,12 @@ Unter „Sperrliste“ trägst du zwei Listen ein, jeweils ein Eintrag pro Zeile
 
 Für Sysops gilt die Sperrliste nicht. Vorhandene User, deren Handle auf die Liste passt, zeigt die Seite unter der Liste an. Sie werden nicht automatisch gesperrt, das entscheidest du selbst.
 
+### Umfragen
+
+Unter „Umfragen“ legst du neue Umfragen an: eine Frage mit höchstens 70 Zeichen, 2 bis 8 Antworten mit je höchstens 40 Zeichen und optional einen letzten Tag, bis einschließlich dem abgestimmt werden kann. Anrufer stimmen im Terminal mit dem Menübefehl POLLS ab (im Hauptmenü Taste V), einmal pro Umfrage und ohne die Stimme später ändern zu können. Das Ergebnis sehen sie nach ihrer eigenen Stimme oder wenn die Umfrage beendet ist. Gibt es offene Umfragen, bei denen ein Anrufer noch nicht abgestimmt hat, weist ihn die Begrüßung nach dem Login darauf hin.
+
+Ein Klick auf die Frage zeigt das Ergebnis. Solange niemand abgestimmt hat, kannst du die Umfrage dort noch ändern. Danach lässt sie sich nur noch vorzeitig beenden oder mit allen Stimmen löschen. Jede Aktion steht im Log. Sysops stimmen ab wie alle anderen.
+
 ### Nachrichten
 
 Die Liste unter „Nachrichten“ zeigt die letzten 200 öffentlichen Nachrichten, auf Wunsch nur eines Bereichs. Über die Häkchen links (das Häkchen im Tabellenkopf wählt alle) löschst du mehrere Nachrichten auf einmal oder verschiebst sie in einen anderen Bereich, etwa wenn jemand im falschen Bereich geschrieben hat. In der Einzelansicht einer Nachricht geht beides auch direkt. Private Post lässt sich hier weder sehen noch verschieben.
@@ -223,6 +236,7 @@ Ein Menü wird automatisch als zweispaltige Liste mit Titelleiste gezeichnet. Tr
 | MSG_POST | | Nachricht im aktuellen Bereich schreiben |
 | MSG_MAIL | | Private Post lesen |
 | MSG_SEND | | Private Nachricht senden |
+| MSG_SEARCH | | Öffentliche Nachrichten durchsuchen (Betreff, Text, Absender) |
 | FILE_AREA | | Dateibereich wählen |
 | FILE_LIST | | Dateien des aktuellen Bereichs |
 | FILE_NEW | | Neue Dateien seit dem letzten Anruf |
@@ -231,14 +245,17 @@ Ein Menü wird automatisch als zweispaltige Liste mit Titelleiste gezeichnet. Tr
 | FILE_UPLOAD | | Datei hochladen |
 | ONELINERS | | Oneliner lesen und schreiben |
 | LASTCALLERS | | Letzte 15 Anrufer |
-| WHO | | Belegung aller Nodes |
-| USERLIST | | Liste aller User |
+| WHO | | Belegung aller Nodes, mit N eine Nachricht an eine Node |
+| USERLIST | | Liste aller User, mit P das Profil eines Users |
 | USERINFO | | Statistik des Anrufers |
 | SETTINGS | | Ort, Passwort, Modemgeschwindigkeit, Expertenmodus |
 | PAGE | | Sysop rufen: Ist ein Sysop online, wird er benachrichtigt, sonst kann der Anrufer eine Nachricht hinterlassen |
 | COMMENT | | Private Nachricht direkt an den Sysop |
 | DOOR | Door-Id | Startet eine Door |
 | DOORTOP | | Bestenlisten der Doors (siehe Abschnitt 11) |
+| TELECONF | | Treffpunkt: Chat für alle, die online sind (siehe Abschnitt 8) |
+| PROFILE | | Fragt einen Handle ab und zeigt das Profil |
+| POLLS | | Umfragen (siehe Abschnitt 7) |
 | SYSOP | | Sysop-Menü im Terminal, nur für User mit Sysop-Level |
 | LOGOFF | | Ausloggen mit Rückfrage |
 
@@ -269,6 +286,10 @@ Webspace kann keine dauerhaften Verbindungen halten. Das Terminal fragt deshalb 
 **Rundruf:** Im Sysop-Menü die Taste R oder in der Übersicht des Backends. Die Zeile erscheint bei allen anderen Nodes gelb als „*** Nachricht vom Sysop: …“ mit einem Klingelton.
 
 **Chat:** Im Sysop-Menü die Taste C und die Nodenummer. Beim Anrufer erscheint „Der Sysop hat sich zugeschaltet. /Q beendet den Chat.“ Jede Zeile, die einer von euch mit Enter abschickt, landet bei der anderen Seite, die Zeilen der Gegenseite erscheinen hellcyan mit Handle davor. `/Q` auf einer der beiden Seiten beendet den Chat, beide kommen ins Hauptmenü. Legt eine Seite auf, bekommt die andere die Meldung, dass der Chat beendet ist. Schreibt der Anrufer gerade eine Nachricht im Editor oder lädt eine Datei hoch, startet der Chat erst, wenn er damit fertig ist.
+
+**Treffpunkt:** Mit dem Befehl TELECONF (im Hauptmenü Taste T, ab dem Level für neue User) treffen sich alle, die gerade online sind, in einem gemeinsamen Raum. Beim Betreten sieht man die Zeilen der letzten 30 Minuten (höchstens 10) und wer im Raum ist. Betreten und Verlassen erscheinen bei den anderen als Systemzeile, auch wenn jemand auflegt, getrennt wird oder wegen Untätigkeit fliegt. Eingehende Zeilen zählen nicht als Aktivität: Wer nur mitliest, wird nach der eingestellten Zeit getrennt wie überall. Befehle am Zeilenanfang: `/Q` verlassen, `/W` wer ist im Raum, `/ME Text` als Aktion („* Handle winkt“), `/?` Hilfe. Eine Zeile hat höchstens 70 Zeichen, die Sperrliste gilt. Startest du einen privaten Chat mit jemandem im Treffpunkt, verlässt er den Raum und landet bei dir. Die Box behält die letzten 50 Zeilen, unter „Oneliner“ im Backend kannst du einzelne oder alle löschen.
+
+**Nachricht an eine Node:** Unter „Wer ist online“ schickt ein Anrufer mit N eine Zeile an eine andere Node. Sie erscheint hellcyan als „*** Nachricht von Handle (Node 2): …“ mit Klingelton. Wer das nicht möchte, schaltet unter Einstellungen „Node-Nachrichten annehmen“ aus, Sysops erreichen trotzdem jeden. Pro Absender geht höchstens eine Nachricht alle 10 Sekunden, an die eigene Node, an freie Nodes und an wartende User gar keine. Das Log nennt Absender und Empfänger, nicht den Text.
 
 **Sysop rufen:** Wählt ein Anrufer „Sysop rufen“ und du bist im Terminal eingeloggt, bekommst du „*** Handle auf Node n ruft dich. Sysop-Menü, Taste C zum Chatten.“ mit Klingelton, und der Anrufer erfährt, dass du benachrichtigt wurdest. Ist kein Sysop online, kann er wie bisher eine Nachricht hinterlassen.
 
@@ -341,6 +362,8 @@ Standardmäßig sind Uploads erst nach deiner Freigabe sichtbar. Wartende Upload
 **Dateien verwalten:** Unter „Dateien“ wählst du einen Bereich und siehst seine Dateien. Über die Häkchen links kannst du mehrere Dateien auf einmal freigeben, löschen (mit Rückfrage) oder in einen anderen Bereich verschieben. Beim Verschieben wandert die Datei auf der Platte nach `data/files/<neuer Bereich>/`. Gibt es im Zielbereich schon eine Datei mit dem Namen, wird sie übersprungen und du bekommst eine Meldung.
 
 Über „Bearbeiten“ änderst du Name und Beschreibung einer Datei. Für den Namen gelten dieselben Regeln wie beim Upload: Buchstaben, Ziffern, Punkt, Binde- und Unterstrich, alles andere wird zum Unterstrich. Endungen wie php oder html sind nicht erlaubt, und ein Name, den es im Bereich schon gibt, wird abgelehnt. Die Datei wird auf der Platte mit umbenannt.
+
+**Dateien ansehen:** In jeder Dateiliste können Anrufer mit V Textdateien direkt im Terminal ansehen: Endungen txt, nfo, diz, asc und ans, höchstens 64 KB. ANSI-Dateien laufen durch denselben Renderer wie die Screens, Textdateien werden als CP437 gelesen, außer sie sind gültiges UTF-8. Ansehen zählt nicht als Download und nicht gegen Ratio und Tageslimit, es gelten aber die Zugriffsrechte des Bereichs. Mit M merken sich Anrufer bis zu 10 Dateien für die Sitzung und laden sie dann mit D alle nacheinander, für jede Datei gelten Limit und Ratio wie beim einzelnen Download.
 
 Lässt sich eine Datei nicht von der Platte löschen (etwa wegen fehlender Rechte), bleibt sie auch in der Liste und du bekommst eine Meldung. Beim Löschen eines ganzen Dateibereichs bleibt der Bereich dann ebenfalls erhalten.
 
@@ -495,6 +518,10 @@ Bringt eine neue Version Änderungen an der Datenbank mit, werden sie beim erste
 - Die Box speichert keine IP-Adressen und keine E-Mail-Adressen. Gespeichert werden Handle, Ort, Passwort-Hash, Nutzungsstatistik, Nachrichten, Uploads und das Ereignislog. Es wird nur ein technisch notwendiges Session-Cookie gesetzt. Externe Schriften oder Dienste werden nicht geladen. Die Zugriffslogs des Webservers bei deinem Hoster sind davon unabhängig und gehören mit in die Datenschutzerklärung.
 - Private Post ist im Backend nicht einsehbar. Mit Sysop-Level kannst du sie im Terminal aber lesen und löschen. Schreib in die Datenschutzerklärung, wie du damit umgehst.
 - Das Log lässt sich im Backend jederzeit leeren. Damit sind auch die Upload- und Download-Zahlen der Statistik weg.
+- Der Treffpunkt speichert die letzten 50 Zeilen mit Handle und Zeit, ältere werden laufend überschrieben. Unter „Oneliner“ löschst du sie jederzeit.
+- „Über mich“ und die Signatur schreiben Anrufer selbst, sie bleiben bis zur Änderung oder bis der User gelöscht wird. Die Signatur steht danach fest in den Nachrichten, die mit ihr geschrieben wurden.
+- Bei Umfragen speichert die Box, wer wofür gestimmt hat, damit niemand zweimal abstimmt. Andere Anrufer sehen nur die Summen. Wird ein User gelöscht, bleiben seine Stimmen ohne Verbindung zu ihm stehen, sie lassen sich niemandem mehr zuordnen und das Ergebnis ändert sich nicht. Mit der Umfrage werden auch ihre Stimmen gelöscht.
+- Nachrichten an eine Node werden nicht gespeichert, nur zugestellt. Im Log steht, wer wem geschrieben hat.
 
 ## 15. Fehlersuche
 

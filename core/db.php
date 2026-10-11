@@ -42,7 +42,23 @@ final class DB
             self::$pdo->exec('PRAGMA journal_mode=WAL');
             self::$pdo->exec('PRAGMA foreign_keys=OFF');
             self::$pdo->exec('PRAGMA busy_timeout=5000');
+            // LOWER() in SQLite only knows ASCII, cb_lower() also umlauts
+            if (method_exists(self::$pdo, 'sqliteCreateFunction')) {
+                self::$pdo->sqliteCreateFunction('cb_lower', static fn($s) => mb_strtolower((string)$s), 1);
+            }
         }
+    }
+
+    /** Lower case function for case-insensitive search with umlauts on both databases. */
+    public static function lower(string $expr): string
+    {
+        return (self::$driver === 'mysql' || !method_exists(self::$pdo, 'sqliteCreateFunction') ? 'LOWER(' : 'cb_lower(') . $expr . ')';
+    }
+
+    /** Integer bucket of a timestamp column ($size seconds), the same on SQLite and MySQL. */
+    public static function bucket(string $col, int $size): string
+    {
+        return self::$driver === 'mysql' ? "($col DIV $size)" : "($col / $size)";
     }
 
     public static function sql(string $q): string
@@ -110,7 +126,8 @@ final class DB
                 dl_kb INT NOT NULL DEFAULT 0, dl_kb_today INT NOT NULL DEFAULT 0, time_today INT NOT NULL DEFAULT 0,
                 today VARCHAR(10) NOT NULL DEFAULT '', posts INT NOT NULL DEFAULT 0, expert INT NOT NULL DEFAULT 0,
                 baud INT NOT NULL DEFAULT -1, locked INT NOT NULL DEFAULT 0, note VARCHAR(255) NOT NULL DEFAULT '',
-                pending INT NOT NULL DEFAULT 0)",
+                pending INT NOT NULL DEFAULT 0, allow_msgs INT NOT NULL DEFAULT 1, about VARCHAR(200) NOT NULL DEFAULT '',
+                signature VARCHAR(150) NOT NULL DEFAULT '')",
             "CREATE UNIQUE INDEX {users}_handle ON {users} (handle_lc)",
             "CREATE TABLE {msg_areas} (id $pk, name VARCHAR(60) NOT NULL, description VARCHAR(120) NOT NULL DEFAULT '',
                 read_level INT NOT NULL DEFAULT 10, write_level INT NOT NULL DEFAULT 10, sort INT NOT NULL DEFAULT 0)",
@@ -138,9 +155,10 @@ final class DB
                 sort INT NOT NULL DEFAULT 0)",
             "CREATE TABLE {calls} (id $pk, user_id INT NOT NULL, handle VARCHAR(30) NOT NULL DEFAULT '',
                 location VARCHAR(40) NOT NULL DEFAULT '', node INT NOT NULL DEFAULT 1, time BIGINT NOT NULL DEFAULT 0)",
+            "CREATE INDEX {calls}_time ON {calls} (time)",
             "CREATE TABLE {nodes} (node INT NOT NULL PRIMARY KEY, sid VARCHAR(128) NOT NULL DEFAULT '', user_id INT NOT NULL DEFAULT 0,
                 handle VARCHAR(30) NOT NULL DEFAULT '', activity VARCHAR(60) NOT NULL DEFAULT '', since BIGINT NOT NULL DEFAULT 0,
-                seen BIGINT NOT NULL DEFAULT 0, kicked INT NOT NULL DEFAULT 0)",
+                seen BIGINT NOT NULL DEFAULT 0, kicked INT NOT NULL DEFAULT 0, tele INT NOT NULL DEFAULT 0)",
             "CREATE TABLE {node_msgs} (id $pk, node INT NOT NULL, kind VARCHAR(10) NOT NULL DEFAULT '', from_node INT NOT NULL DEFAULT 0,
                 from_handle VARCHAR(30) NOT NULL DEFAULT '', text VARCHAR(255) NOT NULL DEFAULT '', time BIGINT NOT NULL DEFAULT 0)",
             "CREATE INDEX {node_msgs}_node ON {node_msgs} (node)",
@@ -151,8 +169,17 @@ final class DB
             "CREATE TABLE {door_scores} (door VARCHAR(30) NOT NULL, user_id INT NOT NULL, value BIGINT NOT NULL DEFAULT 0,
                 label VARCHAR(20) NOT NULL DEFAULT '', time BIGINT NOT NULL DEFAULT 0, PRIMARY KEY (door, user_id))",
             "CREATE INDEX {door_scores}_value ON {door_scores} (door, value)",
+            "CREATE TABLE {tele_lines} (id $pk, user_id INT NOT NULL DEFAULT 0, handle VARCHAR(30) NOT NULL DEFAULT '',
+                text VARCHAR(120) NOT NULL DEFAULT '', time BIGINT NOT NULL DEFAULT 0)",
+            "CREATE TABLE {polls} (id $pk, question VARCHAR(80) NOT NULL DEFAULT '', created BIGINT NOT NULL DEFAULT 0,
+                closes VARCHAR(10) NOT NULL DEFAULT '', closed INT NOT NULL DEFAULT 0, created_by INT NOT NULL DEFAULT 0)",
+            "CREATE TABLE {poll_options} (id $pk, poll_id INT NOT NULL, text VARCHAR(50) NOT NULL DEFAULT '', sort INT NOT NULL DEFAULT 0)",
+            "CREATE INDEX {poll_options}_poll ON {poll_options} (poll_id)",
+            "CREATE TABLE {poll_votes} (poll_id INT NOT NULL, user_id INT NOT NULL, option_id INT NOT NULL, time BIGINT NOT NULL DEFAULT 0,
+                PRIMARY KEY (poll_id, user_id))",
             "CREATE TABLE {log} (id $pk, time BIGINT NOT NULL DEFAULT 0, user_id INT NOT NULL DEFAULT 0,
                 handle VARCHAR(30) NOT NULL DEFAULT '', text VARCHAR(255) NOT NULL DEFAULT '')",
+            "CREATE INDEX {log}_time ON {log} (time)",
         ];
         return array_map(static function ($s) use ($opt) {
             $s = preg_replace('/\s+/', ' ', $s);

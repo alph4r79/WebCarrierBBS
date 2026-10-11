@@ -2,6 +2,24 @@
 
 All notable changes to WebCarrier BBS. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version numbers follow [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] - 2026-10-10
+
+### Added
+
+- Meeting point (menu command TELECONF, key T in the main menu): a chat room for everybody online, with the lines of the last 30 minutes on entering, who is in the room, /W, /ME actions and system lines when someone enters or leaves (also on hanging up, disconnect or idle timeout). The last 50 lines are kept and can be deleted in the backend.
+- Messages to a node from Who's online (key N), with a setting to refuse them, a flood limit and a log entry without the text.
+- Profiles (menu command PROFILE, key P in the user list, key I in the message reader) with about me and the best places in the door high score lists. Callers write about me and a signature in the settings; the signature is added to new messages and left out when quoting. The sysop can empty both in the backend.
+- Message search (menu command MSG_SEARCH, key F in the message menu) in subject, text and sender of public messages, case-insensitive also for umlauts, without moving the read pointer. The reader shows the original of a reply (O) and the replies to a message (T).
+- File lists: view text and ANSI files up to 64 KB in the terminal (V), a list of up to 10 marked files (M, K) that downloads one after the other, and choosing files by their number in the last list.
+- Polls (menu command POLLS, key V in the main menu) with a new backend page; a hint in the greeting when there are new polls.
+
+### Changed
+
+- File lists have fixed columns with headers above them, one line per file, long names on their own line, descriptions wrapped to at most four lines and no entry split by a page break. Sizes show K and M.
+- The reader shows the rare keys behind ? help, so the command line stays below 80 characters.
+- The statistics page starts with a band of key figures compared to the period before, followed by column charts of the same height: calls per day (7, 30 or 90 days), calls by time of day, new users per month, uploads and downloads per month. Sysops and users waiting for validation are left out of calls and active users, new users show how many of them are waiting. Counting is done in the database.
+- Database version 7: tables for the meeting point and polls, new columns for profiles and node messages, indexes on calls and the log; new menu items for the meeting point, polls and the message search.
+
 ## [1.6.0] - 2026-10-09
 
 ### Added
@@ -114,6 +132,7 @@ First public release.
 - Web installer for SQLite or MySQL/MariaDB
 - German and English
 
+[1.7.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.3.0...v1.4.0

@@ -10,7 +10,7 @@
  */
 declare(strict_types=1);
 
-define('CB_DB_VERSION', 6);
+define('CB_DB_VERSION', 7);
 
 /** Run all pending steps. Costs only the (cached) settings lookup when up to date. */
 function cb_migrate(): void
@@ -159,4 +159,65 @@ function cb_migrate_6(): void
         return;
     }
     cb_add_doortop_item($menu);
+}
+
+/**
+ * Menu item for a new command: only if the menu exists, the command is not in it yet and there is
+ * a free key ($key, otherwise the next free one of A-Z without Q and G). Sorted in before Q or G.
+ */
+function cb_add_menu_command(string $menuName, string $cmd, string $key, string $de, string $en, int $minLevel = 0): void
+{
+    $menu = (int)DB::val('SELECT id FROM {menus} WHERE name=?', [$menuName]);
+    if ($menu <= 0 || DB::val('SELECT COUNT(*) FROM {menu_items} WHERE menu_id=? AND command=?', [$menu, $cmd])) {
+        return;
+    }
+    $used = array_map('mb_strtoupper', array_column(DB::all('SELECT hotkey FROM {menu_items} WHERE menu_id=?', [$menu]), 'hotkey'));
+    $free = null;
+    foreach (array_merge([$key], array_diff(range('A', 'Z'), [$key, 'Q', 'G'])) as $k) {
+        if (!in_array($k, $used, true)) {
+            $free = $k;
+            break;
+        }
+    }
+    if ($free === null) {
+        return;
+    }
+    $end = DB::row("SELECT sort FROM {menu_items} WHERE menu_id=? AND UPPER(hotkey) IN ('Q', 'G') ORDER BY sort, id", [$menu]);
+    if ($end) {
+        $sort = (int)$end['sort'];
+        DB::q('UPDATE {menu_items} SET sort=sort+10 WHERE menu_id=? AND sort>=?', [$menu, $sort]);
+    } else {
+        $sort = (int)DB::val('SELECT COALESCE(MAX(sort),0)+10 FROM {menu_items} WHERE menu_id=?', [$menu]);
+    }
+    DB::insert('menu_items', ['menu_id' => $menu, 'hotkey' => $free, 'label' => Settings::get('language', 'en') === 'de' ? $de : $en,
+        'command' => $cmd, 'data' => '', 'min_level' => $minLevel, 'sort' => $sort]);
+}
+
+/** 7: meeting point, node messages, profiles and signatures, polls; indexes for the statistics. */
+function cb_migrate_7(): void
+{
+    cb_add_column('users', 'allow_msgs', 'INT NOT NULL DEFAULT 1');
+    cb_add_column('users', 'about', "VARCHAR(200) NOT NULL DEFAULT ''");
+    cb_add_column('users', 'signature', "VARCHAR(150) NOT NULL DEFAULT ''");
+    cb_add_column('nodes', 'tele', 'INT NOT NULL DEFAULT 0');
+    foreach (['tele_lines', 'polls', 'poll_options', 'poll_votes'] as $t) {
+        cb_create_table($t);
+    }
+    foreach (['calls', 'log'] as $t) {
+        if (!cb_index_exists($t, $t . '_time')) {
+            DB::q('CREATE INDEX {' . $t . '}_time ON {' . $t . '} (time)');
+        }
+    }
+    cb_add_menu_command('main', 'TELECONF', 'T', 'Treffpunkt', 'Meeting point', Settings::int('new_level', 10));
+    cb_add_menu_command('main', 'POLLS', 'V', 'Umfragen', 'Polls');
+    cb_add_menu_command('msg', 'MSG_SEARCH', 'F', 'Suchen', 'Find');
+}
+
+function cb_index_exists(string $table, string $name): bool
+{
+    if (DB::$driver === 'mysql') {
+        return (bool)DB::val('SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name=? AND index_name=?',
+            [DB::$prefix . $table, DB::$prefix . $name]);
+    }
+    return (bool)DB::val("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=?", [DB::$prefix . $name]);
 }

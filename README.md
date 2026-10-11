@@ -4,7 +4,7 @@ A real mailbox from the nineties, running on ordinary PHP webspace.
 
 Callers open your domain and land in an 80×25 DOS screen with the IBM VGA font, ANSI colours and a dial tone. From there on everything works like a BBS in 1994: log in or register, read and write messages, send private mail, browse file areas, download and upload, play doors, leave a oneliner. No mouse, keyboard only.
 
-For the sysop there is a modern web backend: settings, users, levels, message and file areas with bulk actions, menu editor, ANSI screen editor with live preview, approval of uploads, a ban list, own versions of every terminal text, statistics, a message of the sysop shown after the login, a bulk import for whole shareware CDs and backups as ZIP download.
+For the sysop there is a modern web backend: settings, users, levels, message and file areas with bulk actions, menu editor, ANSI screen editor with live preview, approval of uploads, a ban list, own versions of every terminal text, statistics, polls, a message of the sysop shown after the login, a bulk import for whole shareware CDs and backups as ZIP download.
 
 Installing it works like WordPress: upload the folder, open `/install/`, fill in a form, done.
 
@@ -12,11 +12,12 @@ Installing it works like WordPress: upload the folder, open `/install/`, fill in
 
 - Browser terminal: 80×25 text mode on a canvas, original IBM VGA 9×16 font, CP437, ANSI.SYS escape codes, blinking text, emulated modem speed (300 to 57600 bps), dial tones and handshake
 - Nodes with "All lines are busy", who's online, last callers, idle timeout, daily time limits
-- Message areas with read and write levels, new scan, replies with quoting, line editor (`/S`, `/A`, `/L`), private mail
-- File areas with listing, new files, search, download, upload with FILE_ID.DIZ, daily download limits and upload/download ratio
-- Oneliners, user list, personal statistics and settings, expert mode, page sysop
+- Message areas with read and write levels, new scan, search, reply threads, replies with quoting, line editor (`/S`, `/A`, `/L`), private mail
+- File areas with listing, new files, search, viewing text and ANSI files, marked files, download, upload with FILE_ID.DIZ, daily download limits and upload/download ratio
+- Oneliners, user list, profiles with about me, signatures, personal statistics and settings, expert mode, page sysop
+- Meeting point: a chat room for all callers online, messages to other nodes, polls
 - Sysop menu in the terminal: chat with callers, broadcast, disconnect a node, review new users and uploads; optional validation of new users
-- Menu system configurable in the backend (26 commands), ANSI or pipe code screens with macros
+- Menu system configurable in the backend (31 commands), ANSI or pipe code screens with macros
 - Doors as small PHP classes, added to the menu with one click, example door included; a faulty door file is skipped instead of breaking the board
 - A high score list for every door, with the leaders shown above the door menu
 - Ban list for handles and words, own terminal texts per language that survive updates, statistics with calls, users, uploads and downloads

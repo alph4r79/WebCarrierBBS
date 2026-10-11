@@ -549,6 +549,20 @@ function page_oneliners(array $admin): void
         a_flash(t('Oneliner deleted.'));
         a_go('oneliners');
     }
+    if (a_post() && isset($_POST['del_tele'])) {
+        $n = DB::q('DELETE FROM {tele_lines} WHERE id=?', [(int)$_POST['del_tele']])->rowCount();
+        if ($n) {
+            cb_log((int)$admin['id'], $admin['handle'], 'Deleted a line of the meeting point');
+            a_flash(t('Line deleted.'));
+        }
+        a_go('oneliners');
+    }
+    if (a_post() && isset($_POST['clear_tele'])) {
+        $n = DB::q('DELETE FROM {tele_lines}')->rowCount();
+        cb_log((int)$admin['id'], $admin['handle'], 'Deleted all ' . $n . ' line(s) of the meeting point');
+        a_flash(t('All lines of the meeting point deleted.'));
+        a_go('oneliners');
+    }
     echo '<h1>' . h(t('Oneliners')) . '</h1><div class="tablewrap"><table><tr><th>' . h(t('Date')) . '</th><th>' . h(t('User')) .
         '</th><th>' . h(t('Text')) . '</th><th></th></tr>';
     foreach (DB::all('SELECT * FROM {oneliners} ORDER BY id DESC LIMIT 200') as $o) {
@@ -557,6 +571,21 @@ function page_oneliners(array $admin): void
             '<button class="btn small danger ghost" name="del" value="' . (int)$o['id'] . '">' . h(t('Delete')) . '</button></form></td></tr>';
     }
     echo '</table></div>';
+
+    $lines = DB::all('SELECT * FROM {tele_lines} ORDER BY id DESC');
+    echo '<h2>' . h(t('Meeting point')) . '</h2><p class="note">' . h(t('The last 50 lines of the meeting point are kept. Callers see the lines of the last 30 minutes when they enter.')) . '</p>';
+    if (!$lines) {
+        echo '<div class="panel"><p class="note">' . h(t('There are no lines.')) . '</p></div>';
+        return;
+    }
+    echo '<div class="tablewrap"><table><tr><th>' . h(t('Date')) . '</th><th>' . h(t('User')) . '</th><th>' . h(t('Text')) . '</th><th></th></tr>';
+    foreach ($lines as $l) {
+        echo '<tr><td class="num">' . date('d.m.y H:i', (int)$l['time']) . '</td><td>' . h($l['handle']) . '</td><td>' . h($l['text']) .
+            '</td><td><form method="post"' . a_confirm(t('Delete this line?')) . '>' . a_csrf() .
+            '<button class="btn small danger ghost" name="del_tele" value="' . (int)$l['id'] . '">' . h(t('Delete')) . '</button></form></td></tr>';
+    }
+    echo '</table></div><form method="post"' . a_confirm(t('Delete all lines of the meeting point?')) . '>' . a_csrf() .
+        '<p><button class="btn small danger ghost" name="clear_tele" value="1">' . h(t('Delete all lines')) . '</button></p></form>';
 }
 
 function page_log(array $admin): void

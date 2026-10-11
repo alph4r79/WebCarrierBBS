@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 define('CB_ROOT', dirname(__DIR__));
 define('CB_DATA', CB_ROOT . '/data');
-define('CB_VERSION', '1.6.0');
+define('CB_VERSION', '1.7.0');
 define('CB_AUTHOR', 'Christoph Scheel');
 define('CB_AUTHOR_URL', 'https://chrisscheel.de');
 // AGPL section 13: users of a networked installation must be able to get the source.
@@ -173,13 +173,22 @@ function cb_banned_word(string $text): ?string
     return null;
 }
 
-/** Delete a user with read pointers, door data and private mail. Public messages stay. */
+/**
+ * Delete a user with read pointers, door data and private mail. Public messages stay, votes stay
+ * anonymous so results of polls do not change afterwards.
+ */
 function cb_delete_user(int $id): void
 {
     DB::q('DELETE FROM {users} WHERE id=?', [$id]);
     DB::q('DELETE FROM {lastread} WHERE user_id=?', [$id]);
     DB::q('DELETE FROM {door_data} WHERE user_id=?', [$id]);
     DB::q('DELETE FROM {door_scores} WHERE user_id=?', [$id]);
+    // a negative placeholder per poll keeps the key (poll_id, user_id) unique and points to nobody
+    foreach (array_column(DB::all('SELECT poll_id FROM {poll_votes} WHERE user_id=?', [$id]), 'poll_id') as $poll) {
+        $anon = min(0, (int)DB::val('SELECT MIN(user_id) FROM {poll_votes} WHERE poll_id=?', [(int)$poll])) - 1;
+        DB::q('UPDATE {poll_votes} SET user_id=? WHERE poll_id=? AND user_id=?', [$anon, (int)$poll, $id]);
+    }
+    DB::q('DELETE FROM {tele_lines} WHERE user_id=?', [$id]);
     DB::q('DELETE FROM {messages} WHERE private=1 AND (to_id=? OR from_id=?)', [$id, $id]);
 }
 
@@ -376,6 +385,18 @@ function cb_date(int $t): string
 function cb_kb(int $bytes): string
 {
     return number_format((int)ceil($bytes / 1024), 0, '', '') . 'k';
+}
+
+/** Size for file lists, at most 5 characters: 0K to 999K, then M with one decimal (under 100M). */
+function cb_size(int $bytes): string
+{
+    $k = (int)ceil($bytes / 1024);
+    if ($k < 1000) {
+        return $k . 'K';
+    }
+    $m = $bytes / 1048576;
+    $sep = Lang::$code === 'de' ? ',' : '.';
+    return ($m < 99.95 ? number_format($m, 1, $sep, '') : number_format($m, 0, $sep, '')) . 'M';
 }
 
 /**

@@ -47,12 +47,24 @@ trait EngineSysop
                     $this->write('|14' . $this->L('bc_line', cb_esc((string)$r['text'])) . '|07');
                     $this->w->buf .= "\x07\r\n";
                     break;
+                case 'nmsg':
+                    $this->write('|11' . $this->L('nmsg_line', cb_esc((string)$r['from_handle']), (int)$r['from_node'], cb_esc((string)$r['text'])) . '|07');
+                    $this->w->buf .= "\x07\r\n";
+                    break;
+                case 'tele':
+                    if (($this->S['st'] ?? '') === 'tele') {
+                        $this->write((string)$r['text']);
+                        $this->nl();
+                    }
+                    break;
                 case 'page':
                     $this->write('|14' . $r['text'] . '|07');
                     $this->w->buf .= "\x07\r\n";
                     break;
                 case 'chat':
                     if (!$chat) {
+                        // the sysop takes the caller out of the meeting point
+                        $this->teleLeave();
                         $this->joinChat((int)$r['from_node'], (string)$r['from_handle']);
                     }
                     break;

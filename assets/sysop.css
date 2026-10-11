@@ -219,15 +219,47 @@ tr.pending td { background: #fff8e6; }
 .doors td:last-child { padding-bottom: 10px; }
 .doors td[data-label]::before { content: attr(data-label) ": "; color: var(--muted); }
 
-/* Statistics: square bars, the number stays as text next to it */
-.stats-grid { display: grid; gap: 0 16px; }
-.stats-grid .panel { min-width: 0; }
-.stats-grid .tablewrap { margin: 0; }
-.bars { font-size: 13px; }
-.bars th, .bars td { padding: 2px 4px; border: 0; vertical-align: middle; }
-.bars th { width: 4.5em; background: none; font-weight: 400; color: var(--muted); }
-.bars td.num { width: 3em; }
-.bar { display: block; height: 12px; background: var(--vga); }
+/* Statistics: one frame with the key figures, two per row on small screens; the negative margins hide the outer lines */
+.kpis { display: flex; flex-wrap: wrap; overflow: hidden; margin: 0 0 16px; background: var(--panel); border: 1px solid var(--line); }
+.kpis div { flex: 1 1 50%; min-width: 0; padding: 10px 12px; margin: -1px 0 0 -1px; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.kpis dt { font-size: 12px; color: var(--muted); }
+.kpis dd { margin: 0; font-size: 24px; font-weight: 600; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.kpis dd.cmp { font-size: 12px; font-weight: 400; line-height: 1.4; color: var(--muted); }
+
+/* Column charts: all with the same plot height, no bar for 0, the base line always there */
+.charts { display: grid; gap: 0 16px; }
+.charts > * { min-width: 0; }
+.chart-box { display: flex; flex-direction: column; height: calc(100% - 16px); }
+.chart-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0 0 8px; }
+.chart-head h2 { margin: 0; }
+.chart-head .note { margin-left: auto; font-size: 12px; }
+.ranges { font-size: 13px; }
+.ranges a { margin-right: 8px; }
+.ranges a[aria-current] { font-weight: 700; color: var(--ink); text-decoration: none; }
+.legend { display: flex; gap: 12px; margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+.sw { display: inline-block; width: 12px; height: 12px; margin-right: 4px; vertical-align: -1px; }
+.chart { position: relative; margin-top: auto; }
+.plot { display: flex; align-items: flex-end; gap: 1px; height: 160px; border-bottom: 1px solid var(--muted); }
+.col { display: flex; flex: 1 1 0; min-width: 0; height: 100%; align-items: flex-end; justify-content: center; gap: 1px; }
+.b { display: block; flex: 1 1 0; max-width: 28px; }
+.s1 { background: var(--vga); }
+.s2 { background: repeating-linear-gradient(45deg, var(--vga) 0 2px, var(--panel) 2px 5px); border: 1px solid var(--vga); }
+.axis { display: flex; gap: 1px; height: 18px; font-size: 11px; color: var(--muted); }
+.axis span { display: flex; flex: 1 1 0; min-width: 0; justify-content: center; white-space: nowrap; }
+.chart-empty { position: absolute; top: 64px; left: 0; right: 0; margin: 0; text-align: center; font-size: 14px; color: var(--muted); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.tops { display: grid; gap: 0 16px; }
+.tops > * { min-width: 0; }
+.top-box .tablewrap { margin: 0; }
+
+/* Result of a poll in the backend */
+.poll-result th { background: none; font-weight: 400; white-space: normal; }
+.poll-result td:nth-child(2) { width: 40%; vertical-align: middle; }
+.pbar { display: block; height: 12px; background: var(--vga); }
+
+/* About me and signature on the user page */
+.profile-texts h3 { margin: 12px 0 4px; font-size: 15px; }
+.profile-texts pre { margin: 0 0 8px; white-space: pre-wrap; font-size: 14px; }
 
 /* Top 3 of a door on the doors page */
 .top3 { margin: 4px 0 0; padding-left: 20px; font-size: 13px; }
@@ -256,6 +288,9 @@ tr.pending td { background: #fff8e6; }
   .dash-nodes th, .dash-nodes td { padding: 8px 10px; }
   .dash-nodes th:nth-child(4), .dash-nodes td:nth-child(4) { display: table-cell; }
   .grid2 { grid-template-columns: 1fr 1fr; }
+  .kpis div { flex-basis: 25%; }
+  .charts { grid-template-columns: 1fr 1fr; }
+  .charts .wide { grid-column: 1 / -1; }
   .texts { display: table; table-layout: fixed; }
   .texts tbody { display: table-row-group; }
   .texts tr { display: table-row; }
@@ -291,5 +326,6 @@ tr.pending td { background: #fff8e6; }
 @media (min-width: 1000px) {
   .dash { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 0 24px; align-items: start; }
   .dash-main, .dash-side { display: block; }
-  .stats-grid { grid-template-columns: 1fr 1fr; align-items: start; }
+  .kpis div { flex: 1 1 0; }
+  .tops { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

@@ -242,6 +242,16 @@ function page_user(array $admin): void
         a_go('users');
     }
     if (a_post()) {
+        if (isset($_POST['clear_profile'])) {
+            // the sysop can only empty these texts, not edit them
+            $field = $_POST['clear_profile'] === 'signature' ? 'signature' : 'about';
+            if ((string)$u[$field] !== '') {
+                DB::q('UPDATE {users} SET ' . $field . "='' WHERE id=?", [$id]);
+                cb_log((int)$admin['id'], $admin['handle'], ($field === 'about' ? 'Cleared about me of ' : 'Cleared the signature of ') . $u['handle']);
+                a_flash($field === 'about' ? t('About me removed.') : t('Signature removed.'));
+            }
+            a_go('user', ['id' => $id]);
+        }
         if (isset($_POST['delete'])) {
             if ($self || (int)$u['id'] === Settings::int('sysop_id', 1)) {
                 a_flash(t('The main sysop account cannot be deleted.'), 'bad');
@@ -312,6 +322,13 @@ function page_user(array $admin): void
             date('d.m.Y', (int)$u['created']), (int)$u['calls'], (int)$u['last_call'] ? date('d.m.Y H:i', (int)$u['last_call']) : '-',
             (int)$u['posts'], (int)$u['ul_kb'], (int)$u['dl_kb'])) . '</p>';
     echo '<p class="row-actions"><button class="btn" type="submit">' . h(t('Save user')) . '</button> <a class="btn ghost" href="' . h(a_url('users')) . '">' . h(t('Back')) . '</a></p></form>';
+    echo '<div class="panel profile-texts"><h2>' . h(t('Profile')) . '</h2>';
+    foreach (['about' => [t('About me'), t('Remove about me')], 'signature' => [t('Signature'), t('Remove signature')]] as $f => [$label, $btn]) {
+        $text = (string)$u[$f];
+        echo '<h3>' . h($label) . '</h3>' . ($text === '' ? '<p class="note">' . h(t('empty')) . '</p>' : '<pre class="mono">' . h($text) . '</pre>' .
+            '<form method="post"' . a_confirm($btn . '?') . '>' . a_csrf() . '<button class="btn small danger ghost" name="clear_profile" value="' . $f . '">' . h($btn) . '</button></form>');
+    }
+    echo '<p class="note">' . h(t('Callers write these texts themselves in the terminal. You can only remove them.')) . '</p></div>';
     if (!$self) {
         echo '<form method="post" class="panel"' . a_confirm(t('Delete {1} for good? Private mail of this user is deleted too.', $u['handle'])) . '>' . a_csrf() .
             '<p class="note">' . h(t('Public messages stay in the areas.')) . '</p><button class="btn danger" name="delete" value="1">' . h(t('Delete user')) . '</button></form>';

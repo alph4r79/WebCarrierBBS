@@ -16,6 +16,7 @@ require __DIR__ . '/engine_msg.php';
 require __DIR__ . '/engine_files.php';
 require __DIR__ . '/engine_misc.php';
 require __DIR__ . '/engine_sysop.php';
+require __DIR__ . '/engine_social.php';
 
 final class Engine
 {
@@ -23,13 +24,14 @@ final class Engine
     use EngineFiles;
     use EngineMisc;
     use EngineSysop;
+    use EngineSocial;
 
     /** Menu commands available to the sysop in the menu editor. */
     public const COMMANDS = [
         'MENU', 'SCREEN', 'LEGAL', 'MSG_AREA', 'MSG_READ', 'MSG_NEW', 'MSG_POST', 'MSG_MAIL', 'MSG_SEND',
         'FILE_AREA', 'FILE_LIST', 'FILE_NEW', 'FILE_SEARCH', 'FILE_DOWNLOAD', 'FILE_UPLOAD',
         'ONELINERS', 'LASTCALLERS', 'WHO', 'USERLIST', 'USERINFO', 'SETTINGS', 'PAGE', 'COMMENT',
-        'DOOR', 'DOORTOP', 'SYSOP', 'LOGOFF',
+        'DOOR', 'DOORTOP', 'TELECONF', 'PROFILE', 'MSG_SEARCH', 'POLLS', 'SYSOP', 'LOGOFF',
     ];
 
     public array $S;
@@ -56,6 +58,12 @@ final class Engine
     {
         $this->cleanupNodes();
         if ($a === 'start') {
+            // a reload in the meeting point counts as leaving it
+            if (!empty($this->S['uid']) && $this->ownsNode()) {
+                $this->user = DB::row('SELECT * FROM {users} WHERE id=?', [(int)$this->S['uid']]);
+                $this->teleLeave();
+                $this->user = null;
+            }
             $this->dropNode();
             $this->S = [];
             $this->go('connect');
@@ -491,7 +499,11 @@ final class Engine
     private function cleanupNodes(): void
     {
         $limit = time() - (Settings::int('idle_minutes', 5) * 60 + 120);
+        $gone = DB::all('SELECT node, handle FROM {nodes} WHERE seen<? AND tele=1', [$limit]);
         DB::q('DELETE FROM {nodes} WHERE seen<?', [$limit]);
+        foreach ($gone as $g) {
+            $this->teleGone((int)$g['node'], (string)$g['handle']);
+        }
         DB::q('DELETE FROM {node_msgs} WHERE time<? OR node NOT IN (SELECT node FROM {nodes})', [time() - 3600]);
     }
 
@@ -555,6 +567,7 @@ final class Engine
         if (!empty($this->S['chat'])) {
             $this->nodeMsg((int)$this->S['chat']['peer'], 'end', '');
         }
+        $this->teleLeave();
         if ($this->user) {
             DB::q('UPDATE {users} SET time_today=? WHERE id=?', [$this->usedSeconds(), (int)$this->user['id']]);
             cb_log((int)$this->user['id'], $this->user['handle'], 'Logoff');
@@ -720,6 +733,12 @@ final class Engine
                 $this->write('  |15' . $l . '|07');
                 $this->nl();
             }
+        }
+        $polls = $this->pollsGreeting();
+        if ($polls !== '') {
+            $this->nl();
+            $this->write($polls);
+            $this->nl();
         }
         if (Settings::get('logon_oneliners', '1') === '1') {
             $rows = array_reverse(DB::all('SELECT * FROM {oneliners} ORDER BY id DESC LIMIT 5'));
@@ -1013,7 +1032,7 @@ final class Engine
                 $this->lastCallers();
                 break;
             case 'WHO':
-                $this->whoOnline();
+                $this->go('who');
                 break;
             case 'USERLIST':
                 $this->userList();
@@ -1035,6 +1054,19 @@ final class Engine
                 break;
             case 'DOORTOP':
                 $this->go('dtop', 0);
+                break;
+            case 'TELECONF':
+                $this->go('tele');
+                break;
+            case 'PROFILE':
+                $this->S['profback'] = 'menu';
+                $this->go('prof_ask');
+                break;
+            case 'MSG_SEARCH':
+                $this->go('msrch');
+                break;
+            case 'POLLS':
+                $this->go('polls');
                 break;
             case 'SYSOP':
                 if ($this->isSysop()) {
