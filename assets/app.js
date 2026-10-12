@@ -1,6 +1,7 @@
 /*
  * WebCarrier BBS: terminal controller.
- * Dials the box, sends keys and lines to api.php, runs the line editor and file transfers.
+ * Dials the box, sends keys and lines to api.php, runs the line editor and file transfers,
+ * shows a hint in the tab title while the tab is in the background.
  *
  * Copyright (C) 2026 Christoph Scheel <https://chrisscheel.de>
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -14,6 +15,10 @@
   var cv = document.getElementById('term');
   var term = new window.CarrierTerm(cv);
   var upInput = document.getElementById('upfile');
+  var tube = document.getElementById('tube');
+  var crt = tube && window.CarrierCRT ? new window.CarrierCRT(tube, term) : null;
+  var bar = document.getElementById('openbar');
+  var barLink = document.getElementById('openlink');
 
   var phase = 'idle';      // idle, dialing, online, offline
   var ask = null;          // what the BBS expects next
@@ -26,6 +31,7 @@
   var csrf = '';
   var idleSec = 300;
   var lastKey = Date.now();
+  var idleWarned = false;
   var keybuf = [];
   var line = '';
   var ed = null;
@@ -48,11 +54,102 @@
     var foot = document.getElementById('legal') ? 22 : 0;
     var W = window.innerWidth, H = window.innerHeight - foot;
     var w = Math.min(W, H * 4 / 3);
-    cv.style.width = Math.floor(w) + 'px';
-    cv.style.height = Math.floor(w * 3 / 4) + 'px';
+    var box = tube || cv;
+    box.style.width = Math.floor(w) + 'px';
+    box.style.height = Math.floor(w * 3 / 4) + 'px';
   }
   window.addEventListener('resize', fit);
   fit();
+  if (crt) { crt.set(CFG.crt); }
+
+  /* ---------------------------------------------------------------- hint in the tab */
+
+  var baseTitle = document.title;
+  var blinkTimer = null;
+  var blinkText = '';
+  var iconLink = null;
+
+  /* Small icon drawn on a canvas, with a red dot while a hint is active. */
+  function setIcon(dot) {
+    if (!document.head) { return; }
+    var c = document.createElement('canvas');
+    c.width = 32; c.height = 32;
+    var x = c.getContext('2d');
+    x.fillStyle = '#000';
+    x.fillRect(0, 0, 32, 32);
+    x.fillStyle = '#aaa';
+    for (var i = 0; i < 5; i++) {
+      x.fillRect(5 + i * 2, 8 + i * 2, 4, 2);
+      x.fillRect(5 + i * 2, 24 - i * 2, 4, 2);
+    }
+    x.fillRect(17, 24, 10, 3);
+    if (dot) {
+      x.fillStyle = '#ff5555';
+      x.beginPath();
+      x.arc(24, 8, 7, 0, Math.PI * 2);
+      x.fill();
+    }
+    if (!iconLink) {
+      iconLink = document.createElement('link');
+      iconLink.rel = 'icon';
+      document.head.appendChild(iconLink);
+    }
+    iconLink.href = c.toDataURL('image/png');
+  }
+
+  /* Title changes every second between the hint and the name of the box until the tab is visible again. */
+  function notify(kind) {
+    if (!CFG.notify || !document.hidden) { return; }
+    blinkText = '(!) ' + (L['n_' + kind] || L.n_msg || '');
+    if (blinkTimer) { return; }
+    setIcon(true);
+    document.title = blinkText;
+    blinkTimer = setInterval(function () {
+      document.title = document.title === blinkText ? baseTitle : blinkText;
+    }, 1000);
+  }
+  function clearNotify() {
+    if (!blinkTimer) { return; }
+    clearInterval(blinkTimer);
+    blinkTimer = null;
+    document.title = baseTitle;
+    setIcon(false);
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) { clearNotify(); }
+  });
+  if (CFG.notify) { setIcon(false); }
+
+  /* ---------------------------------------------------------------- open in WAnsiDraw */
+
+  /* New tab without a way back to this page. If the browser blocks it, a bar with a real link. */
+  function openExternal(url) {
+    var w = null;
+    try { w = window.open('', '_blank'); } catch (e) { w = null; }
+    if (w) {
+      try {
+        w.opener = null;
+        w.location.replace(url);
+        return;
+      } catch (e2) {
+        try { w.close(); } catch (e3) { /* gone already */ }
+      }
+    }
+    if (!bar) { return; }
+    barLink.href = url;
+    barLink.textContent = L.open_wad || 'WAnsiDraw';
+    document.getElementById('openesc').textContent = L.open_esc || 'Esc';
+    bar.hidden = false;
+    barLink.focus();
+  }
+  function closeBar() {
+    bar.hidden = true;
+    barLink.removeAttribute('href');
+    cv.focus();
+  }
+  if (barLink) {
+    barLink.addEventListener('click', function () { setTimeout(closeBar, 0); });
+  }
 
   /* ---------------------------------------------------------------- sound */
 
@@ -188,6 +285,9 @@
     term.setBaud(typeof r.baud === 'number' ? r.baud : CFG.baud);
     if (r.idle) { idleSec = r.idle; }
     if (r.dl) { document.getElementById('dlframe').src = r.dl; }
+    if (r.crt && crt) { crt.set(r.crt); }
+    if (r.open) { openExternal(r.open); }
+    if (r.notify) { notify(r.notify); }
     term.enqueue(r.o || '');
     var after = function () {
       // the answer to an automatic input after wait() does not reset the idle timer
@@ -261,6 +361,7 @@
     polling = false;
     if (r.csrf) { csrf = r.csrf; }
     if (phase !== 'online') { return; }
+    if (r.notify) { notify(r.notify); }
     var out = r.o || '';
     if (!out && !r.ask && !r.hang) { drainKeys(); return; }
     term.showCursor(false);
@@ -310,6 +411,7 @@
 
   function feed(k) {
     lastKey = Date.now();
+    idleWarned = false;
     if (phase === 'idle') { ac(); dial(); return; }
     if (phase === 'offline') { dial(); return; }
     if (phase === 'dialing' || uploading) { return; }
@@ -326,6 +428,18 @@
   }
 
   document.addEventListener('keydown', function (e) {
+    // bar with the link: Enter opens it, Esc closes the bar, nothing reaches the terminal
+    if (bar && !bar.hidden) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeBar();
+      } else if (e.key === 'Enter') {
+        barLink.focus();
+      } else if (e.key && e.key.length === 1) {
+        e.preventDefault();
+      }
+      return;
+    }
     var k = keyOf(e);
     if (k === null) { return; }
     e.preventDefault();
@@ -549,10 +663,21 @@
   /* ---------------------------------------------------------------- idle and leaving */
 
   setInterval(function () {
-    if (phase === 'online' && ask && !pending && !uploading && Date.now() - lastKey > idleSec * 1000) {
+    if (phase !== 'online' || !ask || pending || uploading) { return; }
+    var left = idleSec * 1000 - (Date.now() - lastKey);
+    if (left <= 0) {
       ask = null;
       ed = null;
       send('idle', '');
+    } else if (left <= 60000 && idleSec > 90 && !idleWarned && !polling && !term.busy()) {
+      // one minute before the line is cut
+      idleWarned = true;
+      term.showCursor(false);
+      term.write('\r\x1b[K');
+      term.print(col(12) + (L.idle_warn || '') + col(7) + '\r\n');
+      if (term.onBell) { term.onBell(); }
+      redraw();
+      notify('bye');
     }
   }, 5000);
 

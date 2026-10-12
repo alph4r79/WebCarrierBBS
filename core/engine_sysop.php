@@ -46,32 +46,41 @@ trait EngineSysop
                 case 'msg':
                     $this->write('|14' . $this->L('bc_line', cb_esc((string)$r['text'])) . '|07');
                     $this->w->buf .= "\x07\r\n";
+                    $this->hint('msg');
                     break;
                 case 'nmsg':
                     $this->write('|11' . $this->L('nmsg_line', cb_esc((string)$r['from_handle']), (int)$r['from_node'], cb_esc((string)$r['text'])) . '|07');
                     $this->w->buf .= "\x07\r\n";
+                    $this->hint('msg');
                     break;
                 case 'tele':
                     if (($this->S['st'] ?? '') === 'tele') {
                         $this->write((string)$r['text']);
                         $this->nl();
+                        // the own handle in a line of somebody else
+                        if ($this->user && mb_stripos(preg_replace('/\|\d\d/', '', (string)$r['text']) ?? '', (string)$this->user['handle']) !== false) {
+                            $this->hint('msg');
+                        }
                     }
                     break;
                 case 'page':
                     $this->write('|14' . $r['text'] . '|07');
                     $this->w->buf .= "\x07\r\n";
+                    $this->hint('msg');
                     break;
                 case 'chat':
                     if (!$chat) {
                         // the sysop takes the caller out of the meeting point
                         $this->teleLeave();
                         $this->joinChat((int)$r['from_node'], (string)$r['from_handle']);
+                        $this->hint('chat');
                     }
                     break;
                 case 'line':
                     if ($fromPeer) {
                         $this->write('|11' . cb_esc((string)$r['from_handle']) . '|08> |11' . cb_esc((string)$r['text']) . '|07');
                         $this->nl();
+                        $this->hint('chat');
                     }
                     break;
                 case 'end':

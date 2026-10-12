@@ -226,10 +226,13 @@ function page_screens(array $admin): void
     echo '<h1>' . h(t('Screens')) . '</h1>';
     echo '<p class="note">' . h(t('Screens are ANSI files (.ans, CP437, draw them with PabloDraw or Moebius) or text files with pipe colour codes (.txt). Special names: welcome (before login), newuser, logon (after login), logoff. Bulletins and menu screens can have any name.')) . '</p>';
     echo '<div class="tablewrap"><table><tr><th>' . h(t('Screen')) . '</th><th>' . h(t('Type')) . '</th><th class="num">' . h(t('Size')) . '</th><th></th></tr>';
+    $wad = cb_wansidraw_base() !== '';
     foreach (a_screen_list() as $f => $path) {
         echo '<tr><td><a href="' . h(a_url('screen', ['n' => $f])) . '"><code>' . h(pathinfo($f, PATHINFO_FILENAME)) . '</code></a></td><td>' .
             (str_ends_with($f, '.ans') ? 'ANSI' : t('Text with pipe codes')) . '</td><td class="num">' . number_format((int)filesize($path)) .
-            ' B</td><td class="row-actions"><a class="btn small ghost" href="' . h(a_url('screen', ['n' => $f])) . '">' . h(t('Show')) . '</a><form method="post"' .
+            ' B</td><td class="row-actions"><a class="btn small ghost" href="' . h(a_url('screen', ['n' => $f])) . '">' . h(t('Show')) . '</a>' .
+            ($wad ? '<a class="btn small ghost" target="_blank" rel="noopener" href="' . h(a_url('wansidraw', ['screen' => $f])) . '">' . h(t('Open in WAnsiDraw')) . '</a>' : '') .
+            '<form method="post"' .
             a_confirm(t('Delete screen {1}?', $f)) . '>' . a_csrf() . '<button class="btn small danger ghost" name="del" value="' . h($f) . '">' . h(t('Delete')) . '</button></form></td></tr>';
     }
     echo '</table></div>';
@@ -276,7 +279,9 @@ function page_screen(array $admin): void
     } else {
         echo '<p class="note">' . h(t('ANSI screens are edited with an ANSI editor and uploaded again under the same name.')) . '</p>';
     }
-    echo '<p><a class="btn ghost" href="' . h(a_url('screens')) . '">' . h(t('Back')) . '</a></p>';
+    echo '<p class="row-actions"><a class="btn ghost" href="' . h(a_url('screens')) . '">' . h(t('Back')) . '</a>' .
+        (cb_wansidraw_base() !== '' ? '<a class="btn ghost" target="_blank" rel="noopener" href="' . h(a_url('wansidraw', ['screen' => $f])) . '">' .
+            h(t('Open in WAnsiDraw')) . '</a>' : '') . '</p>';
     echo '<script src="../assets/font.js?v=' . CB_VERSION . '"></script><script src="../assets/terminal.js?v=' . CB_VERSION . '"></script>';
     echo '<script>(function(){var t=new CarrierTerm(document.getElementById("pv"));t.setBaud(0);t.write(' .
         json_encode(CP437::transport($bytes), JSON_HEX_TAG | JSON_HEX_AMP) . ');}());</script>';

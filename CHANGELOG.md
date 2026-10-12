@@ -2,6 +2,29 @@
 
 All notable changes to WebCarrier BBS. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version numbers follow [Semantic Versioning](https://semver.org/).
 
+## [1.8.0] - 2026-10-11
+
+### Added
+
+- New since the last call: after the login a box counts new public messages, files, members, oneliners and door high scores since the previous call and the running polls the caller has not voted in, with keys for the new messages (N) and the new files (F). New macro @NEWSINCE@ for own logon screens and a switch in the settings (on by default). The hint for new polls moved into this box.
+- Questionnaire for new users: up to 10 questions (free text, choice, yes or no; required or optional) asked during the registration, managed on a new backend page and off by default. The answers are stored with the account, shown on the user page and next to users waiting for validation, and keep the wording of the question.
+- Automatic promotion: up to 5 rules on the levels page give callers a higher level at the login, by calls, days since the registration, public posts and approved uploads. Off by default, never down, never for locked or waiting users and sysops, with a preview of who would be promoted and a mark per user to leave him out.
+- Second factor for logins: TOTP after RFC 6238 with any authenticator app, set up on the new backend page "My account" with a QR code drawn in the browser, ten one-time backup codes, and an emergency reset by the file data/2fa_reset.txt. Accounts with a second factor are asked for the code in the backend and in the terminal.
+- Hint in the browser tab: while the tab with the terminal is in the background, its title and icon show a chat with the sysop, a new message, the turn in a door or a disconnect coming up. Switch in the settings, on by default.
+- Callers are told in the terminal about private mail that arrives during the call, two minutes before their time for the day ends and one minute before the idle timeout.
+- Open in WAnsiDraw: text and ANSI files in the viewer (key W) and screens and ANSI files in the backend open in the ANSI editor WAnsiDraw. The drawing travels in the part of the address after #, nothing is sent to a server. The address is a setting, empty switches the function off.
+- Tube effect for the terminal with the levels off, light (scanlines) and strong (also glow, afterglow and a faint flicker), off by default, with a preview in the settings. Callers can switch it off for themselves (key R in their settings), reduced motion is respected.
+- Every message gets a globally unique id made of the id of the board and a random part, and replies remember the id of the original. This prepares a later network between boards and changes nothing for callers. The id of the board is shown in the settings.
+
+### Changed
+
+- Wrong codes of the second factor count for the login lock like wrong passwords.
+- Database version 8: tables for the questionnaire, the rules of the automatic promotion and the backup codes, new columns for users and messages, indexes on the time columns the new box counts by. Existing messages get their ids in steps of 500.
+
+### Fixed
+
+- On Windows the terminal looked for api.php under a wrong address when the board ran in the root of a host.
+
 ## [1.7.0] - 2026-10-10
 
 ### Added
@@ -132,6 +155,7 @@ First public release.
 - Web installer for SQLite or MySQL/MariaDB
 - German and English
 
+[1.8.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.4.0...v1.5.0

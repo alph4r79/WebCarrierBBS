@@ -26,6 +26,8 @@ require __DIR__ . '/pages_stats.php';
 require __DIR__ . '/pages_texts.php';
 require __DIR__ . '/pages_doors.php';
 require __DIR__ . '/pages_polls.php';
+require __DIR__ . '/pages_questions.php';
+require __DIR__ . '/pages_account.php';
 
 header('X-Frame-Options: DENY');
 header('X-Content-Type-Options: nosniff');
@@ -151,17 +153,62 @@ if ($page === 'logout') {
 
 if (!$admin) {
     $err = '';
-    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && cb_csrf_ok($_POST['csrf'] ?? null)) {
+    $post = ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && cb_csrf_ok($_POST['csrf'] ?? null);
+    $enter = static function (array $u): never {
+        // terminal in another tab uses the same session, keep its node
+        $old = session_id();
+        session_regenerate_id(true);
+        DB::q('UPDATE {nodes} SET sid=? WHERE sid=?', [session_id(), $old]);
+        unset($_SESSION['cb_2fa']);
+        $_SESSION['cb_admin'] = (int)$u['id'];
+        cb_log((int)$u['id'], $u['handle'], 'Sysop backend login');
+        a_go('dash');
+    };
+    // between password and code: valid for 5 minutes
+    $step = is_array($_SESSION['cb_2fa'] ?? null) ? $_SESSION['cb_2fa'] : null;
+    if ($step && time() - (int)$step['t'] > 300) {
+        unset($_SESSION['cb_2fa']);
+        $step = null;
+        if ($post && isset($_POST['code'])) {
+            $err = t('That took longer than 5 minutes. Please log in again.');
+        }
+    }
+    if ($post && isset($_POST['cancel'])) {
+        unset($_SESSION['cb_2fa']);
+        a_go('dash');
+    } elseif ($post && $step && isset($_POST['code'])) {
+        $u = DB::row('SELECT * FROM {users} WHERE id=? AND locked=0 AND totp_on=1 AND level>=?', [(int)$step['uid'], Settings::int('sysop_level', 255)]);
+        $blocked = !$u || cb_login_blocked((int)$u['id']);
+        $how = $blocked ? null : cb_second_factor($u, (string)$_POST['code']);
+        if ($how !== null) {
+            if ($how === 'backup') {
+                cb_log((int)$u['id'], $u['handle'], 'Backup code used (sysop backend)');
+            }
+            $enter($u);
+        }
+        if (!$blocked) {
+            cb_log((int)$u['id'], $u['handle'], 'Wrong code (sysop backend)');
+        }
+        sleep(1);
+        if ($blocked || cb_login_blocked((int)$u['id'])) {
+            unset($_SESSION['cb_2fa']);
+            $step = null;
+            $err = t('Login failed.');
+        } else {
+            $err = t('The code is not correct.');
+        }
+    } elseif ($post && isset($_POST['handle'])) {
         $u = DB::row('SELECT * FROM {users} WHERE handle_lc=?', [mb_strtolower(a_in('handle', 30))]);
         $blocked = $u && cb_login_blocked((int)$u['id']);
         if ($u && !$blocked && password_verify((string)($_POST['pass'] ?? ''), $u['pass']) && (int)$u['locked'] === 0
             && (int)$u['level'] >= Settings::int('sysop_level', 255)) {
-            // terminal in another tab uses the same session, keep its node
-            $old = session_id();
-            session_regenerate_id(true);
-            DB::q('UPDATE {nodes} SET sid=? WHERE sid=?', [session_id(), $old]);
-            $_SESSION['cb_admin'] = (int)$u['id'];
-            cb_log((int)$u['id'], $u['handle'], 'Sysop backend login');
+            if (cb_totp_reset_file($u)) {
+                $u['totp_on'] = 0;
+            }
+            if ((int)$u['totp_on'] !== 1) {
+                $enter($u);
+            }
+            $_SESSION['cb_2fa'] = ['uid' => (int)$u['id'], 't' => time()];
             a_go('dash');
         }
         if ($u && !$blocked) {
@@ -178,9 +225,16 @@ if (!$admin) {
 <h1><?= h(t('Sysop login')) ?></h1>
 <?php if ($err): ?><div class="flash bad"><p><?= h($err) ?></p></div><?php endif; ?>
 <?= a_csrf() ?>
+<?php if ($step): ?>
+<label><?= h(t('Code from the app')) ?><input name="code" class="mono" required autofocus inputmode="numeric" autocomplete="one-time-code" maxlength="12">
+<span class="hint"><?= h(t('The 6 digits your authenticator app shows, or one of your backup codes.')) ?></span></label>
+<p class="row-actions"><button class="btn" type="submit"><?= h(t('Log in')) ?></button>
+<button class="btn ghost" name="cancel" value="1" formnovalidate><?= h(t('Cancel')) ?></button></p>
+<?php else: ?>
 <label><?= h(t('Handle')) ?><input name="handle" required autofocus autocomplete="username"></label>
 <label><?= h(t('Password')) ?><input type="password" name="pass" required autocomplete="current-password"></label>
 <p><button class="btn" type="submit"><?= h(t('Log in')) ?></button></p>
+<?php endif; ?>
 <p class="note"><a href="../"><?= h(t('Back to the BBS')) ?></a></p>
 </form></main><?= cb_credit(t('Source code')) ?></body></html>
 <?php
@@ -199,6 +253,7 @@ $pages = [
     'user' => [null, 'page_user'],
     'levels' => ['Levels', 'page_levels'],
     'banlist' => ['Ban list', 'page_banlist'],
+    'questions' => ['Questionnaire', 'page_questions'],
     '-2' => null,
     'msgareas' => ['Message areas', 'page_msgareas'],
     'messages' => ['Messages', 'page_messages'],
@@ -218,6 +273,8 @@ $pages = [
     'doors' => ['Doors', 'page_doors'],
     'log' => ['Log', 'page_log'],
     'backup' => ['Backup', 'page_backup'],
+    'account' => ['My account', 'page_account'],
+    'wansidraw' => [null, 'page_wansidraw'],
 ];
 if (!isset($pages[$page]) || $pages[$page] === null) {
     $page = 'dash';

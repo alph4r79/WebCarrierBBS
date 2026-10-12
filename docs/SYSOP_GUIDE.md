@@ -1,6 +1,6 @@
 # WebCarrier BBS: Sysop-Handbuch
 
-Version 1.7.0
+Version 1.8.0
 
 Für Betreiber der Mailbox: Installation, Einrichtung, Backend, Menüs, Screens, Dateiimport, Doors und Betrieb.
 
@@ -112,7 +112,7 @@ Wie groß Uploads sein dürfen, bestimmt das kleinste von drei Limits: die Einst
 | 100 | Co-Sysop | 240 | unbegrenzt |
 | 255 | Sysop | unbegrenzt | unbegrenzt |
 
-Ein User bekommt die Grenzen der höchsten Levelzeile, die nicht über seinem eigenen Level liegt. Ein User mit Level 30 bekommt also die Werte von Level 20. Neue User bekommen das Level aus der Einstellung „Level für neue User“. Hochstufen (früher nach dem Validierungsanruf) machst du in der Userverwaltung.
+Ein User bekommt die Grenzen der höchsten Levelzeile, die nicht über seinem eigenen Level liegt. Ein User mit Level 30 bekommt also die Werte von Level 20. Neue User bekommen das Level aus der Einstellung „Level für neue User“. Hochstufen (früher nach dem Validierungsanruf) machst du in der Userverwaltung, oder die Box macht es nach deinen Regeln selbst (siehe „Automatisch hochstufen“ in Abschnitt 7).
 
 **Zeitlimit:** Die Minuten pro Tag zählen über alle Anrufe eines Tages. Ist die Zeit um, wird aufgelegt. 0 bedeutet unbegrenzt. In der Userverwaltung kannst du Zeit und Downloadzähler für heute zurücksetzen.
 
@@ -122,7 +122,7 @@ Zugriffsrechte für Bereiche funktionieren ebenfalls über Level: Jeder Nachrich
 
 ## 7. Das Sysop-Backend
 
-Erreichbar unter `/sysop/`. Einloggen darf jeder Account, dessen Level mindestens dem Wert „Level mit Sysop-Rechten“ entspricht (Standard 255). Das Backend funktioniert auch auf dem Handy.
+Erreichbar unter `/sysop/`. Einloggen darf jeder Account, dessen Level mindestens dem Wert „Level mit Sysop-Rechten“ entspricht (Standard 255). Hat der Account einen zweiten Faktor, folgt nach dem Passwort die Frage nach dem Code aus der App (siehe „Zweiter Faktor“ weiter unten). Das Backend funktioniert auch auf dem Handy.
 
 Beim Speichern der Einstellungen prüft das Backend zwei Werte: Der Sysop-Level muss zwischen 1 und deinem eigenen Level liegen (sonst wäre jeder Sysop oder du würdest dich selbst aussperren), und der Level für neue User muss darunter liegen. Ungültige Werte werden korrigiert und du bekommst einen Hinweis.
 
@@ -130,11 +130,12 @@ Beim Speichern der Einstellungen prüft das Backend zwei Werte: Der Sysop-Level 
 |---|---|
 | Übersicht | Meldungen, belegte Nodes mit Trennen und Rundruf, Kennzahlen, letzte Ereignisse, Systeminfos (siehe unten) |
 | Statistik | Zahlenband mit den wichtigsten Werten, Diagramme zu Anrufen, Uhrzeiten, neuen Usern, Uploads und Downloads, Bestenlisten (siehe unten) |
-| Einstellungen | Name, Sprache, Zeitzone, Nodes, Neuanmeldung, Terminal, Uploads, Update-Prüfung |
+| Einstellungen | Name, Sprache, Zeitzone, Nodes, Neuanmeldung, Terminal mit Röhren-Effekt und Hinweis im Browser-Tab, Adresse von WAnsiDraw, Uploads, Update-Prüfung, Kennung der Box |
 | Impressum und Datenschutz | Rechtstexte als reiner Text |
 | User | Anlegen, suchen, bearbeiten, Level ändern, sperren, Passwort setzen, löschen, neue User freischalten |
-| Level | Zeit, Downloadlimit und Ratio je Level |
+| Level | Zeit, Downloadlimit und Ratio je Level, Regeln zum automatischen Hochstufen (siehe unten) |
 | Sperrliste | Gesperrte Handles und Wörter (siehe unten) |
+| Fragebogen | Fragen an neue User bei der Anmeldung (siehe unten) |
 | Nachrichtenbereiche | Anlegen, umbenennen, Rechte, Reihenfolge, löschen |
 | Nachrichten | Öffentliche Nachrichten lesen, löschen und in andere Bereiche verschieben. Private Post wird hier bewusst nicht angezeigt |
 | Oneliner | Oneliner und Zeilen des Treffpunkts moderieren |
@@ -143,11 +144,12 @@ Beim Speichern der Einstellungen prüft das Backend zwei Werte: Der Sysop-Level 
 | Dateien | Uploads freigeben, umbenennen, Beschreibungen ändern, verschieben, löschen, Dateien per Browser hochladen |
 | Dateiimport | Viele Dateien auf einmal aus `data/import` übernehmen |
 | Menüs | Menüstruktur und Hotkeys bearbeiten |
-| Screens | ANSI- und Text-Screens hochladen, bearbeiten, mit Vorschau |
+| Screens | ANSI- und Text-Screens hochladen, bearbeiten, mit Vorschau, in WAnsiDraw öffnen |
 | Texte | Eigene Fassungen der Terminaltexte, siehe Abschnitt 12 |
 | Doors | Installierte Doors, ins Menü aufnehmen, Spielstände zurücksetzen, fehlerhafte Dateien, siehe Abschnitt 11 |
 | Log | Logins, Uploads, Downloads, Änderungen |
 | Backup | Sicherung als ZIP herunterladen, siehe Abschnitt 13 |
+| Mein Zugang | Zweiten Faktor für dein eigenes Konto einrichten und abschalten, Notfallcodes (siehe unten) |
 
 ### Übersicht
 
@@ -155,13 +157,13 @@ Ganz oben stehen die **Meldungen**, sortiert nach Wichtigkeit. Vor jedem Titel s
 
 | Art | Beispiele |
 |---|---|
-| Sicherheit | Der Ordner `install` liegt noch auf dem Server, ein abgebrochenes Update wurde aufgeräumt |
+| Sicherheit | Der Ordner `install` liegt noch auf dem Server, ein abgebrochenes Update wurde aufgeräumt, der zweite Faktor deines Kontos wurde über die Datei `data/2fa_reset.txt` abgeschaltet |
 | Aufgabe | Impressum oder Datenschutzerklärung leer, Uploads warten auf deine Freigabe, neue User warten auf Freischaltung, Door-Dateien konnten nicht geladen werden |
 | Update | Neue Version verfügbar, Ergebnis des letzten Updates (einmalig) |
-| Hinweis | Noch kein Backup oder letztes Backup älter als 30 Tage, Update-Prüfung ausgeschaltet |
+| Hinweis | Noch kein Backup oder letztes Backup älter als 30 Tage, Update-Prüfung ausgeschaltet, dein Konto hat keinen zweiten Faktor |
 | Neuigkeit | Meldungen des Projekts, nur bei eingeschalteter Update-Prüfung |
 
-Hinweise und Neuigkeiten kannst du mit „Ausblenden“ wegklicken. Sicherheitsmeldungen, Aufgaben und Updates lassen sich nicht ausblenden, sie verschwinden, sobald die Ursache behoben ist. Gibt es nichts zu melden, steht dort, dass alles in Ordnung ist.
+Hinweise und Neuigkeiten kannst du mit „Ausblenden“ wegklicken. Der Hinweis auf den fehlenden zweiten Faktor gilt nur für dich und kommt nach 30 Tagen wieder. Sicherheitsmeldungen, Aufgaben und Updates lassen sich nicht ausblenden, sie verschwinden, sobald die Ursache behoben ist. Gibt es nichts zu melden, steht dort, dass alles in Ordnung ist.
 
 Unter den Nodes steht der Kasten **„Nachricht des Sysops“**. Was du dort einträgst, sieht jeder Anrufer nach dem Login unter der Zeile mit Restzeit und Post, mit „Nachricht von“ und deinem Namen darüber. Erlaubt sind bis zu 3 Zeilen mit je 76 Zeichen, Pipe-Codes für Farben wie `|14` zählen dabei nicht mit. `|CL`, `|CR` und andere Steuercodes werden entfernt. Ist eine Zeile zu lang oder sind es mehr als 3 Zeilen, wird nichts gespeichert und du bekommst einen Hinweis, dein Text bleibt im Feld stehen. Mit „Anzeigen bis“ legst du optional einen Tag fest, bis einschließlich dem die Nachricht erscheint. Danach sehen Anrufer sie nicht mehr, im Backend bleibt sie mit dem Hinweis „abgelaufen“ stehen, bis du sie änderst oder mit „Nachricht entfernen“ löschst. Jede Änderung steht im Log. Ohne Nachricht sieht die Begrüßung aus wie immer.
 
@@ -187,6 +189,29 @@ Level vergeben kannst du höchstens bis zu deinem eigenen. User mit einem höher
 
 **Passwort vergessen:** Anrufer können ihr Passwort nicht selbst zurücksetzen, weil die Box keine E-Mail-Adressen speichert. Das machst du in der Userverwaltung unter „Neues Passwort“.
 
+Hat ein User bei der Anmeldung den Fragebogen beantwortet, stehen seine Antworten auf seiner Seite im Kasten „Fragebogen“. Hat ein anderes Konto einen zweiten Faktor, kannst du ihn dort abschalten, zum Beispiel wenn ein Co-Sysop sein Handy verloren hat.
+
+### Automatisch hochstufen
+
+Auf der Seite „Level“ steht unter der Leveltabelle der Abschnitt „Automatisch hochstufen“. Ab Werk ist er aus, dann ändert die Box kein Level von selbst. Schaltest du ihn ein, prüft die Box bei jedem Login deine Regeln, nachdem der Anruf gezählt wurde. Im Hintergrund passiert nichts, wer nicht anruft, wird auch nicht hochgestuft.
+
+Du kannst bis zu 5 Regeln anlegen. Jede Regel hat ein Ausgangslevel („Ab Level“), ein neues Level und bis zu vier Bedingungen:
+
+| Bedingung | Was gezählt wird |
+|---|---|
+| Anrufe | Alle Anrufe des Users, der aktuelle zählt schon mit |
+| Tage seit der Anmeldung | Volle Tage seit dem Anlegen des Accounts |
+| Beiträge | Öffentliche Nachrichten des Users, die es noch gibt. Private Post zählt nicht |
+| Uploads | Freigegebene Dateien des Users. Wartende Uploads zählen nicht |
+
+Wer mindestens das Ausgangslevel und weniger als das neue Level hat und alle Bedingungen erfüllt, bekommt das neue Level. Eine 0 heißt, dass diese Bedingung nicht geprüft wird, eine Regel ganz ohne Bedingung lässt sich nicht speichern. Das neue Level muss über dem Ausgangslevel und unter dem Level mit Sysop-Rechten liegen. Treffen mehrere Regeln zu, gilt das höchste neue Level. Das Ergebnis wird im selben Login noch einmal gegen die Regeln geprüft, ein User kann also in einem Anruf zwei Stufen nehmen, wenn er die Bedingungen beider Regeln erfüllt.
+
+Es wird nur hochgestuft, nie herab. Gesperrte User, User, die auf ihre Freischaltung warten, und Sysops bleiben immer außen vor. Einzelne User nimmst du mit dem Haken **„Nicht automatisch hochstufen“** auf ihrer Userseite aus (in der Datenbank die Spalte `no_auto`). Änderst du ein Level von Hand, wird der Haken nicht von selbst gesetzt. Die Userseite zeigt dir aber einen Hinweis, wenn eine Regel den User beim nächsten Anruf weiter hochstufen würde.
+
+Der Anrufer sieht nach dem Hochstufen in der Begrüßung „Glückwunsch, du bist jetzt Stammgast (Level 50).“ mit einem Klingelton. Zeit, Downloadlimit und Rechte des neuen Levels gelten sofort. Im Log steht zum Beispiel `Auto level 10 to 20 (rule 2)`, die Nummer ist die der Regel in der Tabelle.
+
+Unter den Regeln steht eine **Vorschau**: wie viele und welche User beim nächsten Anruf hochgestuft würden. So siehst du vor dem Einschalten, was eine Regel bewirkt.
+
 ### Freischaltung neuer User
 
 In den Einstellungen gibt es den Abschnitt „Neuanmeldung“ mit drei Schaltern: ob sich neue User überhaupt anmelden dürfen, welches Level sie bekommen und ob sie **freigeschaltet werden müssen**. Ab Werk ist die Freischaltung aus, dann verhält sich die Box wie gewohnt.
@@ -197,7 +222,25 @@ Bist du gerade im Terminal eingeloggt, bekommst du bei jeder neuen Anmeldung sof
 
 Schaltest du die Freischaltung wieder aus, bleiben bereits wartende User wartend, bis du sie freischaltest oder löschst. Die Einstellungsseite weist dann darauf hin.
 
-Handles, die auf der Sperrliste stehen, kann sich bei der Neuanmeldung niemand geben (siehe nächster Abschnitt).
+Handles, die auf der Sperrliste stehen, kann sich bei der Neuanmeldung niemand geben (siehe „Sperrliste“).
+
+### Fragebogen bei der Anmeldung
+
+Unter „Fragebogen“ stellst du neuen Usern bis zu 10 Fragen. Der Hauptschalter „Fragebogen bei der Anmeldung stellen“ ist ab Werk aus, und ohne aktive Frage bleibt er wirkungslos. Die Fragen kommen im Terminal nach Ort und Passwort unter der Überschrift „Ein paar Fragen des Sysops“, bevor das Konto angelegt wird. Wer schon einen Account hat, wird nicht nachträglich gefragt.
+
+Jede Frage hat einen Text mit höchstens 70 Zeichen und eine Art:
+
+| Art | Eingabe im Terminal |
+|---|---|
+| Freitext | Eine Zeile, Höchstlänge 1 bis 60 Zeichen (ab Werk 40). Läuft durch die Sperrliste für Wörter |
+| Auswahl | 2 bis 8 Antworten mit je höchstens 30 Zeichen, der Anrufer wählt per Nummer |
+| Ja oder Nein | J oder N, in englischen Boxen Y oder N |
+
+Pflichtfragen dürfen nicht leer bleiben, freiwillige überspringt der Anrufer mit Enter („Enter = keine Angabe“). Die Reihenfolge änderst du mit „Hoch“ und „Runter“, inaktive Fragen werden nicht gestellt.
+
+Gespeichert wird erst zusammen mit dem Konto. Bricht jemand mitten im Fragebogen ab, bleibt nichts übrig. Die Antworten siehst du auf der Userseite im Kasten „Fragebogen“ und in der Liste der Freischaltungen direkt unter dem wartenden User, damit du danach entscheiden kannst. Zu jeder Antwort ist der Wortlaut der Frage mitgespeichert. Änderst oder löschst du eine Frage später, bleiben alte Antworten deshalb lesbar. Einzelne Antworten löschst du auf der Userseite, das steht im Log. Mit dem User werden auch seine Antworten gelöscht.
+
+**Datensparsamkeit:** Frage nur, was du für die Freischaltung wirklich brauchst. Die Antworten sieht nur die Sysop-Ebene. Fragen nach E-Mail-Adresse, Telefonnummer oder Geburtsdatum sind bewusst nicht vorbelegt. Stellst du solche Fragen trotzdem, gehören sie in deine Datenschutzerklärung.
 
 ### Sperrliste
 
@@ -209,15 +252,85 @@ Unter „Sperrliste“ trägst du zwei Listen ein, jeweils ein Eintrag pro Zeile
 
 Für Sysops gilt die Sperrliste nicht. Vorhandene User, deren Handle auf die Liste passt, zeigt die Seite unter der Liste an. Sie werden nicht automatisch gesperrt, das entscheidest du selbst.
 
+### Zweiter Faktor
+
+Mit einem zweiten Faktor reicht ein gestohlenes Passwort nicht mehr, um in dein Backend zu kommen. Die Box benutzt das übliche Verfahren TOTP (RFC 6238, SHA1, 6 Ziffern, 30 Sekunden). Es funktioniert mit jeder gängigen Authenticator-App. Alles läuft auf der Box selbst, der QR-Code wird in deinem Browser gezeichnet und kein Dienst im Netz gefragt.
+
+**Einrichten:** Unter „Mein Zugang“ richtet jeder Sysop den zweiten Faktor für sein eigenes Konto ein.
+
+1. „Zweiten Faktor einrichten“ erzeugt ein Geheimnis und zeigt es als QR-Code und als Text in Vierergruppen. Der Link darunter öffnet eine Authenticator-App auf demselben Gerät.
+2. Scanne den QR-Code mit der App oder tippe das Geheimnis ab. In der App erscheint die Box mit ihrem Namen als Aussteller und deinem Handle als Konto.
+3. Tippe den Code ein, den die App anzeigt. Erst nach einem richtigen Code ist der zweite Faktor aktiv. Bis dahin ändert sich an deinem Login nichts.
+
+**Notfallcodes:** Nach dem Aktivieren zeigt die Seite einmalig 10 Notfallcodes mit je 8 Zeichen. Jeder gilt einmal anstelle eines Codes aus der App. Schreib sie auf oder druck sie aus, sie werden nur in diesem Moment angezeigt und nur als Hash gespeichert. „Neue Notfallcodes erzeugen“ (mit deinem Passwort) macht die alten ungültig.
+
+**Login im Backend:** Nach dem richtigen Passwort folgt ein zweites Formular „Code aus der App“. Angenommen werden der aktuelle Code, der vorige und der nächste, damit eine leicht falsch gehende Uhr nicht stört, und jeder Code nur einmal. Ein unbenutzter Notfallcode geht auch. Zwischen Passwort und Code hast du 5 Minuten, danach beginnt der Login von vorn. Falsche Codes zählen wie falsche Passwörter zur Sperre nach 5 Fehlversuchen in 15 Minuten.
+
+**Login im Terminal:** Hat ein Konto den zweiten Faktor an, fragt die Box nach dem Passwort „Code aus der App:“. Nach drei falschen Codes wird aufgelegt. Das gilt für jedes Konto mit zweitem Faktor, praktisch also für die Sysops, denn nur sie können ihn im Backend einrichten.
+
+**Abschalten:** Auf „Mein Zugang“ mit Passwort und einem gültigen Code. Den zweiten Faktor eines anderen Kontos schaltet ein Sysop auf dessen Userseite ab, den eigenen auf diesem Weg nicht.
+
+**Notzugang, wenn das Handy weg ist:** Hast du auch keine Notfallcodes mehr, lege per FTP die Datei `data/2fa_reset.txt` an. Ihr Inhalt ist dein Handle, sonst nichts. Beim nächsten Login mit diesem Handle und dem richtigen Passwort im Backend schaltet die Box den zweiten Faktor ab, löscht die Datei und schreibt einen Logeintrag. Die Übersicht zeigt danach eine rote Meldung, bis du ihn neu eingerichtet hast. Ohne das richtige Passwort passiert nichts, und im Terminal wirkt die Datei nicht. Wer FTP-Zugang zu deinem Webspace hat, kann den zweiten Faktor also aushebeln, er hätte dort aber ohnehin Zugriff auf alles.
+
+Im Log stehen Einrichten, Abschalten, benutzte Notfallcodes, der Notzugang über die Datei und falsche Codes. Das Geheimnis und die Codes selbst stehen nie im Log.
+
 ### Umfragen
 
-Unter „Umfragen“ legst du neue Umfragen an: eine Frage mit höchstens 70 Zeichen, 2 bis 8 Antworten mit je höchstens 40 Zeichen und optional einen letzten Tag, bis einschließlich dem abgestimmt werden kann. Anrufer stimmen im Terminal mit dem Menübefehl POLLS ab (im Hauptmenü Taste V), einmal pro Umfrage und ohne die Stimme später ändern zu können. Das Ergebnis sehen sie nach ihrer eigenen Stimme oder wenn die Umfrage beendet ist. Gibt es offene Umfragen, bei denen ein Anrufer noch nicht abgestimmt hat, weist ihn die Begrüßung nach dem Login darauf hin.
+Unter „Umfragen“ legst du neue Umfragen an: eine Frage mit höchstens 70 Zeichen, 2 bis 8 Antworten mit je höchstens 40 Zeichen und optional einen letzten Tag, bis einschließlich dem abgestimmt werden kann. Anrufer stimmen im Terminal mit dem Menübefehl POLLS ab (im Hauptmenü Taste V), einmal pro Umfrage und ohne die Stimme später ändern zu können. Das Ergebnis sehen sie nach ihrer eigenen Stimme oder wenn die Umfrage beendet ist. Laufende Umfragen, bei denen ein Anrufer noch nicht abgestimmt hat, stehen nach dem Login im Kasten „Neu seit deinem letzten Anruf“, bei jedem Anruf, bis er abgestimmt hat. Ist der Kasten abgeschaltet oder ruft jemand zum ersten Mal an, weist ihn wie bisher eine eigene Zeile der Begrüßung auf offene Umfragen hin.
 
 Ein Klick auf die Frage zeigt das Ergebnis. Solange niemand abgestimmt hat, kannst du die Umfrage dort noch ändern. Danach lässt sie sich nur noch vorzeitig beenden oder mit allen Stimmen löschen. Jede Aktion steht im Log. Sysops stimmen ab wie alle anderen.
 
 ### Nachrichten
 
 Die Liste unter „Nachrichten“ zeigt die letzten 200 öffentlichen Nachrichten, auf Wunsch nur eines Bereichs. Über die Häkchen links (das Häkchen im Tabellenkopf wählt alle) löschst du mehrere Nachrichten auf einmal oder verschiebst sie in einen anderen Bereich, etwa wenn jemand im falschen Bereich geschrieben hat. In der Einzelansicht einer Nachricht geht beides auch direkt. Private Post lässt sich hier weder sehen noch verschieben.
+
+### Neues seit dem letzten Anruf
+
+Nach dem Login, unter „Willkommen“ und der Restzeit, zeigt die Box einen Kasten „Neu seit deinem letzten Anruf am 09.10.26 um 21:14“. Er zählt, was seit dem letzten Anruf dazugekommen ist, und zeigt nur Zeilen mit einer Zahl über 0:
+
+- neue öffentliche Nachrichten in Bereichen, die der Anrufer lesen darf, ohne seine eigenen
+- neue freigegebene Dateien in Bereichen, die er sehen darf
+- neue Mitglieder, ohne wartende und gesperrte
+- neue Oneliner
+- laufende Umfragen, an denen er noch nicht teilgenommen hat. Diese Zeile zählt alle offenen Umfragen ohne seine Stimme, auch ältere, und bleibt stehen, bis er abgestimmt hat oder die Umfrage endet
+- neue Bestwerte anderer Anrufer in den Doors, die er erreichen kann
+
+Ist nichts dazugekommen, steht dort ein einzelner Satz. Unter der Begrüßung führen N zu den neuen Nachrichten (wie der Befehl MSG_NEW) und F zu den neuen Dateien (wie FILE_NEW), Enter geht weiter. Die Tasten erscheinen nur, wenn es Neues gibt, und danach landet der Anrufer im Hauptmenü. Die Zeile mit ungelesener privater Post steht wie bisher darüber. Beim allerersten Anruf entfällt der Kasten.
+
+In einem eigenen `logon`-Screen setzt du den Kasten mit dem Makro `@NEWSINCE@` selbst an die gewünschte Stelle (siehe Abschnitt 9). Die Begrüßung zeigt ihn dann nicht noch einmal. Abschalten lässt er sich in den Einstellungen mit „Neues seit dem letzten Anruf zeigen“, ab Werk ist er an.
+
+### Hinweis im Browser-Tab
+
+Viele Anrufer lassen die Box in einem Tab offen und arbeiten nebenher weiter. Ist der Tab mit dem Terminal nicht sichtbar und passiert etwas für den Anrufer, wechselt der Titel des Tabs jede Sekunde zwischen einem Hinweis wie „(!) Neue Nachricht“ und dem Namen der Box, und das kleine Symbol im Tab bekommt einen roten Punkt. Sobald der Tab wieder sichtbar ist, ist beides zurück.
+
+| Hinweis | Auslöser |
+|---|---|
+| Chat mit dem Sysop | Du startest einen Chat, oder im Chat kommt eine Zeile |
+| Neue Nachricht | Rundruf, Nachricht an die Node, private Post während des Anrufs, eine Zeile im Treffpunkt mit dem eigenen Handle, beim Sysop auch ein Anrufer, der ihn ruft |
+| Du bist am Zug | Eine Door hat gewartet und fragt jetzt nach einer Taste |
+| Gleich wird getrennt | Die letzten zwei Minuten der Tageszeit, oder eine Minute vor dem Auflegen wegen Untätigkeit |
+
+Neue private Post während des Anrufs und die beiden Warnungen vor dem Trennen erscheinen dabei auch als Zeile im Terminal, mit Klingelton. Es gibt keine Benachrichtigungen des Betriebssystems, der Browser fragt nach keiner Berechtigung. Abschalten lässt sich der Hinweis in den Einstellungen mit „Hinweis im Browser-Tab“, ab Werk ist er an. Das Backend hat keine Seiten, die von selbst nachfragen, dort gibt es den Hinweis deshalb nicht.
+
+### Röhren-Effekt
+
+Unter Einstellungen, Abschnitt „Terminal“, gibt es den „Röhren-Effekt“ mit drei Stufen. Ab Werk ist er aus. Die Vorschau daneben zeigt die gewählte Stufe sofort.
+
+| Stufe | Wirkung |
+|---|---|
+| Aus | Das Bild wie bisher |
+| Leicht | Scanlines im Abstand der Pixelzeilen und eine leichte Abdunklung zu den Rändern. Keine Bewegung |
+| Stark | Zusätzlich ein leichtes Glühen um helle Zeichen, kurzes Nachleuchten des vorigen Bildes (etwa 150 ms) und ein sehr schwaches Flimmern |
+
+Der Text bleibt in jeder Stufe scharf und an seiner Stelle, es gibt keine Wölbung und keine Verzerrung. Hat ein Anrufer in seinem System „weniger Bewegung“ eingestellt, entfallen Nachleuchten und Flimmern. Auf sehr langsamen Geräten fällt „Stark“ von selbst auf „Leicht“ zurück. Der Effekt besteht nur aus CSS und Canvas, es wird nichts nachgeladen.
+
+Anrufer können den Effekt für sich abschalten: Unter Einstellungen im Terminal erscheint dann die Taste R „Röhren-Effekt“. Vor dem Login gilt deine Einstellung.
+
+### Kennung der Box
+
+Unter Einstellungen steht im Abschnitt „Allgemein“ die „Kennung dieser Box“, 32 Zeichen, nur zum Lesen. Sie entsteht einmal bei der Installation oder beim Update auf 1.8.0 und ändert sich danach nie. Jede Nachricht, öffentlich wie privat, bekommt beim Speichern eine weltweit eindeutige Kennung, die mit der Kennung der Box beginnt, und merkt sich, auf welche Nachricht sie antwortet. Das ist die Grundlage für ein späteres Netz zwischen Boxen, damit dann keine alten Nachrichten umgebaut werden müssen. Ein Netz gibt es in dieser Version noch nicht, für Anrufer ändert sich nichts, und die Kennungen erscheinen weder im Terminal noch im Log.
+
+Die Kennung steckt in der Datenbank und zieht mit der Sicherung um. Stellst du eine Sicherung auf einem anderen Webspace wieder her, bleibt die Box dieselbe. Kopierst du eine Box, um daraus eine zweite zu machen, haben beide dieselbe Kennung. Für ein späteres Netz bräuchte die Kopie dann eine neue.
 
 ## 8. Menüs und Befehle
 
@@ -330,10 +443,11 @@ Die DOS-Farben: 0 Schwarz, 1 Blau, 2 Grün, 3 Cyan, 4 Rot, 5 Magenta, 6 Braun, 7
 | `@VERSION@` | Version von WebCarrier BBS |
 | `@DOORTOP@` | Kasten mit dem Spitzenreiter jeder Door, mehrzeilig, leer ohne Einträge (siehe Abschnitt 11) |
 | `@SYSOPMSG@` | Die gültige Nachricht des Sysops ohne Kopfzeile, mehrzeilig, sonst leer (siehe Abschnitt 7) |
+| `@NEWSINCE@` | Kasten „Neu seit deinem letzten Anruf“, mehrzeilig. Leer beim ersten Anruf und wenn der Kasten abgeschaltet ist (siehe Abschnitt 7) |
 
 Für saubere Rahmen in ANSI-Screens kannst du Breite und Ausrichtung festlegen: `@BBSNAME:40C@` füllt den Namen auf genau 40 Zeichen auf und zentriert ihn. `L` ist linksbündig, `R` rechtsbündig. Längere Werte werden auf die Breite gekürzt.
 
-`@DOORTOP@` und `@SYSOPMSG@` liefern mehrere Zeilen. Setz sie an den Anfang einer eigenen Zeile, eine Breite wie `:40` wirkt bei ihnen nicht.
+`@DOORTOP@`, `@SYSOPMSG@` und `@NEWSINCE@` liefern mehrere Zeilen. Setz sie an den Anfang einer eigenen Zeile, eine Breite wie `:40` wirkt bei ihnen nicht.
 
 Makros werden nur in Screens und in den Sprachtexten ersetzt. Was Anrufer eintippen (Betreff, Oneliner usw.), erscheint immer wörtlich, `@SYSOP@` in einem Betreff bleibt also `@SYSOP@`.
 
@@ -348,6 +462,8 @@ Makros werden nur in Screens und in den Sprachtexten ersetzt. Was Anrufer eintip
 | `pending` | Für User, die auf Freischaltung warten, nach der Anmeldung und bei jedem Login (siehe Abschnitt 7) |
 
 Fehlt einer davon, zeigt die Box einen einfachen Standardtext. Die Vorschau im Backend benutzt denselben Renderer wie das Terminal, du siehst also genau, was Anrufer sehen.
+
+**In WAnsiDraw öffnen:** Neben jedem Screen steht der Knopf „In WAnsiDraw öffnen“. Er öffnet den Screen in einem neuen Tab im ANSI-Editor WAnsiDraw, wo du ihn bearbeiten und wieder als Datei speichern kannst. Die Einzelheiten stehen in Abschnitt 10 unter „Mit WAnsiDraw öffnen“. In Text-Screens bleiben Makros wie `@BBSNAME@` dabei als Text stehen.
 
 Die mitgelieferten Vorlagen liegen in `core/defaults/de/` und `core/defaults/en/`. Der Installer kopiert sie nach `data/screens/`, neue Vorlagen späterer Versionen kopiert das Update dorthin, sofern es noch keinen Screen mit dem Namen gibt. Deine eigenen Screens werden nie überschrieben.
 
@@ -364,6 +480,15 @@ Standardmäßig sind Uploads erst nach deiner Freigabe sichtbar. Wartende Upload
 Über „Bearbeiten“ änderst du Name und Beschreibung einer Datei. Für den Namen gelten dieselben Regeln wie beim Upload: Buchstaben, Ziffern, Punkt, Binde- und Unterstrich, alles andere wird zum Unterstrich. Endungen wie php oder html sind nicht erlaubt, und ein Name, den es im Bereich schon gibt, wird abgelehnt. Die Datei wird auf der Platte mit umbenannt.
 
 **Dateien ansehen:** In jeder Dateiliste können Anrufer mit V Textdateien direkt im Terminal ansehen: Endungen txt, nfo, diz, asc und ans, höchstens 64 KB. ANSI-Dateien laufen durch denselben Renderer wie die Screens, Textdateien werden als CP437 gelesen, außer sie sind gültiges UTF-8. Ansehen zählt nicht als Download und nicht gegen Ratio und Tageslimit, es gelten aber die Zugriffsrechte des Bereichs. Mit M merken sich Anrufer bis zu 10 Dateien für die Sitzung und laden sie dann mit D alle nacheinander, für jede Datei gelten Limit und Ratio wie beim einzelnen Download.
+
+**Mit WAnsiDraw öffnen:** WAnsiDraw ist ein ANSI-Editor im Browser. Die Box kann ANSI- und Textdateien dorthin übergeben:
+
+- Im Terminal steht beim Ansehen einer `.ans`- oder `.txt`-Datei in der Abschlusszeile zusätzlich „[W] In WAnsiDraw öffnen“. Der Browser öffnet den Editor in einem neuen Tab. Blockt er das neue Fenster, erscheint unter dem Terminal eine Leiste mit einem Link: Enter öffnet ihn, Esc schließt die Leiste. Das zählt nicht als Download, im Log steht nur der Dateiname.
+- Im Backend steht der Knopf bei jedem Screen und in der Dateiliste bei `.ans`-Dateien.
+
+Die Adresse des Editors stellst du unter Einstellungen mit „Adresse von WAnsiDraw“ ein, ab Werk `https://wansidraw.de/editor/`. Bei englischer Sprache der Box nimmt die Box an der Werksadresse die englische Fassung. **Leer heißt: Funktion aus**, dann gibt es weder Taste noch Knopf.
+
+Die Zeichnung steckt vollständig im Teil der Adresse nach dem `#`. Diesen Teil sendet ein Browser nicht an den Server, an wansidraw.de wird also nichts übertragen, der Editor liest die Zeichnung erst im Browser des Anrufers. Übergeben wird das fertige Bild: Zeichen und Farben jeder Zelle, Breite und Höhe und die SAUCE-Angaben (Titel, Autor, Gruppe, Datum, Kommentare, iCE-Farben, 9-Pixel-Zeichen, Fontname). **Die Originalbytes der Datei gehen nicht mit.** Wer im Editor speichert, bekommt eine neu geschriebene Datei, die gleich aussieht, aber nicht Byte für Byte dieselbe ist. Ohne SAUCE gilt eine Breite von 80 Spalten und der Dateiname als Titel. Die Grenze liegt bei 160 Spalten und 1000 Zeilen, größere Zeichnungen meldet die Box mit „Zu groß für WAnsiDraw“.
 
 Lässt sich eine Datei nicht von der Platte löschen (etwa wegen fehlender Rechte), bleibt sie auch in der Liste und du bekommst eine Meldung. Beim Löschen eines ganzen Dateibereichs bleibt der Bereich dann ebenfalls erhalten.
 
@@ -473,6 +598,8 @@ Eine weitere Sprache legst du an, indem du `lang/en.php` kopierst, übersetzt un
 - Die Datenbank: bei SQLite eine konsistente Kopie der Datenbankdatei (auch während Anrufer online sind), bei MySQL ein SQL-Dump aller Tabellen der Box als `database.sql`.
 - Auf Wunsch die Dateibereiche (`data/files/`). Die Seite zeigt dir, wie groß sie gerade sind. Große Backups können am Zeitlimit deines Hosters scheitern, dann sicherst du `data/files/` besser per FTP.
 
+Mit der Datenbank sind auch die Kennung der Box und die Kennungen der Nachrichten gesichert (siehe „Kennung der Box“ in Abschnitt 7), ebenso die Geheimnisse des zweiten Faktors.
+
 Das Archiv ist aufgebaut wie die Installation selbst. **Wiederherstellen:** WebCarrier BBS frisch hochladen und das Archiv in denselben Ordner entpacken, der Installer wird dann nicht gebraucht. Bei MySQL vorher `database.sql` in die Datenbank importieren, zum Beispiel mit phpMyAdmin.
 
 Fehlt auf deinem Webspace die PHP-Erweiterung ZipArchive, kann das Backend kein Backup erstellen und erklärt dir stattdessen die Sicherung per FTP.
@@ -512,7 +639,8 @@ Bringt eine neue Version Änderungen an der Datenbank mit, werden sie beim erste
 ## 14. Sicherheit und Datenschutz
 
 - Passwörter werden mit `password_hash()` gespeichert. Niemand, auch nicht du, kann sie lesen.
-- Nach 5 falschen Passwörtern innerhalb von 15 Minuten ist der Account für den Rest dieser 15 Minuten gesperrt, im Terminal und im Backend. Die Fehlversuche stehen im Log.
+- Nach 5 falschen Passwörtern oder falschen Codes des zweiten Faktors innerhalb von 15 Minuten ist der Account für den Rest dieser 15 Minuten gesperrt, im Terminal und im Backend. Die Fehlversuche stehen im Log.
+- Sysops können ihr Konto mit einem zweiten Faktor schützen (Abschnitt 7). Das Geheimnis dafür steht lesbar in der Datenbank, weil die Box es zum Prüfen der Codes braucht, und damit auch in jeder Sicherung. Bewahre Sicherungen entsprechend auf. Die Notfallcodes sind nur als Hash gespeichert.
 - Alle Formulare und Terminal-Anfragen sind gegen Cross-Site-Request-Forgery geschützt, alle Datenbankabfragen laufen über Prepared Statements.
 - Downloads laufen über Einmal-Links, die nur für den angemeldeten Anrufer und zehn Minuten gelten. Dateien im Ordner `data/` sind direkt nicht erreichbar.
 - Die Box speichert keine IP-Adressen und keine E-Mail-Adressen. Gespeichert werden Handle, Ort, Passwort-Hash, Nutzungsstatistik, Nachrichten, Uploads und das Ereignislog. Es wird nur ein technisch notwendiges Session-Cookie gesetzt. Externe Schriften oder Dienste werden nicht geladen. Die Zugriffslogs des Webservers bei deinem Hoster sind davon unabhängig und gehören mit in die Datenschutzerklärung.
@@ -522,6 +650,9 @@ Bringt eine neue Version Änderungen an der Datenbank mit, werden sie beim erste
 - „Über mich“ und die Signatur schreiben Anrufer selbst, sie bleiben bis zur Änderung oder bis der User gelöscht wird. Die Signatur steht danach fest in den Nachrichten, die mit ihr geschrieben wurden.
 - Bei Umfragen speichert die Box, wer wofür gestimmt hat, damit niemand zweimal abstimmt. Andere Anrufer sehen nur die Summen. Wird ein User gelöscht, bleiben seine Stimmen ohne Verbindung zu ihm stehen, sie lassen sich niemandem mehr zuordnen und das Ergebnis ändert sich nicht. Mit der Umfrage werden auch ihre Stimmen gelöscht.
 - Nachrichten an eine Node werden nicht gespeichert, nur zugestellt. Im Log steht, wer wem geschrieben hat.
+- Antworten aus dem Fragebogen der Anmeldung sind personenbezogene Angaben. Sie sind nur für die Sysop-Ebene sichtbar, bleiben bis du sie löschst und verschwinden mit dem User. Nenne den Fragebogen in deiner Datenschutzerklärung, wenn du ihn einschaltest.
+- „In WAnsiDraw öffnen“ überträgt nichts an den Server von wansidraw.de: Die Zeichnung steht im Teil der Adresse nach dem `#`, den Browser nicht mitsenden. Der Anrufer ruft dabei aber die Seite des Editors auf, dessen Betreiber sieht wie bei jedem Link den Abruf selbst. Mit einer leeren Adresse in den Einstellungen ist die Funktion aus.
+- Der Hinweis im Browser-Tab und der Röhren-Effekt laufen nur im Browser des Anrufers, dafür wird nichts gespeichert außer der Einstellung, ob ein Anrufer den Effekt abgeschaltet hat.
 
 ## 15. Fehlersuche
 
@@ -531,6 +662,8 @@ Bringt eine neue Version Änderungen an der Datenbank mit, werden sie beim erste
 | Terminal zeigt „NO CARRIER“ direkt nach CONNECT | PHP-Fehlerlog des Hosters prüfen. Meist fehlende Rechte auf `data/` oder falsche Datenbankdaten |
 | Immer „Alle Leitungen sind besetzt“ | Mehr Nodes einstellen. Verwaiste Nodes werden nach der Idle-Zeit plus zwei Minuten automatisch frei |
 | Login meldet „Zu viele Fehlversuche“ | 15 Minuten warten. Als Sysop kannst du die Sperre sofort aufheben, indem du im Backend das Log leerst. Dabei gehen auch die Upload- und Download-Zahlen der Statistik verloren |
+| Handy mit der Authenticator-App verloren | Mit einem Notfallcode einloggen. Ohne Notfallcodes per FTP `data/2fa_reset.txt` mit deinem Handle anlegen und im Backend mit dem Passwort einloggen (Abschnitt 7, „Zweiter Faktor“) |
+| Code aus der App wird nicht angenommen | Uhrzeit des Handys prüfen, sie muss stimmen. Jeder Code gilt nur einmal, warte auf den nächsten |
 | Upload schlägt fehl | Dateityp erlaubt? PHP-Limit in den Einstellungen ansehen und ggf. beim Hoster erhöhen |
 | Umlaute in ANSI-Screens kaputt | Screen muss in CP437 gespeichert sein, nicht in UTF-8. Für UTF-8-Text einen .txt-Screen nehmen |
 | Kein Ton beim Wählen | Einstellung „Modem- und Klingeltöne“ prüfen. Browser spielen Töne erst nach dem ersten Tastendruck ab |

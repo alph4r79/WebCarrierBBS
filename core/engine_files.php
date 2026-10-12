@@ -136,11 +136,12 @@ trait EngineFiles
         $this->startPager('files', array_slice($ids, 0, 500), $this->L('fsearch_title', cb_esc($v), count($ids)));
     }
 
-    public function startPager(string $kind, array $ids, string $title, array $lines = []): void
+    /** $wad: id of the file a viewer shows, if it can be opened in WAnsiDraw. */
+    public function startPager(string $kind, array $ids, string $title, array $lines = [], int $wad = 0): void
     {
         // a file viewer opened from a list returns to that list afterwards
         $prev = in_array($kind, ['lines', 'raw'], true) && ($this->S['pg']['kind'] ?? '') === 'files' ? $this->S['pg'] : null;
-        $this->S['pg'] = ['kind' => $kind, 'ids' => array_values($ids), 'pos' => 0, 'start' => 0, 'hdr' => true, 'title' => $title, 'lines' => $lines, 'prev' => $prev];
+        $this->S['pg'] = ['kind' => $kind, 'ids' => array_values($ids), 'pos' => 0, 'start' => 0, 'hdr' => true, 'title' => $title, 'lines' => $lines, 'prev' => $prev, 'wad' => $wad];
         if ($kind === 'files') {
             // numbers in prompts refer to the last list shown
             $this->S['fl'] = array_values($ids);
@@ -260,6 +261,12 @@ trait EngineFiles
             $this->w->buf .= "\e[0m";
             $this->w->reset();
         }
+        $this->pagerPrompt();
+    }
+
+    private function pagerPrompt(): void
+    {
+        $pg = $this->S['pg'];
         $more = $pg['pos'] < count($pg['ids']);
         if ($pg['kind'] === 'files') {
             $keys = 'Q' . Lang::get('key_download') . 'VMK';
@@ -267,8 +274,24 @@ trait EngineFiles
         } elseif ($pg['kind'] === 'users') {
             $this->hot($more ? "\r QP" . Lang::get('key_no') : "\rQP", $this->L($more ? 'pager_more_users' : 'pager_end_users'), true);
         } else {
-            $this->hot($more ? "\r Q" . Lang::get('key_no') : "\rQ", $this->L($more ? 'pager_more' : 'pager_end'), true);
+            $w = !empty($pg['wad']) ? 'W' : '';
+            $this->hot($more ? "\r Q" . $w . Lang::get('key_no') : "\rQ" . $w, $this->L(($more ? 'pager_more' : 'pager_end') . ($w !== '' ? '_w' : '')), true);
         }
+    }
+
+    /** Key W in the viewer: the browser opens the file in WAnsiDraw. Not a download. */
+    private function openInWad(int $id): void
+    {
+        $f = DB::row('SELECT f.* FROM {files} f JOIN {file_areas} a ON a.id=f.area_id WHERE f.id=? AND f.approved=1 AND a.dl_level<=?', [$id, $this->lvl()]);
+        $url = $f ? cb_wansidraw_link(CB_DATA . '/files/' . $f['storage'], '', (string)$f['filename']) : null;
+        if ($url === null) {
+            $this->say('wad_big');
+            $this->nl();
+        } else {
+            $this->open = $url;
+            cb_log((int)$this->user['id'], (string)$this->user['handle'], 'Opened ' . $f['filename'] . ' in WAnsiDraw');
+        }
+        $this->pagerPrompt();
     }
 
     private function i_pager(string $v): void
@@ -281,6 +304,10 @@ trait EngineFiles
         }
         if ($pg['kind'] === 'files' && in_array($k, [Lang::get('key_download'), 'V', 'M', 'K'], true)) {
             $this->go(['V' => 'fview', 'M' => 'fmark', 'K' => 'fmarks'][$k] ?? 'fdl');
+            return;
+        }
+        if (!empty($pg['wad']) && $k === 'W') {
+            $this->openInWad((int)$pg['wad']);
             return;
         }
         if ($pg['kind'] === 'users' && $k === 'P') {
@@ -365,15 +392,16 @@ trait EngineFiles
     {
         $this->act(Lang::get('act_files'));
         $title = $this->L('fview_title', cb_esc((string)$f['filename']));
+        $wad = in_array($ext, ['ans', 'txt'], true) && cb_wansidraw_base() !== '' ? (int)$f['id'] : 0;
         if ($ext === 'ans' || str_contains($data, "\e[")) {
             $lines = explode("\n", str_replace("\r", '', cb_strip_sauce($data)));
-            $this->startPager('raw', array_keys($lines), $title, $lines);
+            $this->startPager('raw', array_keys($lines), $title, $lines, $wad);
             return;
         }
         $text = mb_check_encoding($data, 'UTF-8') ? $data : CP437::toUtf8($data);
         $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $text) ?? '';
         $lines = array_map(static fn($l) => '|07' . cb_esc($l), cb_wrap($text, 79));
-        $this->startPager('lines', array_keys($lines), $title, $lines);
+        $this->startPager('lines', array_keys($lines), $title, $lines, $wad);
     }
 
     /* ------------------------------------------------------------ marked files */

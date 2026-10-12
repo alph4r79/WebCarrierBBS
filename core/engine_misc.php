@@ -203,13 +203,18 @@ trait EngineMisc
             ['A', 'uset_about', $first((string)$u['about'])],
             ['T', 'uset_sig', $first((string)$u['signature'])],
         ];
+        // only if the sysop switched the effect on
+        $crt = Settings::get('crt', 'off') !== 'off';
+        if ($crt) {
+            $rows[] = ['R', 'uset_crt', (int)$u['crt'] === 1 ? $this->L('on') : $this->L('off')];
+        }
         foreach ($rows as [$k, $label, $val]) {
             $this->write('  |08[|15' . $k . '|08] |07' . cb_pad($this->L($label), 31) . '|11' . $val);
             $this->nl();
         }
         $this->write('  |08[|15Q|08] |07' . $this->L('back'));
         $this->nl(2);
-        $this->hot("LPBENATQ\r", $this->L('choose'));
+        $this->hot('LPBENAT' . ($crt ? 'R' : '') . "Q\r", $this->L('choose'));
     }
 
     private function i_uset(string $v): void
@@ -248,6 +253,13 @@ trait EngineMisc
                 return;
             case 'T':
                 $this->startLines('signature');
+                return;
+            case 'R':
+                if (Settings::get('crt', 'off') !== 'off') {
+                    DB::q('UPDATE {users} SET crt=? WHERE id=?', [(int)$this->user['crt'] === 1 ? 0 : 1, $uid]);
+                    $this->user = DB::row('SELECT * FROM {users} WHERE id=?', [$uid]);
+                }
+                $this->go('uset');
                 return;
         }
         $this->menu();

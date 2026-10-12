@@ -4,13 +4,14 @@
  * Copyright (C) 2026 Christoph Scheel <https://chrisscheel.de>
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-html, body {
+html.term,
+html.term body {
   margin: 0;
   height: 100%;
   background: #000;
   color: #aaa;
 }
-body {
+html.term body {
   overflow: hidden;
 }
 #screen {
@@ -20,11 +21,91 @@ body {
   place-items: center;
 }
 #term {
-  display: block;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
   outline: none;
   cursor: none;
+}
+
+/* The tube: the terminal canvas and the layers of the tube effect */
+.tube {
+  position: relative;
+  isolation: isolate;
+  background: #000;
+}
+.tube canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+.tube .crt-glow,
+.tube .crt-after,
+.tube .crt-scan {
+  position: absolute;
+  inset: 0;
+  display: none;
+  pointer-events: none;
+}
+.tube.crt-light .crt-scan,
+.tube.crt-strong .crt-scan {
+  display: block;
+  background:
+    radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.36) 100%),
+    repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0) calc(var(--crt-line, 2px) * 0.6),
+      rgba(0, 0, 0, 0.3) calc(var(--crt-line, 2px) * 0.6), rgba(0, 0, 0, 0.3) var(--crt-line, 2px));
+}
+.tube.crt-strong .crt-main {
+  position: relative;
+  mix-blend-mode: screen;
+}
+.tube.crt-strong .crt-glow {
+  display: block;
+  image-rendering: auto;
+  filter: blur(var(--crt-blur, 2px));
+  opacity: 0.55;
+}
+.tube.crt-strong .crt-after {
+  display: block;
+  opacity: 0;
+}
+.tube.crt-strong .crt-scan {
+  animation: crt-flicker 3.1s steps(1) infinite;
+}
+@keyframes crt-flicker {
+  0%, 12%, 50%, 84% { opacity: 1; }
+  9%, 81% { opacity: 0.93; }
+  47% { opacity: 0.96; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tube.crt-strong .crt-after { display: none; }
+  .tube.crt-strong .crt-scan { animation: none; }
+}
+
+/* Link to WAnsiDraw if the browser blocked the new tab */
+#openbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 22px;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: #0000aa;
+  font: 15px/1.4 "Courier New", Courier, monospace;
+}
+#openbar[hidden] {
+  display: none;
+}
+#openbar a {
+  color: #fff;
+}
+#openbar a:focus-visible {
+  outline: 2px solid #ffff55;
+  outline-offset: 2px;
+}
+#openbar span {
+  color: #aaa;
 }
 #legal {
   position: fixed;

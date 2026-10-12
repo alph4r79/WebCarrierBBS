@@ -22,7 +22,7 @@ Mit **F11** schaltest du den Browser in den Vollbildmodus.
 
 ## 2. Einloggen und Anmelden
 
-**Du hast schon einen Account:** Name (Handle) eingeben, Enter, Passwort eingeben, Enter. Nach drei falschen Passwörtern wird aufgelegt. Nach fünf Fehlversuchen innerhalb von 15 Minuten ist der Account für diese Zeit gesperrt, auch mit dem richtigen Passwort.
+**Du hast schon einen Account:** Name (Handle) eingeben, Enter, Passwort eingeben, Enter. Nach drei falschen Passwörtern wird aufgelegt. Nach fünf Fehlversuchen innerhalb von 15 Minuten ist der Account für diese Zeit gesperrt, auch mit dem richtigen Passwort. Konten mit zweitem Faktor (das betrifft die Sysops) werden nach dem Passwort zusätzlich nach dem „Code aus der App“ gefragt.
 
 **Du bist neu:** Statt deines Namens `NEU` eintippen (in englischen Boxen `NEW`). Dann wählst du:
 
@@ -30,17 +30,25 @@ Mit **F11** schaltest du den Browser in den Vollbildmodus.
 2. deinen **Ort**, also woher du „anrufst“,
 3. ein **Passwort** mit mindestens 6 Zeichen, zweimal.
 
+Manche Boxen stellen danach noch **ein paar Fragen des Sysops**, etwa woher du die Box kennst. Je nach Frage tippst du eine Zeile, wählst eine Antwort per Nummer oder antwortest mit J oder N. Steht „(Enter = keine Angabe)“ dabei, kannst du die Frage mit Enter überspringen, die anderen brauchen eine Antwort. Die Antworten sieht nur der Sysop. Gespeichert wird erst, wenn du die Anmeldung am Ende bestätigst.
+
 Eine E-Mail-Adresse brauchst du nicht. Ein vergessenes Passwort kann nur der Sysop zurücksetzen. Die Kontaktdaten stehen im Impressum (im Hauptmenü oder als Link unter dem Terminal).
 
 Neue User haben oft eingeschränkte Rechte, bis der Sysop sie freischaltet. Manche Boxen lassen neue User erst nach einer Prüfung durch den Sysop hinein. Dann siehst du am Ende der Anmeldung den Hinweis, dass der Sysop deinen Zugang prüft, und die Verbindung wird getrennt. Bis zur Freischaltung erscheint dieser Hinweis auch bei jedem weiteren Login. Ruf einfach später wieder an.
 
 ## 3. Nach dem Login
 
-Du siehst, wie oft du schon angerufen hast, wie viel Zeit du heute noch hast, ob private Post auf dich wartet, eine Nachricht des Sysops, falls er eine hinterlassen hat, ob es neue Umfragen gibt und die letzten Oneliner. Mit Enter geht es ins Hauptmenü.
+Du siehst, wie oft du schon angerufen hast, wie viel Zeit du heute noch hast, ob private Post auf dich wartet, eine Nachricht des Sysops, falls er eine hinterlassen hat, und die letzten Oneliner.
+
+Ab dem zweiten Anruf zeigt ein Kasten, was **neu seit deinem letzten Anruf** ist: neue Nachrichten, Dateien, Mitglieder, Oneliner und Bestwerte in den Doors. Dazu kommen alle laufenden Umfragen, bei denen du noch nicht abgestimmt hast, auch ältere. Darunter kommst du mit **N** direkt zu den neuen Nachrichten und mit **F** zu den neuen Dateien, Enter geht ohne Umweg ins Hauptmenü. Die Tasten erscheinen nur, wenn es etwas Neues gibt.
+
+**Hochstufen:** Manche Boxen geben dir von selbst ein höheres Level, wenn du oft genug angerufen, lange genug dabei bist, Nachrichten geschrieben oder Dateien hochgeladen hast. Dann steht in der Begrüßung „Glückwunsch, du bist jetzt ...“, und die neuen Rechte und Zeiten gelten sofort.
+
+**Hinweis im Tab:** Hast du die Box in einem Tab offen und bist gerade woanders, zeigt der Titel des Tabs im Wechsel einen Hinweis wie „(!) Neue Nachricht“, „(!) Chat mit dem Sysop“, „(!) Du bist am Zug“ oder „(!) Gleich wird getrennt“, und das Symbol des Tabs bekommt einen roten Punkt. Sobald du zurück im Tab bist, verschwindet beides.
 
 **Zeitlimit:** Die Zeit pro Tag ist begrenzt. Deine Restzeit steht in jeder Menüzeile. Ist sie aufgebraucht, wird aufgelegt, am nächsten Tag geht es weiter.
 
-**Untätigkeit:** Gibst du einige Minuten nichts ein, legt die Box auf, damit die Leitung für andere frei wird. Solange du im Editor tippst oder eine Datei hochlädst, passiert das nicht.
+**Untätigkeit:** Gibst du einige Minuten nichts ein, legt die Box auf, damit die Leitung für andere frei wird. Eine Minute vorher warnt sie dich. Solange du im Editor tippst oder eine Datei hochlädst, passiert das nicht.
 
 ## 4. Das Hauptmenü
 
@@ -141,7 +149,7 @@ Jede Datei steht mit Nummer, Name, Größe, Datum und Beschreibung in einer Zeil
 | Taste | Funktion |
 |---|---|
 | D | Download |
-| V | Ansehen: txt, nfo, diz, asc und ans bis 64 KB direkt im Terminal, zählt nicht als Download |
+| V | Ansehen: txt, nfo, diz, asc und ans bis 64 KB direkt im Terminal, zählt nicht als Download. Bei txt und ans öffnet danach **W** das Bild im ANSI-Editor WAnsiDraw in einem neuen Tab, falls der Sysop das eingeschaltet hat. Blockt dein Browser das neue Fenster, erscheint unter dem Terminal ein Link: Enter öffnet ihn, Esc schließt die Leiste |
 | M | Markieren: die Datei kommt auf deine Merkliste (höchstens 10), nochmal M nimmt sie wieder herunter. Markierte Dateien haben einen * vor dem Namen |
 | K | Merkliste zeigen, eine Nummer nimmt eine Datei herunter |
 
@@ -186,6 +194,7 @@ Manche Boxen begrenzen die Downloads pro Tag oder verlangen eine **Ratio**: Bei 
 | N | Node-Nachrichten annehmen: ein oder aus |
 | A | Über mich: bis zu 3 Zeilen mit je 60 Zeichen für dein Profil |
 | T | Signatur: bis zu 2 Zeilen mit je 70 Zeichen, sie steht unter jeder Nachricht, die du danach schreibst |
+| R | Röhren-Effekt an oder aus: Scanlines und Nachleuchten wie auf einem alten Monitor. Die Taste gibt es nur, wenn der Sysop den Effekt eingeschaltet hat, und sie wirkt sofort |
 | Q | Zurück zum Menü |
 
 Bei Über mich und Signatur gibst du Zeile für Zeile ein, eine leere Zeile beendet, eine leere erste Zeile löscht den Text. Pipe-Codes werden dabei nicht als Farben ausgegeben. Die Signatur wird beim Speichern unter die Nachricht gesetzt, mit einer Leerzeile und `-- ` davor, im Editor siehst du sie nicht. Beim Zitieren lässt die Box die Signatur weg.
@@ -209,6 +218,8 @@ Den Browser-Tab einfach zu schließen geht auch, die Leitung wird dann automatis
 | Liste mit „weiter“ | Enter | Nächste Seite |
 | Liste | Q | Abbrechen |
 | Dateiliste | D / V / M / K | Download, Ansehen, Markieren, Merkliste |
+| Beim Ansehen | W | In WAnsiDraw öffnen (txt und ans) |
+| Nach dem Login | N / F | Neue Nachrichten, neue Dateien |
 | Nachrichtenleser | O / T / I | Original, Antworten, Profil des Absenders |
 | Treffpunkt | `/Q` / `/W` / `/ME` | Verlassen, wer ist da, Aktion |
 | Ja/Nein-Fragen | J / N (Y / N) | Die hell hervorgehobene Antwort gilt bei Enter |

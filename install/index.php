@@ -168,6 +168,8 @@ function cb_install_defaults(array $f): void
         'upload_max_kb' => '8192', 'upload_ext' => 'zip,arj,lzh,rar,7z,lha,txt,ans,asc,nfo,diz,gif,png,jpg',
         'upload_auto_approve' => '0', 'max_msg_lines' => '200', 'logon_oneliners' => '1', 'show_footer' => '1',
         'noindex' => '0', 'legal_impressum' => '', 'legal_privacy' => '', 'update_check' => '0', 'new_validate' => '0', 'db_version' => (string)CB_DB_VERSION,
+        'newsince' => '1', 'nu_questions_on' => '0', 'auto_level' => '0', 'tab_notify' => '1', 'crt' => 'off',
+        'wansidraw_url' => CB_WANSIDRAW_URL, 'box_id' => bin2hex(random_bytes(16)),
     ];
     foreach ([[10, $de ? 'Neuer User' : 'New user', 30, 2048, 0], [20, $de ? 'Mitglied' : 'Member', 60, 10240, 0],
                  [50, $de ? 'Stammgast' : 'Regular', 120, 0, 0], [100, 'Co-Sysop', 240, 0, 0], [255, 'Sysop', 0, 0, 0]] as $l) {
@@ -256,7 +258,7 @@ function cb_install_defaults(array $f): void
         }
     }
 
-    DB::insert('messages', [
+    cb_message_insert([
         'area_id' => $first, 'from_id' => $sid, 'from_name' => $sysop, 'to_id' => 0, 'to_name' => $de ? 'Alle' : 'All',
         'subject' => $de ? 'Die Leitung steht!' : 'The line is open!',
         'body' => $de

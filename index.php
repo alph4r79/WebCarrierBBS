@@ -19,7 +19,7 @@ if (cb_maintenance()) {
     header('Retry-After: 300');
     $msg = trim(preg_replace('/\|\d\d|\|CL/', '', str_replace('|CR', "\n", Lang::get('maintenance'))) ?? '');
     ?><!DOCTYPE html>
-<html lang="<?= h(Lang::$code) ?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="<?= h(Lang::$code) ?>" class="term"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title><?= h(Settings::get('bbs_name', 'WebCarrier BBS')) ?></title>
 <link rel="stylesheet" href="assets/terminal.css?v=<?= CB_VERSION ?>"></head>
 <body class="legal"><article><h1><?= h(Settings::get('bbs_name', 'WebCarrier BBS')) ?></h1><p><?= h($msg) ?></p></article></body></html>
@@ -29,7 +29,8 @@ if (cb_maintenance()) {
 
 $js = [];
 foreach (['js_title', 'js_press', 'js_dialing', 'js_nocarrier', 'js_redial', 'js_uploading', 'js_netfail',
-             'js_ed_saved', 'js_ed_aborted', 'js_ed_help', 'js_ed_full'] as $k) {
+             'js_ed_saved', 'js_ed_aborted', 'js_ed_help', 'js_ed_full', 'js_n_chat', 'js_n_msg', 'js_n_turn', 'js_n_bye',
+             'js_idle_warn', 'js_open_wad', 'js_open_esc'] as $k) {
     $js[substr($k, 3)] = Lang::get($k);
 }
 $host = preg_replace('/[^A-Za-z0-9.\-:]/', '', (string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
@@ -41,12 +42,14 @@ $cfg = [
     'base' => cb_base_path(),
     'version' => CB_VERSION,
     'author' => CB_AUTHOR,
+    'notify' => Settings::get('tab_notify', '1') === '1',
+    'crt' => in_array(Settings::get('crt', 'off'), ['light', 'strong'], true) ? Settings::get('crt') : 'off',
     'L' => $js,
 ];
 $footer = Settings::get('show_footer', '1') === '1';
 $lang = Lang::$code;
 ?><!DOCTYPE html>
-<html lang="<?= h($lang) ?>">
+<html lang="<?= h($lang) ?>" class="term">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -56,8 +59,9 @@ $lang = Lang::$code;
 </head>
 <body>
 <main id="screen">
-  <canvas id="term" aria-label="<?= h($cfg['name']) ?> terminal" tabindex="0"></canvas>
+  <div id="tube" class="tube"><canvas id="term" aria-label="<?= h($cfg['name']) ?> terminal" tabindex="0"></canvas></div>
 </main>
+<div id="openbar" hidden><a id="openlink" target="_blank" rel="noopener"></a><span id="openesc"></span></div>
 <footer id="legal">
 <?php if ($footer): ?>
   <a href="legal.php?p=impressum"><?= h(Lang::get('legal_impressum')) ?></a>

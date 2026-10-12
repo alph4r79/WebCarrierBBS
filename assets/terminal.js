@@ -1,7 +1,7 @@
 /*
  * WebCarrier BBS: ANSI terminal emulator.
  * 80x25 VGA text mode on a canvas, 9x16 IBM font, CP437, ANSI.SYS escape codes,
- * blinking attributes, emulated modem speed.
+ * blinking attributes, emulated modem speed, optional tube effect.
  *
  * Copyright (C) 2026 Christoph Scheel <https://chrisscheel.de>
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -53,6 +53,7 @@
     this.lastCur = -1;
     this.onBell = null;
     this.onDrain = null;
+    this.onPaint = null;
     this.queue = '';
     this.qpos = 0;
     this.cps = 0;
@@ -292,9 +293,11 @@
       this.lastCur = cur;
     }
     var ctx = this.ctx;
+    var painted = 0;
     for (var i = 0; i < this.dirty.length; i++) {
       if (!this.dirty[i]) { continue; }
       this.dirty[i] = 0;
+      painted++;
       var px = (i % COLS) * CW, py = Math.floor(i / COLS) * CH;
       var a = this.at[i], f = a & 15;
       ctx.fillStyle = PAL[(a >> 4) & 7];
@@ -308,8 +311,117 @@
         ctx.fillRect(px, py + 13, CW, 2);
       }
     }
+    if (painted && this.onPaint) { this.onPaint(painted); }
+  };
+
+  /* ---------------------------------------------------------------- tube effect */
+
+  /*
+   * Layers inside the element around the terminal canvas: a blurred copy (glow) and the previous
+   * picture (afterglow) below it, scanlines above it. The text itself stays as sharp as without
+   * the effect. Modes: off, light (scanlines), strong (also glow, afterglow and a faint flicker).
+   */
+  function Crt(tube, term) {
+    var W = COLS * CW, H = ROWS * CH;
+    var layer = function (cls) {
+      var c = document.createElement('canvas');
+      c.width = W; c.height = H; c.className = cls;
+      return c;
+    };
+    this.tube = tube;
+    this.term = term;
+    this.mode = 'off';
+    this.glow = layer('crt-glow');
+    this.after = layer('crt-after');
+    this.prev = layer('');
+    this.scan = document.createElement('div');
+    this.scan.className = 'crt-scan';
+    term.cv.classList.add('crt-main');
+    tube.insertBefore(this.glow, term.cv);
+    tube.insertBefore(this.after, term.cv);
+    tube.appendChild(this.scan);
+    this.gctx = this.glow.getContext('2d');
+    this.actx = this.after.getContext('2d');
+    this.pctx = this.prev.getContext('2d');
+    // no afterglow without animation frames or for callers who asked for less motion
+    this.weak = !window.requestAnimationFrame;
+    this.still = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    this.fading = false;
+    this.fadeStart = 0;
+    this.lastTick = 0;
+    this.slow = 0;
+    var self = this;
+    term.onPaint = function (cells) { self.paint(cells); };
+    window.addEventListener('resize', function () { self.lines(); });
+  }
+
+  Crt.prototype.set = function (mode) {
+    if (mode !== 'light' && mode !== 'strong') { mode = 'off'; }
+    this.want = mode;
+    if (mode === 'strong' && this.weak) { mode = 'light'; }
+    this.mode = mode;
+    this.tube.classList.toggle('crt-light', mode === 'light');
+    this.tube.classList.toggle('crt-strong', mode === 'strong');
+    this.lines();
+    if (mode === 'strong') {
+      this.pctx.drawImage(this.term.cv, 0, 0);
+      this.gctx.drawImage(this.term.cv, 0, 0);
+    }
+  };
+
+  /* One scanline per pixel row. On small screens several rows share a line, it needs 3 device pixels. */
+  Crt.prototype.lines = function () {
+    var row = this.tube.clientHeight / (ROWS * CH);
+    if (!(row > 0)) { return; }
+    var dpr = window.devicePixelRatio || 1, p = row;
+    while (p * dpr < 3) { p += row; }
+    this.tube.style.setProperty('--crt-line', p.toFixed(3) + 'px');
+    this.tube.style.setProperty('--crt-blur', Math.max(1, this.tube.clientWidth / 320).toFixed(2) + 'px');
+  };
+
+  /* Called after the terminal drew changed cells. The blinking cursor alone leaves no afterglow. */
+  Crt.prototype.paint = function (cells) {
+    if (this.mode !== 'strong') { return; }
+    if (!this.still && cells > 2) {
+      this.actx.drawImage(this.prev, 0, 0);
+      this.after.style.opacity = '0.45';
+      this.fadeStart = 0;
+      if (!this.fading) {
+        this.fading = true;
+        this.lastTick = 0;
+        var self = this;
+        requestAnimationFrame(function (t) { self.fade(t); });
+      }
+    }
+    this.pctx.drawImage(this.term.cv, 0, 0);
+    this.gctx.drawImage(this.term.cv, 0, 0);
+  };
+
+  /* Fades the previous picture out in about 150 ms. Runs only while something fades. */
+  Crt.prototype.fade = function (t) {
+    if (this.mode !== 'strong') { this.fading = false; return; }
+    if (!this.fadeStart) { this.fadeStart = t; }
+    // frames that take longer than 100 ms: the device is too slow for strong
+    if (this.lastTick) { this.slow = t - this.lastTick > 100 ? this.slow + 1 : Math.max(0, this.slow - 1); }
+    this.lastTick = t;
+    if (this.slow > 15) {
+      this.weak = true;
+      this.fading = false;
+      this.set(this.want);
+      return;
+    }
+    var k = (t - this.fadeStart) / 150;
+    if (k >= 1) {
+      this.after.style.opacity = '0';
+      this.fading = false;
+      return;
+    }
+    this.after.style.opacity = (0.45 * (1 - k)).toFixed(3);
+    var self = this;
+    requestAnimationFrame(function (n) { self.fade(n); });
   };
 
   window.CarrierTerm = Term;
+  window.CarrierCRT = Crt;
   window.CarrierCP = { toCP: toCP, canType: canType };
 }());

@@ -10,7 +10,7 @@
  */
 declare(strict_types=1);
 
-define('CB_DB_VERSION', 7);
+define('CB_DB_VERSION', 8);
 
 /** Run all pending steps. Costs only the (cached) settings lookup when up to date. */
 function cb_migrate(): void
@@ -211,6 +211,70 @@ function cb_migrate_7(): void
     cb_add_menu_command('main', 'TELECONF', 'T', 'Treffpunkt', 'Meeting point', Settings::int('new_level', 10));
     cb_add_menu_command('main', 'POLLS', 'V', 'Umfragen', 'Polls');
     cb_add_menu_command('msg', 'MSG_SEARCH', 'F', 'Suchen', 'Find');
+}
+
+/**
+ * 8: what is new since the last call (indexes on the time columns), questionnaire, automatic promotion,
+ * second factor, tube effect, id of the board and of every message.
+ */
+function cb_migrate_8(): void
+{
+    cb_add_column('users', 'no_auto', 'INT NOT NULL DEFAULT 0');
+    cb_add_column('users', 'totp_secret', "VARCHAR(40) NOT NULL DEFAULT ''");
+    cb_add_column('users', 'totp_on', 'INT NOT NULL DEFAULT 0');
+    cb_add_column('users', 'totp_last', 'BIGINT NOT NULL DEFAULT 0');
+    cb_add_column('users', 'crt', 'INT NOT NULL DEFAULT 1');
+    cb_add_column('messages', 'msgid', "VARCHAR(64) NOT NULL DEFAULT ''");
+    cb_add_column('messages', 'origin', "VARCHAR(32) NOT NULL DEFAULT ''");
+    cb_add_column('messages', 'reply_msgid', "VARCHAR(64) NOT NULL DEFAULT ''");
+    foreach (['nu_questions', 'nu_answers', 'level_rules', 'totp_codes'] as $t) {
+        cb_create_table($t);
+    }
+    foreach ([['users', 'created'], ['messages', 'posted'], ['files', 'added'], ['oneliners', 'time'], ['door_scores', 'time'], ['polls', 'created']] as [$t, $c]) {
+        if (!cb_index_exists($t, $t . '_' . $c)) {
+            DB::q('CREATE INDEX {' . $t . '}_' . $c . ' ON {' . $t . '} (' . $c . ')');
+        }
+    }
+    foreach (['newsince' => '1', 'nu_questions_on' => '0', 'auto_level' => '0', 'tab_notify' => '1', 'crt' => 'off',
+                 'wansidraw_url' => CB_WANSIDRAW_URL] as $k => $v) {
+        if (DB::val('SELECT COUNT(*) FROM {settings} WHERE name=?', [$k]) == 0) {
+            Settings::set($k, $v);
+        }
+    }
+    cb_migrate_msgids();
+    if (!cb_index_exists('messages', 'messages_msgid')) {
+        DB::q('CREATE UNIQUE INDEX {messages}_msgid ON {messages} (msgid)');
+    }
+}
+
+/**
+ * Ids for the messages written before version 1.8.0, 500 per step and transaction. An aborted run
+ * (time limit) continues with the next request, rows that have an id are left alone.
+ */
+function cb_migrate_msgids(): void
+{
+    $box = cb_box_id();
+    do {
+        $ids = array_column(DB::all("SELECT id FROM {messages} WHERE msgid='' ORDER BY id LIMIT 500"), 'id');
+        DB::$pdo->beginTransaction();
+        foreach ($ids as $id) {
+            DB::q('UPDATE {messages} SET msgid=?, origin=? WHERE id=?', [cb_new_msgid(), $box, (int)$id]);
+        }
+        DB::$pdo->commit();
+    } while (count($ids) === 500);
+    $last = 0;
+    do {
+        $rows = DB::all("SELECT m.id, p.msgid FROM {messages} m LEFT JOIN {messages} p ON p.id=m.reply_to
+            WHERE m.id>? AND m.reply_to>0 AND m.reply_msgid='' ORDER BY m.id LIMIT 500", [$last]);
+        DB::$pdo->beginTransaction();
+        foreach ($rows as $r) {
+            $last = (int)$r['id'];
+            if ((string)$r['msgid'] !== '') {
+                DB::q('UPDATE {messages} SET reply_msgid=? WHERE id=?', [(string)$r['msgid'], $last]);
+            }
+        }
+        DB::$pdo->commit();
+    } while (count($rows) === 500);
 }
 
 function cb_index_exists(string $table, string $name): bool

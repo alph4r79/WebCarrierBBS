@@ -9,16 +9,19 @@ declare(strict_types=1);
 
 define('CB_ROOT', dirname(__DIR__));
 define('CB_DATA', CB_ROOT . '/data');
-define('CB_VERSION', '1.7.0');
+define('CB_VERSION', '1.8.0');
 define('CB_AUTHOR', 'Christoph Scheel');
 define('CB_AUTHOR_URL', 'https://chrisscheel.de');
 // AGPL section 13: users of a networked installation must be able to get the source.
 // Modified versions must point this to their own repository.
 define('CB_SOURCE_URL', 'https://github.com/alph4r79/webcarrierbbs');
+define('CB_WANSIDRAW_URL', 'https://wansidraw.de/editor/');
 
 require __DIR__ . '/db.php';
 require __DIR__ . '/migrate.php';
 require __DIR__ . '/update.php';
+require __DIR__ . '/totp.php';
+require __DIR__ . '/ansiart.php';
 
 function cb_installed(): bool
 {
@@ -63,7 +66,8 @@ function cb_session(): void
 function cb_base_path(): string
 {
     $script = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '/index.php'));
-    $dir = rtrim(dirname($script), '/');
+    // dirname() of a file in the root is a backslash on Windows
+    $dir = rtrim(str_replace('\\', '/', dirname($script)), '/');
     foreach (['/sysop', '/install'] as $sub) {
         if (str_ends_with($dir, $sub)) {
             $dir = substr($dir, 0, -strlen($sub));
@@ -90,11 +94,52 @@ function cb_log(int $uid, string $handle, string $text): void
     DB::insert('log', ['time' => time(), 'user_id' => $uid, 'handle' => $handle, 'text' => mb_substr($text, 0, 250)]);
 }
 
-/** Login throttle: 5 wrong passwords in 15 minutes block the account (terminal and backend). */
+/** Login throttle: 5 wrong passwords or codes of the second factor in 15 minutes block the account (terminal and backend). */
 function cb_login_blocked(int $uid): bool
 {
-    $n = (int)DB::val("SELECT COUNT(*) FROM {log} WHERE user_id=? AND text LIKE 'Wrong password%' AND time>?", [$uid, time() - 900]);
+    $n = (int)DB::val("SELECT COUNT(*) FROM {log} WHERE user_id=? AND (text LIKE 'Wrong password%' OR text LIKE 'Wrong code%') AND time>?",
+        [$uid, time() - 900]);
     return $n >= 5;
+}
+
+/** Id of this board: 32 hex characters, made once and never changed. Prefix of every message id. */
+function cb_box_id(): string
+{
+    $id = Settings::get('box_id');
+    if (!preg_match('/^[0-9a-f]{32}$/', $id)) {
+        $id = bin2hex(random_bytes(16));
+        Settings::set('box_id', $id);
+    }
+    return $id;
+}
+
+/** New message id: id of the board, a dot and 16 random hex characters. No counter, so a restored backup cannot hand out an id twice. */
+function cb_new_msgid(): string
+{
+    return cb_box_id() . '.' . bin2hex(random_bytes(8));
+}
+
+/**
+ * Store a message with its id and origin. For a reply (reply_to) the id of the original is
+ * taken over as reply_msgid. A collision of the id is rolled again.
+ */
+function cb_message_insert(array $data): int
+{
+    $data['origin'] = cb_box_id();
+    $data['reply_msgid'] = '';
+    if ((int)($data['reply_to'] ?? 0) > 0) {
+        $data['reply_msgid'] = (string)(DB::val('SELECT msgid FROM {messages} WHERE id=?', [(int)$data['reply_to']]) ?? '');
+    }
+    for ($try = 0; ; $try++) {
+        $data['msgid'] = cb_new_msgid();
+        try {
+            return DB::insert('messages', $data);
+        } catch (PDOException $e) {
+            if ($try >= 3 || !DB::val('SELECT COUNT(*) FROM {messages} WHERE msgid=?', [$data['msgid']])) {
+                throw $e;
+            }
+        }
+    }
 }
 
 /** 3 to 20 characters, starts with a letter or digit. */
@@ -174,8 +219,8 @@ function cb_banned_word(string $text): ?string
 }
 
 /**
- * Delete a user with read pointers, door data and private mail. Public messages stay, votes stay
- * anonymous so results of polls do not change afterwards.
+ * Delete a user with read pointers, door data, answers of the questionnaire, backup codes and private
+ * mail. Public messages stay, votes stay anonymous so results of polls do not change afterwards.
  */
 function cb_delete_user(int $id): void
 {
@@ -189,6 +234,8 @@ function cb_delete_user(int $id): void
         DB::q('UPDATE {poll_votes} SET user_id=? WHERE poll_id=? AND user_id=?', [$anon, (int)$poll, $id]);
     }
     DB::q('DELETE FROM {tele_lines} WHERE user_id=?', [$id]);
+    DB::q('DELETE FROM {nu_answers} WHERE user_id=?', [$id]);
+    DB::q('DELETE FROM {totp_codes} WHERE user_id=?', [$id]);
     DB::q('DELETE FROM {messages} WHERE private=1 AND (to_id=? OR from_id=?)', [$id, $id]);
 }
 
@@ -623,6 +670,61 @@ function cb_add_doortop_item(int $menu): void
     DB::q("UPDATE {menu_items} SET sort=sort+10 WHERE menu_id=? AND command='MENU' AND sort>?", [$menu, $last]);
     DB::insert('menu_items', ['menu_id' => $menu, 'hotkey' => $key, 'label' => Settings::get('language', 'en') === 'de' ? 'Bestenliste' : 'High scores',
         'command' => 'DOORTOP', 'data' => '', 'min_level' => 0, 'sort' => $last + 10]);
+}
+
+/* Automatic promotion: rules in level_rules, checked at the login. */
+
+/**
+ * Level a user would get at the next call and the rule behind it: [level, rule id], or null.
+ * Never for locked or waiting users, sysops and users with no_auto. Only upwards, the highest
+ * to_level of the matching rules wins, and the result is checked again against the rules.
+ */
+function cb_auto_level(array $u): ?array
+{
+    $sysop = Settings::int('sysop_level', 255);
+    if (Settings::get('auto_level', '0') !== '1' || (int)$u['locked'] === 1 || (int)$u['pending'] === 1
+        || (int)$u['no_auto'] === 1 || (int)$u['level'] >= $sysop) {
+        return null;
+    }
+    static $rules = null;
+    $rules ??= DB::all('SELECT * FROM {level_rules} WHERE active=1 ORDER BY to_level DESC, id');
+    $level = (int)$u['level'];
+    $posts = $uploads = null;
+    $hit = null;
+    for ($round = 0; $round < 5; $round++) {
+        $next = null;
+        foreach ($rules as $r) {
+            if ($level < (int)$r['from_level'] || $level >= (int)$r['to_level'] || (int)$r['to_level'] >= $sysop) {
+                continue;
+            }
+            if ((int)$r['min_calls'] + (int)$r['min_days'] + (int)$r['min_posts'] + (int)$r['min_uploads'] <= 0) {
+                continue;
+            }
+            if ((int)$u['calls'] < (int)$r['min_calls'] || intdiv(max(0, time() - (int)$u['created']), 86400) < (int)$r['min_days']) {
+                continue;
+            }
+            if ((int)$r['min_posts'] > 0) {
+                $posts ??= (int)DB::val('SELECT COUNT(*) FROM {messages} WHERE from_id=? AND private=0', [(int)$u['id']]);
+                if ($posts < (int)$r['min_posts']) {
+                    continue;
+                }
+            }
+            if ((int)$r['min_uploads'] > 0) {
+                $uploads ??= (int)DB::val('SELECT COUNT(*) FROM {files} WHERE uploader_id=? AND approved=1', [(int)$u['id']]);
+                if ($uploads < (int)$r['min_uploads']) {
+                    continue;
+                }
+            }
+            $next = $r;
+            break;
+        }
+        if ($next === null) {
+            break;
+        }
+        $level = (int)$next['to_level'];
+        $hit = [$level, (int)$next['id']];
+    }
+    return $hit;
 }
 
 /** Lines of the sysop message if it is set and not expired (valid up to and including sysop_msg_until). */

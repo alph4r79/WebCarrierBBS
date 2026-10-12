@@ -208,6 +208,10 @@ function a_pending_list(int $maxLevel): void
         return;
     }
     $def = min(Settings::int('new_level', 10), $maxLevel);
+    $answers = [];
+    foreach (DB::all('SELECT a.* FROM {nu_answers} a JOIN {users} u ON u.id=a.user_id WHERE u.pending=1 ORDER BY a.id') as $a) {
+        $answers[(int)$a['user_id']][] = $a;
+    }
     $all = 'for(const c of this.form.querySelectorAll(\'input[name="ids[]"]\'))c.checked=this.checked';
     echo '<form method="post" action="' . h(a_url('users', ['filter' => 'pending'])) . '">' . a_csrf() .
         '<div class="tablewrap"><table><tr><th class="check"><input type="checkbox" onclick="' . h($all) . '" aria-label="' . h(t('Select all')) . '"></th><th>' .
@@ -220,6 +224,9 @@ function a_pending_list(int $maxLevel): void
             '<td class="row-actions"><button class="btn small" name="approve_one" value="' . $id . '">' . h(t('Validate')) . '</button>' .
             '<button class="btn small danger ghost" name="delete_one" value="' . $id . '" onclick="return confirm(' .
             h(json_encode(t('Delete {1} for good?', $u['handle']))) . ')">' . h(t('Delete')) . '</button></td></tr>';
+        if (isset($answers[$id])) {
+            echo '<tr class="answer-row"><td></td><td colspan="5">' . a_answers_html($answers[$id], false) . '</td></tr>';
+        }
     }
     echo '</table></div><div class="bulk"><span class="note">' . h(t('Selected users:')) . '</span><span class="move">' .
         a_level_select('bulk_level', $def, $maxLevel) . '<button class="btn small" name="bulk" value="approve">' . h(t('Validate')) . '</button></span>' .
@@ -252,6 +259,24 @@ function page_user(array $admin): void
             }
             a_go('user', ['id' => $id]);
         }
+        if (isset($_POST['del_answer'])) {
+            $a = DB::row('SELECT * FROM {nu_answers} WHERE id=? AND user_id=?', [(int)$_POST['del_answer'], $id]);
+            if ($a) {
+                DB::q('DELETE FROM {nu_answers} WHERE id=?', [(int)$a['id']]);
+                cb_log((int)$admin['id'], $admin['handle'], 'Deleted an answer of ' . $u['handle'] . ' from the questionnaire');
+                a_flash(t('Answer deleted.'));
+            }
+            a_go('user', ['id' => $id]);
+        }
+        if (isset($_POST['totp_off'])) {
+            // the own second factor is switched off under My account, with password and code
+            if (!$self && (int)$u['totp_on'] === 1) {
+                cb_totp_disable($id);
+                cb_log((int)$admin['id'], $admin['handle'], 'Switched off the second factor of ' . $u['handle']);
+                a_flash(t('The second factor of {1} is switched off.', $u['handle']));
+            }
+            a_go('user', ['id' => $id]);
+        }
         if (isset($_POST['delete'])) {
             if ($self || (int)$u['id'] === Settings::int('sysop_id', 1)) {
                 a_flash(t('The main sysop account cannot be deleted.'), 'bad');
@@ -277,6 +302,7 @@ function page_user(array $admin): void
             'level' => $self ? (int)$u['level'] : a_int('level', 0, 255),
             'locked' => $self ? 0 : (isset($_POST['locked']) ? 1 : 0),
             'expert' => isset($_POST['expert']) ? 1 : 0,
+            'no_auto' => isset($_POST['no_auto']) ? 1 : 0,
             'note' => a_in('note', 255),
             'ul_files' => a_int('ul_files'), 'dl_files' => a_int('dl_files'),
         ];
@@ -318,6 +344,12 @@ function page_user(array $admin): void
     }
     echo '<label class="inline"><input type="checkbox" name="expert"' . ((int)$u['expert'] ? ' checked' : '') . '> ' . h(t('Expert mode')) . '</label>';
     echo '<label class="inline"><input type="checkbox" name="reset_time"> ' . h(t('Reset time and download counter for today')) . '</label>';
+    echo '<label class="inline"><input type="checkbox" name="no_auto"' . ((int)$u['no_auto'] ? ' checked' : '') . '> ' . h(t('Do not promote automatically')) . '</label>';
+    // the login counts the call first, then checks the rules
+    $auto = cb_auto_level(['calls' => (int)$u['calls'] + 1] + $u);
+    if ($auto !== null) {
+        echo '<p class="note">' . h(t('A rule of the automatic promotion would raise this user to level {1} at the next call.', $auto[0])) . '</p>';
+    }
     echo '<p class="note">' . h(t('Member since {1}, {2} calls, last call {3}, {4} messages, uploads {5}k, downloads {6}k.',
             date('d.m.Y', (int)$u['created']), (int)$u['calls'], (int)$u['last_call'] ? date('d.m.Y H:i', (int)$u['last_call']) : '-',
             (int)$u['posts'], (int)$u['ul_kb'], (int)$u['dl_kb'])) . '</p>';
@@ -329,15 +361,94 @@ function page_user(array $admin): void
             '<form method="post"' . a_confirm($btn . '?') . '>' . a_csrf() . '<button class="btn small danger ghost" name="clear_profile" value="' . $f . '">' . h($btn) . '</button></form>');
     }
     echo '<p class="note">' . h(t('Callers write these texts themselves in the terminal. You can only remove them.')) . '</p></div>';
+    $answers = DB::all('SELECT * FROM {nu_answers} WHERE user_id=? ORDER BY id', [$id]);
+    if ($answers) {
+        echo '<div class="panel"><h2>' . h(t('Questionnaire')) . '</h2>' . a_answers_html($answers, true) .
+            '<p class="note">' . h(t('Answers from the registration on {1}.', date('d.m.Y', (int)$answers[0]['time']))) . '</p></div>';
+    }
+    if ((int)$u['totp_on'] === 1) {
+        echo '<div class="panel"><h2>' . h(t('Second factor')) . '</h2><p><span class="tag ok">' . h(t('active')) . '</span> ' .
+            h(t('Logins of this account ask for a code from an authenticator app.')) . '</p>';
+        if ($self) {
+            echo '<p class="note"><a href="' . h(a_url('account')) . '">' . h(t('My account')) . '</a></p>';
+        } else {
+            echo '<form method="post"' . a_confirm(t('Switch off the second factor of {1}? The account is then protected by the password alone.', $u['handle'])) . '>' .
+                a_csrf() . '<button class="btn small danger ghost" name="totp_off" value="1">' . h(t('Switch off the second factor')) . '</button></form>';
+        }
+        echo '</div>';
+    }
     if (!$self) {
         echo '<form method="post" class="panel"' . a_confirm(t('Delete {1} for good? Private mail of this user is deleted too.', $u['handle'])) . '>' . a_csrf() .
             '<p class="note">' . h(t('Public messages stay in the areas.')) . '</p><button class="btn danger" name="delete" value="1">' . h(t('Delete user')) . '</button></form>';
     }
 }
 
+/** Users a rule would promote at their next call: [user, new level]. */
+function a_auto_preview(): array
+{
+    $out = [];
+    foreach (DB::all('SELECT * FROM {users} WHERE locked=0 AND pending=0 AND no_auto=0 AND level<? ORDER BY handle_lc', [Settings::int('sysop_level', 255)]) as $u) {
+        // the login counts the call first, then checks the rules
+        $u['calls'] = (int)$u['calls'] + 1;
+        $a = cb_auto_level($u);
+        if ($a !== null) {
+            $out[] = [$u, $a[0]];
+        }
+    }
+    return $out;
+}
+
+/** Save the switch and the rules of the automatic promotion. */
+function a_rules_post(): void
+{
+    if (isset($_POST['del_rule'])) {
+        DB::q('DELETE FROM {level_rules} WHERE id=?', [(int)$_POST['del_rule']]);
+        a_flash(t('Rule deleted.'));
+        a_go('levels');
+    }
+    Settings::set('auto_level', isset($_POST['auto_level']) ? '1' : '0');
+    $sysop = Settings::int('sysop_level', 255);
+    $count = (int)DB::val('SELECT COUNT(*) FROM {level_rules}');
+    $bad = false;
+    foreach ((array)($_POST['ru'] ?? []) as $key => $row) {
+        $n = static fn(string $k): int => max(0, min(1000000, (int)($row[$k] ?? 0)));
+        $d = ['from_level' => min(255, $n('from_level')), 'to_level' => min(255, $n('to_level')), 'min_calls' => $n('min_calls'),
+            'min_days' => $n('min_days'), 'min_posts' => $n('min_posts'), 'min_uploads' => $n('min_uploads'), 'active' => isset($row['active']) ? 1 : 0];
+        $conditions = $d['min_calls'] + $d['min_days'] + $d['min_posts'] + $d['min_uploads'];
+        $new = $key === 'new';
+        if ($new && $conditions === 0) {
+            continue;
+        }
+        $label = $new ? t('new') : (string)(int)$key;
+        $err = match (true) {
+            $conditions === 0 => t('Rule {1}: at least one condition must be above 0.', $label),
+            $d['to_level'] <= $d['from_level'] => t('Rule {1}: the new level must be above the level it starts from.', $label),
+            $d['to_level'] >= $sysop => t('Rule {1}: the new level must be below the sysop level ({2}).', $label, $sysop),
+            $new && $count >= 5 => t('There are 5 rules already.'),
+            default => null,
+        };
+        if ($err !== null) {
+            a_flash($err . ' ' . t('The rule was not saved.'), 'bad');
+            $bad = true;
+        } elseif ($new) {
+            DB::insert('level_rules', $d);
+            $count++;
+        } else {
+            DB::update('level_rules', $d, 'id=?', [(int)$key]);
+        }
+    }
+    if (!$bad) {
+        a_flash(t('Automatic promotion saved.'));
+    }
+    a_go('levels');
+}
+
 function page_levels(array $admin): void
 {
     if (a_post()) {
+        if (isset($_POST['save_rules']) || isset($_POST['del_rule'])) {
+            a_rules_post();
+        }
         if (isset($_POST['del'])) {
             $l = (int)$_POST['del'];
             if ($l >= Settings::int('sysop_level', 255) || $l === Settings::int('new_level', 10)) {
@@ -384,4 +495,48 @@ function page_levels(array $admin): void
     echo '<tr><td><input type="number" name="new_level" min="1" max="255" placeholder="' . h(t('new')) . '"></td><td><input name="new_name" placeholder="' . h(t('Name')) . '"></td>' .
         '<td><input type="number" name="new_minutes" value="60"></td><td><input type="number" name="new_dl" value="0"></td><td><input type="number" name="new_ratio" value="0"></td><td></td></tr>';
     echo '</table></div><p><button class="btn" type="submit">' . h(t('Save levels')) . '</button></p></form>';
+
+    $on = Settings::get('auto_level', '0') === '1';
+    $sysop = Settings::int('sysop_level', 255);
+    $rules = DB::all('SELECT * FROM {level_rules} ORDER BY id');
+    echo '<h2>' . h(t('Automatic promotion')) . '</h2><p class="note">' .
+        h(t('A rule gives a user a higher level at the login: who has at least the first level and less than the new one and meets all conditions gets the new level. 0 means the condition is not checked. Posts are public messages, uploads are approved files. Nobody is ever lowered, and locked or waiting users, sysops and users with the mark "Do not promote automatically" are left out.')) .
+        '</p><form method="post" class="form">' . a_csrf() . '<label class="inline"><input type="checkbox" name="auto_level"' . ($on ? ' checked' : '') . '> ' .
+        h(t('Promote automatically')) . '</label><div class="tablewrap"><table class="rules"><tr><th>' . h(t('Rule')) . '</th><th>' . h(t('From level')) . '</th><th>' .
+        h(t('New level')) . '</th><th>' . h(t('Calls')) . '</th><th>' . h(t('Days since registration')) . '</th><th>' . h(t('Posts')) . '</th><th>' .
+        h(t('Uploads')) . '</th><th>' . h(t('Active')) . '</th><th></th></tr>';
+    $row = static function (string $key, array $r, string $label) use ($sysop): string {
+        $h = '<tr><td class="num">' . h($label) . '</td><td>' . a_level_select("ru[$key][from_level]", (int)$r['from_level'], $sysop - 1) . '</td><td>' .
+            a_level_select("ru[$key][to_level]", (int)$r['to_level'], $sysop - 1) . '</td>';
+        foreach (['min_calls', 'min_days', 'min_posts', 'min_uploads'] as $f) {
+            $h .= '<td><input type="number" min="0" name="ru[' . $key . '][' . $f . ']" value="' . (int)$r[$f] . '"></td>';
+        }
+        return $h . '<td class="check"><input type="checkbox" name="ru[' . $key . '][active]"' . ((int)$r['active'] ? ' checked' : '') . ' aria-label="' . h(t('Active')) . '"></td>';
+    };
+    foreach ($rules as $r) {
+        echo $row((string)(int)$r['id'], $r, (string)(int)$r['id']) . '<td><button class="btn small danger ghost" name="del_rule" value="' . (int)$r['id'] .
+            '" onclick="return confirm(' . h(json_encode(t('Delete this rule?'))) . ')">' . h(t('Delete')) . '</button></td></tr>';
+    }
+    if (count($rules) < 5) {
+        $new = Settings::int('new_level', 10);
+        echo $row('new', ['from_level' => $new, 'to_level' => $new, 'min_calls' => 0, 'min_days' => 0, 'min_posts' => 0, 'min_uploads' => 0, 'active' => 1], t('new')) . '<td></td></tr>';
+    }
+    echo '</table></div><p><button class="btn" name="save_rules" value="1">' . h(t('Save automatic promotion')) . '</button></p></form>';
+    if (!$on) {
+        echo '<p class="note">' . h(t('The automatic promotion is switched off, the rules do nothing.')) . '</p>';
+    } elseif ($rules) {
+        $would = a_auto_preview();
+        echo '<div class="panel"><p>' . h(t('At the next call {1} user(s) would be promoted.', count($would))) . '</p>';
+        if ($would) {
+            echo '<ul class="promo">';
+            foreach (array_slice($would, 0, 50) as [$u, $to]) {
+                echo '<li><a href="' . h(a_url('user', ['id' => (int)$u['id']])) . '">' . h($u['handle']) . '</a> ' . h(t('level {1} to {2}', (int)$u['level'], $to)) . '</li>';
+            }
+            echo '</ul>';
+            if (count($would) > 50) {
+                echo '<p class="note">' . h(t('and {1} more', count($would) - 50)) . '</p>';
+            }
+        }
+        echo '</div>';
+    }
 }

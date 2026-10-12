@@ -17,6 +17,7 @@ require __DIR__ . '/engine_files.php';
 require __DIR__ . '/engine_misc.php';
 require __DIR__ . '/engine_sysop.php';
 require __DIR__ . '/engine_social.php';
+require __DIR__ . '/engine_logon.php';
 
 final class Engine
 {
@@ -25,6 +26,7 @@ final class Engine
     use EngineMisc;
     use EngineSysop;
     use EngineSocial;
+    use EngineLogon;
 
     /** Menu commands available to the sysop in the menu editor. */
     public const COMMANDS = [
@@ -39,6 +41,8 @@ final class Engine
     public AnsiWriter $w;
     private ?array $ask = null;
     private ?string $dl = null;
+    private ?string $open = null;
+    private ?string $notify = null;
     private bool $hang = false;
     private ?array $levelRow = null;
     private array $mcache = [];
@@ -98,6 +102,10 @@ final class Engine
                     // end of a wait(): the handler gets an empty input
                     unset($this->S['wt']);
                     $this->input('');
+                    // a door that waited and now asks for a key: the caller is at turn
+                    if (!empty($this->S['door']) && $this->ask !== null && $this->ask['t'] !== 'wait') {
+                        $this->hint('turn');
+                    }
                 } else {
                     // keys during a wait, or a wait nobody asked for: same prompt again
                     $this->ask = $this->S['ask'] ?? null;
@@ -163,6 +171,9 @@ final class Engine
         }
         DB::q('UPDATE {nodes} SET seen=? WHERE node=? AND sid=?', [time(), (int)$this->S['node'], session_id()]);
         $this->deliverNodeMsgs();
+        if (!$this->hang) {
+            $this->pollExtras();
+        }
         return $this->resp();
     }
 
@@ -177,15 +188,23 @@ final class Engine
                 unset($this->S['wt']);
             }
         }
-        return [
+        $r = [
             'o' => CP437::transport($this->w->buf),
             'ask' => $this->hang ? null : $this->ask,
             'dl' => $this->dl,
             'hang' => $this->hang,
             'baud' => $this->baud(),
             'idle' => max(1, Settings::int('idle_minutes', 5)) * 60,
+            'crt' => $this->crtMode(),
             'csrf' => cb_csrf(),
         ];
+        if ($this->open !== null) {
+            $r['open'] = $this->open;
+        }
+        if ($this->notify !== null && Settings::get('tab_notify', '1') === '1') {
+            $r['notify'] = $this->notify;
+        }
+        return $r;
     }
 
     /** Enter a state: sets it and runs e_<state>(). */
@@ -388,7 +407,7 @@ final class Engine
     private function ansMacro(string $n): ?string
     {
         $v = $this->macro($n);
-        if ($v === null || !in_array($n, ['DOORTOP', 'SYSOPMSG'], true) || $v === '') {
+        if ($v === null || !in_array($n, ['DOORTOP', 'SYSOPMSG', 'NEWSINCE'], true) || $v === '') {
             return $v;
         }
         $w = new AnsiWriter();
@@ -424,6 +443,7 @@ final class Engine
             'TOTALCALLS' => (string)DB::val('SELECT COUNT(*) FROM {calls}'),
             'DOORTOP' => $u ? $this->doorTopBox() : '',
             'SYSOPMSG' => implode('|CR', cb_sysop_msg()),
+            'NEWSINCE' => ($c = $u ? $this->newSinceCounts() : null) !== null ? $this->newSinceBox($c) : '',
             default => null,
         };
         return $this->mcache[$n] = $v;
@@ -659,6 +679,11 @@ final class Engine
                 $this->showPending();
                 return;
             }
+            if ((int)$u['totp_on'] === 1) {
+                $this->S['pwok'] = (int)$u['id'];
+                $this->go('totp');
+                return;
+            }
             $this->doLogin((int)$u['id']);
             return;
         }
@@ -692,9 +717,17 @@ final class Engine
         DB::insert('calls', ['user_id' => $id, 'handle' => $u['handle'], 'location' => $u['location'],
             'node' => $node, 'time' => time()]);
         $this->user = DB::row('SELECT * FROM {users} WHERE id=?', [$id]);
+        cb_log($id, $u['handle'], 'Login on node ' . $node);
+        $auto = cb_auto_level($this->user);
+        if ($auto !== null) {
+            DB::q('UPDATE {users} SET level=? WHERE id=?', [$auto[0], $id]);
+            cb_log($id, $u['handle'], 'Auto level ' . $u['level'] . ' to ' . $auto[0] . ' (rule ' . $auto[1] . ')');
+            $this->user['level'] = $auto[0];
+            $this->S['promo'] = 1;
+        }
+        $this->S['mailmax'] = (int)DB::val('SELECT MAX(id) FROM {messages} WHERE private=1 AND to_id=?', [$id]);
         $this->levelRow = null;
         $this->mcache = [];
-        cb_log($id, $u['handle'], 'Login on node ' . $node);
         $this->act(Lang::get('act_logon'));
         if ($this->timeLeft() <= 0) {
             $this->nl();
@@ -715,6 +748,12 @@ final class Engine
         $this->nl();
         $this->say('welcome_back', cb_esc($this->user['handle']), (int)$this->user['calls']);
         $this->nl();
+        if (!empty($this->S['promo'])) {
+            unset($this->S['promo']);
+            $this->say('auto_level', cb_esc((string)$this->level()['name']), $this->lvl());
+            $this->w->buf .= "\x07";
+            $this->nl();
+        }
         $this->say('time_today', $this->minutesLeft());
         $this->nl();
         $mail = (int)DB::val('SELECT COUNT(*) FROM {messages} WHERE private=1 AND to_id=? AND is_read=0', [(int)$this->user['id']]);
@@ -734,10 +773,18 @@ final class Engine
                 $this->nl();
             }
         }
-        $polls = $this->pollsGreeting();
-        if ($polls !== '') {
+        // new polls are a line of the box, without the box the hint stands alone
+        $counts = $this->newSinceCounts();
+        if ($counts === null) {
+            $polls = $this->pollsGreeting();
+            if ($polls !== '') {
+                $this->nl();
+                $this->write($polls);
+                $this->nl();
+            }
+        } elseif (!$this->logonHasNewSince()) {
             $this->nl();
-            $this->write($polls);
+            $this->write($this->newSinceBox($counts));
             $this->nl();
         }
         if (Settings::get('logon_oneliners', '1') === '1') {
@@ -753,7 +800,7 @@ final class Engine
             }
         }
         $this->nl();
-        $this->pause('menu');
+        $this->newSincePrompt($counts);
     }
 
     /* ============================================================ new user */
@@ -840,10 +887,8 @@ final class Engine
             $this->go('nu_pass');
             return;
         }
-        $this->nl();
-        $this->say('nu_summary', cb_esc($this->S['nu']['handle']), cb_esc($this->S['nu']['location']));
-        $this->S['st'] = 'nu_confirm';
-        $this->yn($this->L('nu_confirm'), true);
+        $this->S['nu']['qa'] = [];
+        $this->go('nu_q', 0);
     }
 
     private function i_nu_confirm(string $v): void
@@ -865,6 +910,7 @@ final class Engine
             'location' => $nu['location'], 'level' => Settings::int('new_level', 10), 'created' => time(),
             'today' => date('Y-m-d'), 'baud' => -1, 'pending' => $pending,
         ]);
+        $this->nuStoreAnswers($id, (array)($nu['qa'] ?? []));
         unset($this->S['nu']);
         cb_log($id, $nu['handle'], $pending ? 'New user registered, waiting for validation' : 'New user registered');
         if ($pending) {

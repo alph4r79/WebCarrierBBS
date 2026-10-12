@@ -331,13 +331,16 @@ function page_files(array $admin): void
     echo '<form method="post" action="' . h(a_url('files', ['area' => $area])) . '">' . a_csrf() .
         '<div class="tablewrap"><table><tr><th class="check"><input type="checkbox" onclick="' . h($all) . '" aria-label="' . h(t('Select all')) . '"></th><th>' .
         h(t('File')) . '</th><th class="num">' . h(t('Size')) . '</th><th>' . h(t('Date')) . '</th><th class="num">DL</th><th>' . h(t('Description')) . '</th><th></th></tr>';
+    $wad = cb_wansidraw_base() !== '';
     foreach ($files as $f) {
         $id = (int)$f['id'];
+        $art = $wad && strtolower(pathinfo((string)$f['filename'], PATHINFO_EXTENSION)) === 'ans';
         echo '<tr' . ((int)$f['approved'] ? '' : ' class="pending"') . '><td class="check"><input type="checkbox" name="ids[]" value="' . $id . '" aria-label="' .
             h($f['filename']) . '"></td><td>' . h($f['filename']) . '</td><td class="num">' . cb_kb((int)$f['size']) .
             '</td><td class="num">' . date('d.m.y', (int)$f['added']) . '</td><td class="num">' . (int)$f['downloads'] . '</td><td>' .
-            nl2br(h($f['description'])) . '</td><td><a class="btn small ghost" href="' . h(a_url('files', ['area' => $area, 'edit' => $id])) . '">' .
-            h(t('Edit')) . '</a></td></tr>';
+            nl2br(h($f['description'])) . '</td><td class="row-actions"><a class="btn small ghost" href="' . h(a_url('files', ['area' => $area, 'edit' => $id])) . '">' .
+            h(t('Edit')) . '</a>' . ($art ? '<a class="btn small ghost" target="_blank" rel="noopener" href="' . h(a_url('wansidraw', ['file' => $id])) . '">' .
+            h(t('Open in WAnsiDraw')) . '</a>' : '') . '</td></tr>';
     }
     echo '</table></div><div class="bulk"><span class="note">' . h(t('Selected files:')) . '</span>' .
         '<button class="btn small" name="bulk" value="approve">' . h(t('Approve')) . '</button>' .

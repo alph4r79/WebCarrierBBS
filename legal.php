@@ -18,7 +18,7 @@ $p = ($_GET['p'] ?? '') === 'privacy' ? 'privacy' : 'impressum';
 $title = Lang::get($p === 'privacy' ? 'legal_privacy' : 'legal_impressum');
 $text = trim(Settings::get('legal_' . $p));
 ?><!DOCTYPE html>
-<html lang="<?= h(Lang::$code) ?>">
+<html lang="<?= h(Lang::$code) ?>" class="term">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

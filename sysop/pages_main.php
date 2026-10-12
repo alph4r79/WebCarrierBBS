@@ -54,9 +54,21 @@ function a_dismissed(): array
  * Current notices, most important first. Each: id, kind (security, task, update, info, news),
  * title, text, optional items (list of lines) and actions: ['link', label, url] or ['post', label, field, value, confirm].
  */
-function a_dash_notices(): array
+function a_dash_notices(?array $admin = null): array
 {
     $n = [];
+    if ($admin && (int)$admin['totp_on'] !== 1) {
+        if (in_array((int)$admin['id'], cb_totp_reset_ids(), true)) {
+            $n[] = ['id' => 'totp-reset', 'kind' => 'security', 'title' => t('The second factor of your account was switched off'),
+                'text' => t('The file data/2fa_reset.txt switched it off at your login. Your account is protected by the password alone until you set it up again.'),
+                'actions' => [['link', t('My account'), a_url('account')]]];
+        } elseif (Settings::int('totp_hint_' . (int)$admin['id'], 0) < time() - 30 * 86400) {
+            // hidden for 30 days per sysop, not for good like the other notes
+            $n[] = ['id' => 'totp', 'kind' => 'info', 'title' => t('Your account has no second factor'),
+                'text' => t('With a code from an authenticator app a stolen password alone is not enough to get into the backend.'),
+                'actions' => [['link', t('My account'), a_url('account')]]];
+        }
+    }
     if (is_dir(CB_ROOT . '/install')) {
         $n[] = ['id' => 'install', 'kind' => 'security', 'title' => t('The install folder is still on the server'),
             'text' => t('Delete the folder install from your webspace. As long as it exists, it is a needless risk.')];
@@ -142,7 +154,9 @@ function a_dash_notices(): array
 
 function a_dash_post(array $admin): void
 {
-    if (isset($_POST['dismiss'])) {
+    if (isset($_POST['dismiss']) && $_POST['dismiss'] === 'totp') {
+        Settings::set('totp_hint_' . (int)$admin['id'], (string)time());
+    } elseif (isset($_POST['dismiss'])) {
         $id = (string)$_POST['dismiss'];
         foreach (a_dash_notices() as $x) {
             if ($x['id'] === $id && in_array($x['kind'], ['info', 'news'], true)) {
@@ -275,7 +289,7 @@ function page_dash(array $admin): void
         a_dash_post($admin);
     }
     cb_update_check();
-    $notices = a_dash_notices();
+    $notices = a_dash_notices($admin);
     // one-time notices are shown once
     foreach (['update_result', 'update_stale'] as $k) {
         if (Settings::get($k) !== '') {
@@ -430,6 +444,7 @@ function page_settings(array $admin): void
             ['idle_minutes', t('Hang up after minutes without input'), 'number', ''],
             ['sysop_level', t('Level with sysop rights'), 'number', t('Users with this level or higher may enter this backend.')],
             ['logon_oneliners', t('Show oneliners after login'), 'bool', ''],
+            ['newsince', t('Show what is new since the last call'), 'bool', t('A box after the login counts new messages, files, members, oneliners, polls and high scores. An own logon screen places it with @NEWSINCE@.')],
             ['max_msg_lines', t('Maximum lines per message'), 'number', ''],
         ],
         t('Registration') => [
@@ -443,6 +458,9 @@ function page_settings(array $admin): void
             ['sound', t('Modem and bell sounds'), 'bool', ''],
             ['show_footer', t('Show imprint and privacy links below the terminal'), 'bool', t('Recommended in Germany: the imprint must be reachable directly.')],
             ['noindex', t('Ask search engines not to index the BBS'), 'bool', ''],
+            ['tab_notify', t('Hint in the browser tab'), 'bool', t('While the tab with the terminal is in the background, its title and icon show that something happened: a chat, a message, the turn in a door or a disconnect coming up.')],
+            ['crt', t('Tube effect'), 'select', ['off' => t('Off'), 'light' => t('Light (scanlines)'), 'strong' => t('Strong (scanlines, afterglow and glow)')]],
+            ['wansidraw_url', t('Address of WAnsiDraw'), 'text', t('Callers and you can open ANSI files and screens in this editor. Empty switches the function off. The default is {1}.', CB_WANSIDRAW_URL)],
         ],
         t('Uploads') => [
             ['upload_max_kb', t('Maximum upload size in KB'), 'number', t('The PHP limit of your webspace is {1}.', cb_kb(Engine::uploadMaxBytes()))],
@@ -485,6 +503,13 @@ function page_settings(array $admin): void
             Settings::set('new_level', (string)$nl);
             a_flash(t('New users would get sysop rights with this level. The level for new users was set to {1}.', $nl), 'warn');
         }
+        if (!in_array(Settings::get('crt'), ['light', 'strong'], true)) {
+            Settings::set('crt', 'off');
+        }
+        if (Settings::get('wansidraw_url') !== '' && cb_wansidraw_base() === '') {
+            Settings::set('wansidraw_url', '');
+            a_flash(t('The address of WAnsiDraw must start with http:// or https://. The function is switched off.'), 'warn');
+        }
         Settings::set('max_nodes', (string)max(1, min(99, Settings::int('max_nodes', 4))));
         Settings::set('idle_minutes', (string)max(1, min(120, Settings::int('idle_minutes', 5))));
         a_flash(t('Settings saved.'));
@@ -504,6 +529,10 @@ function page_settings(array $admin): void
                     echo '<option value="' . h((string)$ov) . '"' . ((string)$ov === $v ? ' selected' : '') . '>' . h($ol) . '</option>';
                 }
                 echo '</select></label>';
+                if ($k === 'crt') {
+                    echo '<div class="crt-demo"><div class="tube" id="crt-tube"><canvas id="crt-pv"></canvas></div><p class="hint">' .
+                        h(t('Preview. Callers can switch the effect off for themselves in their settings.')) . '</p></div>';
+                }
             } elseif ($type === 'level') {
                 echo '<label>' . h($label) . a_level_select($k, (int)$v) . '</label>';
             } else {
@@ -516,6 +545,10 @@ function page_settings(array $admin): void
             echo '<p class="note">' . h(t('{1} user(s) still wait for validation. They stay waiting until you validate or delete them.', $waiting)) .
                 ' <a href="' . h(a_url('users', ['filter' => 'pending'])) . '">' . h(t('Check new users')) . '</a></p>';
         }
+        if ($title === t('General')) {
+            echo '<p class="note">' . h(t('ID of this board:')) . ' <code>' . h(cb_box_id()) . '</code><br>' .
+                h(t('It marks the messages written here, made for a later network between boards. It never changes and moves with a backup.')) . '</p>';
+        }
         if ($title === t('Updates') && Settings::get('update_check', '0') === '1') {
             echo '<p class="note">' . h(t('Update check: {1}', a_update_status())) . '</p>' .
                 '<p><button class="btn small ghost" form="check-now" name="check_now" value="1">' . h(t('Check now')) . '</button></p>';
@@ -524,6 +557,20 @@ function page_settings(array $admin): void
     }
     echo '<p><button class="btn" type="submit">' . h(t('Save settings')) . '</button></p></form>';
     echo '<form method="post" id="check-now" action="' . h(a_url('settings')) . '">' . a_csrf() . '</form>';
+    // preview of the tube effect with the renderer and the styles of the terminal
+    $w = new AnsiWriter();
+    $w->write('|CL|15' . cb_esc(Settings::get('bbs_name', 'WebCarrier BBS')) . '|CR|CR' .
+        Lang::get('welcome_back', [cb_esc((string)$admin['handle']), (int)$admin['calls']]) . '|CR' . Lang::get('time_today', [60]) . '|CR|CR');
+    for ($c = 1; $c < 16; $c++) {
+        $w->write(sprintf('|%02d', $c) . '████');
+    }
+    $w->write('|CR|CR' . Lang::get('pause') . ' ');
+    echo '<link rel="stylesheet" href="../assets/terminal.css?v=' . CB_VERSION . '">' .
+        '<script src="../assets/font.js?v=' . CB_VERSION . '"></script><script src="../assets/terminal.js?v=' . CB_VERSION . '"></script>' .
+        '<script>(function(){var t=new CarrierTerm(document.getElementById("crt-pv"));t.setBaud(0);t.write(' .
+        json_encode(CP437::transport($w->buf), JSON_HEX_TAG | JSON_HEX_AMP) . ');t.showCursor(true);' .
+        'var c=new CarrierCRT(document.getElementById("crt-tube"),t),s=document.querySelector("select[name=crt]");' .
+        'c.set(s.value);s.addEventListener("change",function(){c.set(s.value);});}());</script>';
 }
 
 function page_legal(array $admin): void

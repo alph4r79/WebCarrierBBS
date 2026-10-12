@@ -781,7 +781,7 @@ trait EngineMessages
         if ($sig !== '') {
             $v .= "\n\n-- \n" . $sig;
         }
-        $newId = DB::insert('messages', [
+        $newId = cb_message_insert([
             'area_id' => (int)$p['area_id'], 'from_id' => (int)$this->user['id'], 'from_name' => $this->user['handle'],
             'to_id' => (int)$p['to_id'], 'to_name' => (string)$p['to'], 'subject' => (string)$p['subj'], 'body' => $v,
             'posted' => time(), 'reply_to' => (int)$p['reply_to'], 'private' => (int)$p['private'], 'is_read' => 0,
