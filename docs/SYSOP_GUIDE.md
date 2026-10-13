@@ -1,6 +1,6 @@
 # WebCarrier BBS: Sysop-Handbuch
 
-Version 1.8.0
+Version 1.8.1
 
 Für Betreiber der Mailbox: Installation, Einrichtung, Backend, Menüs, Screens, Dateiimport, Doors und Betrieb.
 
@@ -94,13 +94,15 @@ location ~ \.php$ {
 
 Liegt die Box in einem Unterordner, ergänze den Pfad entsprechend, zum Beispiel `^/bbs/(core|data|...)/`.
 
+Die Regel für `data/` und `core/` ist die wichtigste: In `data/` liegen die SQLite-Datenbank, die Dateibereiche und die Sicherungen vor einem Update, in `core/` die Zugangsdaten zur Datenbank. Die Seite „Backup“ im Backend erinnert daran und zeigt die Regel in Kurzform. Prüfe nach dem Einrichten, dass `https://deine-domain.de/data/` und `/core/config.php` im Browser nicht erreichbar sind. Das gilt genauso für jeden anderen Webserver, der keine `.htaccess` liest.
+
 ### Upload-Größe
 
 Wie groß Uploads sein dürfen, bestimmt das kleinste von drei Limits: die Einstellung im Backend, `upload_max_filesize` und `post_max_size` in der PHP-Konfiguration deines Hosters. Das Backend zeigt dir in den Einstellungen das tatsächlich gültige PHP-Limit an.
 
 ## 6. Grundbegriffe: Nodes, Level, Zeit, Ratio
 
-**Nodes** sind die „Telefonleitungen“ deiner Box. In den Einstellungen legst du fest, wie viele Anrufer gleichzeitig online sein dürfen (Standard 4). Sind alle belegt, bekommt der nächste Anrufer die Meldung, dass alle Leitungen besetzt sind. Eine Node wird frei, wenn sich jemand ausloggt, den Browser-Tab schließt oder zu lange nichts eingibt (Einstellung „Auflegen nach Minuten ohne Eingabe“). Wer im Editor schreibt oder gerade eine Datei hochlädt, behält seine Node, auch wenn das länger dauert.
+**Nodes** sind die „Telefonleitungen“ deiner Box. In den Einstellungen legst du fest, wie viele Anrufer gleichzeitig online sein dürfen (Standard 4). Sind alle belegt, bekommt der nächste Anrufer die Meldung, dass alle Leitungen besetzt sind. Eine Node wird frei, wenn sich jemand ausloggt, den Browser-Tab schließt oder zu lange nichts eingibt (Einstellung „Auflegen nach Minuten ohne Eingabe“). Eine Leitung, auf der noch niemand eingeloggt ist, wird schon nach drei Minuten ohne Eingabe frei, damit niemand alle Nodes am Login-Prompt blockieren kann. Wer im Editor schreibt oder gerade eine Datei hochlädt, behält seine Node, auch wenn das länger dauert.
 
 **Level** steuern alles, was ein User darf. Jeder User hat einen Wert von 0 bis 255. Mitgeliefert sind:
 
@@ -264,7 +266,7 @@ Mit einem zweiten Faktor reicht ein gestohlenes Passwort nicht mehr, um in dein 
 
 **Notfallcodes:** Nach dem Aktivieren zeigt die Seite einmalig 10 Notfallcodes mit je 8 Zeichen. Jeder gilt einmal anstelle eines Codes aus der App. Schreib sie auf oder druck sie aus, sie werden nur in diesem Moment angezeigt und nur als Hash gespeichert. „Neue Notfallcodes erzeugen“ (mit deinem Passwort) macht die alten ungültig.
 
-**Login im Backend:** Nach dem richtigen Passwort folgt ein zweites Formular „Code aus der App“. Angenommen werden der aktuelle Code, der vorige und der nächste, damit eine leicht falsch gehende Uhr nicht stört, und jeder Code nur einmal. Ein unbenutzter Notfallcode geht auch. Zwischen Passwort und Code hast du 5 Minuten, danach beginnt der Login von vorn. Falsche Codes zählen wie falsche Passwörter zur Sperre nach 5 Fehlversuchen in 15 Minuten.
+**Login im Backend:** Nach dem richtigen Passwort folgt ein zweites Formular „Code aus der App“. Angenommen werden der aktuelle Code, der vorige und der nächste, damit eine leicht falsch gehende Uhr nicht stört, und jeder Code nur einmal. Ein unbenutzter Notfallcode geht auch. Zwischen Passwort und Code hast du 5 Minuten, danach beginnt der Login von vorn. Fünf falsche Codes in 15 Minuten sperren das Konto für den Rest dieser Zeit. Falsche Passwörter sperren ein Konto mit zweitem Faktor dagegen nicht mehr: Mit dem Passwort allein kommt niemand hinein, und so kann dich auch niemand durch absichtlich falsche Passwörter aus deinem eigenen Backend aussperren. Die Fehlversuche stehen weiter im Log, und ab 10 falschen Passwörtern auf dein Konto in 24 Stunden zeigt die Übersicht eine Sicherheitsmeldung. Nimm für das Sysop-Konto trotzdem ein langes Passwort, das du nirgends sonst benutzt.
 
 **Login im Terminal:** Hat ein Konto den zweiten Faktor an, fragt die Box nach dem Passwort „Code aus der App:“. Nach drei falschen Codes wird aufgelegt. Das gilt für jedes Konto mit zweitem Faktor, praktisch also für die Sysops, denn nur sie können ihn im Backend einrichten.
 
@@ -639,7 +641,11 @@ Bringt eine neue Version Änderungen an der Datenbank mit, werden sie beim erste
 ## 14. Sicherheit und Datenschutz
 
 - Passwörter werden mit `password_hash()` gespeichert. Niemand, auch nicht du, kann sie lesen.
-- Nach 5 falschen Passwörtern oder falschen Codes des zweiten Faktors innerhalb von 15 Minuten ist der Account für den Rest dieser 15 Minuten gesperrt, im Terminal und im Backend. Die Fehlversuche stehen im Log.
+- Nach 5 falschen Passwörtern innerhalb von 15 Minuten ist der Account für den Rest dieser 15 Minuten gesperrt, im Terminal und im Backend. Bei Konten mit zweitem Faktor zählen dafür nur falsche Codes, nicht falsche Passwörter, damit niemand ein solches Konto von außen aussperren kann. Die Fehlversuche stehen im Log. Gab es in 24 Stunden 10 oder mehr falsche Passwörter auf dein eigenes Konto, zeigt die Übersicht im Backend eine Sicherheitsmeldung.
+- Nimm für das Sysop-Konto ein langes Passwort, das du nirgends sonst benutzt, auch mit zweitem Faktor.
+- Leitungen, auf denen noch niemand eingeloggt ist, werden nach drei Minuten ohne Eingabe frei. Das Nachfragen des Terminals im Hintergrund zählt dabei nicht als Eingabe. So lassen sich die Nodes nicht dadurch blockieren, dass jemand viele Verbindungen am Login-Prompt offen hält. Eingeloggte Anrufer betrifft das nicht.
+- Die Terminal-Seite und die Seiten für Impressum und Datenschutz senden eine Content-Security-Policy, die nur Skripte und Stile der Box selbst erlaubt.
+- Das automatische Update lädt ein Paket nur von dem Server, von dem auch die Update-Information stammt. Die Sicherung vor einem Update trägt einen zufälligen Namensteil.
 - Sysops können ihr Konto mit einem zweiten Faktor schützen (Abschnitt 7). Das Geheimnis dafür steht lesbar in der Datenbank, weil die Box es zum Prüfen der Codes braucht, und damit auch in jeder Sicherung. Bewahre Sicherungen entsprechend auf. Die Notfallcodes sind nur als Hash gespeichert.
 - Alle Formulare und Terminal-Anfragen sind gegen Cross-Site-Request-Forgery geschützt, alle Datenbankabfragen laufen über Prepared Statements.
 - Downloads laufen über Einmal-Links, die nur für den angemeldeten Anrufer und zehn Minuten gelten. Dateien im Ordner `data/` sind direkt nicht erreichbar.
@@ -661,6 +667,7 @@ Bringt eine neue Version Änderungen an der Datenbank mit, werden sie beim erste
 | Installer meldet „core/ writable“ oder „data/ writable“ rot | Rechte der Ordner per FTP auf 775 setzen |
 | Terminal zeigt „NO CARRIER“ direkt nach CONNECT | PHP-Fehlerlog des Hosters prüfen. Meist fehlende Rechte auf `data/` oder falsche Datenbankdaten |
 | Immer „Alle Leitungen sind besetzt“ | Mehr Nodes einstellen. Verwaiste Nodes werden nach der Idle-Zeit plus zwei Minuten automatisch frei |
+| Verbindung reißt beim Anmelden nach wenigen Minuten ab | Vor dem Login wird eine Leitung nach drei Minuten ohne Eingabe frei. Einfach neu anwählen |
 | Login meldet „Zu viele Fehlversuche“ | 15 Minuten warten. Als Sysop kannst du die Sperre sofort aufheben, indem du im Backend das Log leerst. Dabei gehen auch die Upload- und Download-Zahlen der Statistik verloren |
 | Handy mit der Authenticator-App verloren | Mit einem Notfallcode einloggen. Ohne Notfallcodes per FTP `data/2fa_reset.txt` mit deinem Handle anlegen und im Backend mit dem Passwort einloggen (Abschnitt 7, „Zweiter Faktor“) |
 | Code aus der App wird nicht angenommen | Uhrzeit des Handys prüfen, sie muss stimmen. Jeder Code gilt nur einmal, warte auf den nächsten |

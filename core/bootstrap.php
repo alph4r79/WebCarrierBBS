@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 define('CB_ROOT', dirname(__DIR__));
 define('CB_DATA', CB_ROOT . '/data');
-define('CB_VERSION', '1.8.0');
+define('CB_VERSION', '1.8.1');
 define('CB_AUTHOR', 'Christoph Scheel');
 define('CB_AUTHOR_URL', 'https://chrisscheel.de');
 // AGPL section 13: users of a networked installation must be able to get the source.
@@ -94,10 +94,14 @@ function cb_log(int $uid, string $handle, string $text): void
     DB::insert('log', ['time' => time(), 'user_id' => $uid, 'handle' => $handle, 'text' => mb_substr($text, 0, 250)]);
 }
 
-/** Login throttle: 5 wrong passwords or codes of the second factor in 15 minutes block the account (terminal and backend). */
+/** Login throttle: 5 failed tries in 15 minutes block the account (terminal and backend). */
 function cb_login_blocked(int $uid): bool
 {
-    $n = (int)DB::val("SELECT COUNT(*) FROM {log} WHERE user_id=? AND (text LIKE 'Wrong password%' OR text LIKE 'Wrong code%') AND time>?",
+    // with a second factor a wrong password alone cannot get in, so only wrong
+    // codes count towards the block there; without it wrong passwords count
+    $totp = (int)DB::val('SELECT totp_on FROM {users} WHERE id=?', [$uid]) === 1;
+    $like = $totp ? "text LIKE 'Wrong code%'" : "text LIKE 'Wrong password%'";
+    $n = (int)DB::val("SELECT COUNT(*) FROM {log} WHERE user_id=? AND $like AND time>?",
         [$uid, time() - 900]);
     return $n >= 5;
 }

@@ -125,7 +125,14 @@ final class Engine
 
     private function input(string $v): void
     {
-        $m = 'i_' . $this->S['st'];
+        $st = (string)$this->S['st'];
+        // all states of the sysop menu start with "sys": out as soon as the level is gone
+        if (str_starts_with($st, 'sys') && !$this->isSysop()) {
+            $this->S['menu'] = 'main';
+            $this->menu();
+            return;
+        }
+        $m = 'i_' . $st;
         if (method_exists($this, $m)) {
             $this->$m($v);
         } else {
@@ -139,7 +146,7 @@ final class Engine
         if (empty($this->S['st']) || !$this->ownsNode()) {
             return ['ok' => false, 'csrf' => cb_csrf()];
         }
-        DB::q('UPDATE {nodes} SET seen=? WHERE node=? AND sid=?', [time(), (int)$this->S['node'], session_id()]);
+        DB::q('UPDATE {nodes} SET seen=? WHERE node=? AND sid=? AND user_id>0', [time(), (int)$this->S['node'], session_id()]);
         return ['ok' => true, 'csrf' => cb_csrf()];
     }
 
@@ -169,7 +176,7 @@ final class Engine
             $this->hangup();
             return $this->resp();
         }
-        DB::q('UPDATE {nodes} SET seen=? WHERE node=? AND sid=?', [time(), (int)$this->S['node'], session_id()]);
+        DB::q('UPDATE {nodes} SET seen=? WHERE node=? AND sid=? AND user_id>0', [time(), (int)$this->S['node'], session_id()]);
         $this->deliverNodeMsgs();
         if (!$this->hang) {
             $this->pollExtras();
@@ -194,7 +201,8 @@ final class Engine
             'dl' => $this->dl,
             'hang' => $this->hang,
             'baud' => $this->baud(),
-            'idle' => max(1, Settings::int('idle_minutes', 5)) * 60,
+            // before the login the terminal hangs up a little earlier than cleanupNodes() frees the node
+            'idle' => $this->user ? max(1, Settings::int('idle_minutes', 5)) * 60 : min(170, max(1, Settings::int('idle_minutes', 5)) * 60),
             'crt' => $this->crtMode(),
             'csrf' => cb_csrf(),
         ];
@@ -210,6 +218,12 @@ final class Engine
     /** Enter a state: sets it and runs e_<state>(). */
     public function go(string $st, ...$args): void
     {
+        // also on the way in, for example after a pause inside the sysop menu
+        if (str_starts_with($st, 'sys') && !$this->isSysop()) {
+            $this->S['menu'] = 'main';
+            $st = 'menu';
+            $args = [];
+        }
         $this->S['st'] = $st;
         $m = 'e_' . $st;
         if (method_exists($this, $m)) {
@@ -521,6 +535,9 @@ final class Engine
         $limit = time() - (Settings::int('idle_minutes', 5) * 60 + 120);
         $gone = DB::all('SELECT node, handle FROM {nodes} WHERE seen<? AND tele=1', [$limit]);
         DB::q('DELETE FROM {nodes} WHERE seen<?', [$limit]);
+        // nodes that never logged in are freed quickly, keepalive does not refresh
+        // them (see ping() and poll()), only real input does through touch()
+        DB::q('DELETE FROM {nodes} WHERE user_id=0 AND seen<?', [time() - 180]);
         foreach ($gone as $g) {
             $this->teleGone((int)$g['node'], (string)$g['handle']);
         }
@@ -915,7 +932,8 @@ final class Engine
         cb_log($id, $nu['handle'], $pending ? 'New user registered, waiting for validation' : 'New user registered');
         if ($pending) {
             foreach ($this->sysopNodes() as $n) {
-                $this->nodeMsg($n, 'page', $this->L('nu_page_sysop', $nu['handle']));
+                $this->nodeMsg($n, 'page', $this->L('nu_page_sysop',
+                    cb_esc((string)$nu['handle'])));
             }
             $this->showPending();
             return;

@@ -19,6 +19,7 @@ function a_update_reason(string $code, array $args): string
         'write' => t('{1} is not writable.', $a),
         'space' => t('There is not enough free space in data/tmp.'),
         'backup' => t('The backup before the update failed: {1}', $a),
+        'host' => t('The update package is hosted on a different server than the update information.'),
         'download' => t('The update could not be downloaded.'),
         'size' => t('The downloaded file has the wrong size.'),
         'sha256' => t('The checksum of the downloaded file is wrong.'),
@@ -57,6 +58,18 @@ function a_dismissed(): array
 function a_dash_notices(?array $admin = null): array
 {
     $n = [];
+    if ($admin) {
+        $wrongPw = (int)DB::val("SELECT COUNT(*) FROM {log} WHERE user_id=? "
+            . "AND text LIKE 'Wrong password%' AND time>?", [(int)$admin['id'], time() - 86400]);
+        if ($wrongPw >= 10) {
+            $n[] = ['id' => 'wrongpw', 'kind' => 'security',
+                'title' => t('{1} failed password attempts on your account in the last 24 hours', $wrongPw),
+                'text' => (int)$admin['totp_on'] === 1
+                    ? t('If that was not you, someone is trying to guess your password. Your second factor still protects the backend, but consider changing the password.')
+                    : t('If that was not you, someone is trying to guess your password. Set up a second factor and consider changing the password.'),
+                'actions' => [['link', t('My account'), a_url('account')]]];
+        }
+    }
     if ($admin && (int)$admin['totp_on'] !== 1) {
         if (in_array((int)$admin['id'], cb_totp_reset_ids(), true)) {
             $n[] = ['id' => 'totp-reset', 'kind' => 'security', 'title' => t('The second factor of your account was switched off'),

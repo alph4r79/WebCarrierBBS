@@ -14,6 +14,11 @@ if (!cb_installed()) {
 }
 cb_boot();
 Lang::load(Settings::get('language', 'en'));
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: same-origin');
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; "
+    . "style-src 'self'; script-src 'none'; base-uri 'none'; "
+    . "form-action 'self'; frame-ancestors 'none'");
 $p = ($_GET['p'] ?? '') === 'privacy' ? 'privacy' : 'impressum';
 $title = Lang::get($p === 'privacy' ? 'legal_privacy' : 'legal_impressum');
 $text = trim(Settings::get('legal_' . $p));

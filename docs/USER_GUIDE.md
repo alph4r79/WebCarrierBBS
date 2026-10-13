@@ -48,7 +48,7 @@ Ab dem zweiten Anruf zeigt ein Kasten, was **neu seit deinem letzten Anruf** ist
 
 **Zeitlimit:** Die Zeit pro Tag ist begrenzt. Deine Restzeit steht in jeder Menüzeile. Ist sie aufgebraucht, wird aufgelegt, am nächsten Tag geht es weiter.
 
-**Untätigkeit:** Gibst du einige Minuten nichts ein, legt die Box auf, damit die Leitung für andere frei wird. Eine Minute vorher warnt sie dich. Solange du im Editor tippst oder eine Datei hochlädst, passiert das nicht.
+**Untätigkeit:** Gibst du einige Minuten nichts ein, legt die Box auf, damit die Leitung für andere frei wird. Vor dem Login und während der Anmeldung geschieht das schon nach knapp drei Minuten. Eine Minute vorher warnt sie dich. Solange du im Editor tippst oder eine Datei hochlädst, passiert das nicht.
 
 ## 4. Das Hauptmenü
 

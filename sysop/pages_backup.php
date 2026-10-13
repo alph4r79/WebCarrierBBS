@@ -65,6 +65,8 @@ function page_backup(array $admin): void
 
     echo '<h1>' . h(t('Backup')) . '</h1>';
     echo '<div class="flash warn"><p>' . h(t('The backup contains core/config.php with the access data of the database and all password hashes. Keep it in a safe place.')) . '</p></div>';
+    echo '<div class="flash warn"><p>' . h(t('The folder data/ must never be reachable over the web. On Apache the included .htaccess files take care of that. On nginx or other servers add a rule that denies /data/ and /core/, for example:')) .
+        '</p><p><code>location ~ ^/(data|core)/ { deny all; }</code></p></div>';
     if (!$hasZip) {
         echo '<div class="panel"><p>' . h(t('Your webspace has no ZipArchive, so the backup cannot be created here. Save these by FTP instead:')) . '</p><ul>' .
             '<li><code>core/config.php</code></li><li><code>data/</code> ' . h(t('(complete, with the SQLite database, screens and file areas)')) . '</li></ul>' .

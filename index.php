@@ -14,6 +14,12 @@ if (!cb_installed()) {
 }
 cb_boot();
 Lang::load(Settings::get('language', 'en'));
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: same-origin');
+$nonce = base64_encode(random_bytes(16));
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; "
+    . "style-src 'self'; script-src 'nonce-" . $nonce . "'; connect-src 'self'; "
+    . "base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
 if (cb_maintenance()) {
     http_response_code(503);
     header('Retry-After: 300');
@@ -71,9 +77,9 @@ $lang = Lang::$code;
 </footer>
 <input type="file" id="upfile" hidden>
 <iframe id="dlframe" title="download" hidden></iframe>
-<script>window.CBCFG = <?= json_encode($cfg, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
-<script src="assets/font.js?v=<?= CB_VERSION ?>"></script>
-<script src="assets/terminal.js?v=<?= CB_VERSION ?>"></script>
-<script src="assets/app.js?v=<?= CB_VERSION ?>"></script>
+<script nonce="<?= h($nonce) ?>">window.CBCFG = <?= json_encode($cfg, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
+<script nonce="<?= h($nonce) ?>" src="assets/font.js?v=<?= CB_VERSION ?>"></script>
+<script nonce="<?= h($nonce) ?>" src="assets/terminal.js?v=<?= CB_VERSION ?>"></script>
+<script nonce="<?= h($nonce) ?>" src="assets/app.js?v=<?= CB_VERSION ?>"></script>
 </body>
 </html>

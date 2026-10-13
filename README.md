@@ -38,6 +38,10 @@ PHP 8.1 or newer with PDO (SQLite or MySQL) and mbstring. ZipArchive is optional
 - [Door Guide](docs/DOOR_GUIDE.md) (German), how doors work and how to write your own
 - [Changelog](CHANGELOG.md)
 
+## Security
+
+Please report security issues privately as described in [SECURITY.md](SECURITY.md), not in public issues.
+
 ## Deutsch
 
 WebCarrier BBS ist eine Mailbox wie in den Neunzigern, die auf normalem PHP-Webspace läuft. Hochladen, `/install/` aufrufen, Formular ausfüllen, fertig. Anrufer bedienen die Box komplett per Tastatur in echter DOS-Optik, der Sysop verwaltet alles bequem im Web-Backend. Die Anleitungen liegen in `docs/`.

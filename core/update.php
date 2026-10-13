@@ -396,7 +396,8 @@ function cb_update_run(int $uid, string $handle): void
             @mkdir(CB_DATA . '/backups', 0775, true);
         }
         try {
-            cb_backup_create(CB_DATA . '/backups/vor-update-' . CB_VERSION . '-' . date('Ymd-His') . '.zip', false);
+            cb_backup_create(CB_DATA . '/backups/vor-update-' . CB_VERSION . '-'
+                . date('Ymd-His') . '-' . bin2hex(random_bytes(4)) . '.zip', false);
         } catch (Throwable $e) {
             throw new CbUpdateError('backup', [$e->getMessage()]);
         }
@@ -414,6 +415,10 @@ function cb_update_run(int $uid, string $handle): void
         cb_log($uid, $handle, 'Update to ' . $d['version'] . ' started');
 
         // 4. download and verify
+        // the package must come from the host the update information came from
+        if (parse_url($d['url'], PHP_URL_HOST) !== parse_url($src['url'], PHP_URL_HOST)) {
+            throw new CbUpdateError('host');
+        }
         $zipFile = CB_UPDATE_DIR . '/package.zip';
         if (cb_http_get($d['url'], 25, $zipFile, $d['size'] + 1024) !== true) {
             throw new CbUpdateError('download');

@@ -43,6 +43,9 @@ function a_store_file(int $area, string $src, string $name, string $desc, int $u
     if ($name === '') {
         return t('Invalid file name.');
     }
+    if (cb_dangerous_filename($name)) {
+        return t('This file type is not allowed.');
+    }
     if (DB::val('SELECT COUNT(*) FROM {files} WHERE area_id=? AND LOWER(filename)=?', [$area, strtolower($name)])) {
         return t('{1} exists already in this area.', $name);
     }

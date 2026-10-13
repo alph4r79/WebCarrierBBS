@@ -2,6 +2,23 @@
 
 All notable changes to WebCarrier BBS. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version numbers follow [Semantic Versioning](https://semver.org/).
 
+## [1.8.1] - 2026-10-12
+
+### Security
+
+- The backup made before an update gets a random part in its file name, and the backup page reminds operators of servers other than Apache to deny web access to data/ and core/.
+- The sysop menu in the terminal checks the level again with every input, so a sysop who loses the level during a call is out of the menu at once.
+- The terminal page and the imprint and privacy pages send their security headers themselves and a Content Security Policy that only allows scripts and styles of the board.
+- The handle of a caller is escaped in the notices a sysop gets when somebody pages him or registers.
+- Adding files in the backend and the file import refuse the same dangerous file types as uploads of callers.
+- The updater downloads a package only from the host the update information came from.
+- Lines without a login are freed after three minutes without input; the keepalive of the terminal no longer holds them.
+- For accounts with a second factor only wrong codes count for the login lock, wrong passwords no longer do, so such an account cannot be locked from outside. The overview warns a sysop about many failed password attempts on his account.
+
+### Added
+
+- SECURITY.md with the way to report security issues.
+
 ## [1.8.0] - 2026-10-11
 
 ### Added
@@ -155,6 +172,7 @@ First public release.
 - Web installer for SQLite or MySQL/MariaDB
 - German and English
 
+[1.8.1]: https://github.com/alph4r79/webcarrierbbs/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.5.0...v1.6.0

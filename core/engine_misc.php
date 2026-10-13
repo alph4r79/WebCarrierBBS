@@ -336,7 +336,8 @@ trait EngineMisc
         $online = array_values(array_diff($this->sysopNodes(), [(int)$this->S['node']]));
         if ($online) {
             foreach ($online as $n) {
-                $this->nodeMsg($n, 'page', $this->L('page_notify', $this->user['handle'], (int)$this->S['node']));
+                $this->nodeMsg($n, 'page', $this->L('page_notify',
+                    cb_esc((string)$this->user['handle']), (int)$this->S['node']));
             }
             cb_log((int)$this->user['id'], $this->user['handle'], 'Paged the sysop');
             $this->nl();
