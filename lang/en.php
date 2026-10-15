@@ -259,7 +259,7 @@ return [
     'thr_orig_gone' => '|12The original message is gone or you may not read it.|07',
     'thr_no_replies' => '|07There are no replies to this message.',
     'thr_choose' => '|07Read a reply |08(|151|08-|15{1}|08, |15Enter|07 back|08): |15',
-    'reader_help' => '|15N|07 next  |15P|07 previous  |15R|07 reply  |15A|07 again  |15O|07 original  |15T|07 replies|CR|15I|07 profile of the sender  |15Q|07 quit',
+    'reader_help' => '|15N|07 next  |15P|07 previous  |15R|07 reply  |15A|07 again  |15O|07 original  |15T|07 replies|CR|15I|07 profile of the sender  |15!|07 report  |15Q|07 quit',
     'reader_help_sys' => '|15N|07 next  |15P|07 previous  |15R|07 reply  |15A|07 again  |15O|07 original  |15T|07 replies|CR|15I|07 profile of the sender  |15D|07 delete  |15M|07 move  |15Q|07 quit',
     'tele_title' => 'Meeting point',
     'tele_intro' => '|07Meet everybody who is online right now. |15/?|07 help, |15/Q|07 leave.',
@@ -459,4 +459,12 @@ return [
     'js_idle_warn' => 'You will be disconnected in one minute for inactivity.',
     'js_open_wad' => 'Open in WAnsiDraw',
     'js_open_esc' => 'Esc closes',
+
+    'page_wait' => '|14The sysop is being called, please wait |08(|15Q|08 cancels)|07',
+    'page_cancel' => '|07Call cancelled.',
+    'page_declined' => '|12The sysop cannot talk right now.|07',
+    'rep_reason' => '|07What is wrong? A short reason, Enter = no reason.|CR|08> |15',
+    'rep_thanks' => '|10Thanks, the sysop will have a look.|07',
+    'rep_already' => '|07You reported this message already.',
+    'rep_limit' => '|12You reported 10 messages today already.|07',
 ];

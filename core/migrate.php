@@ -10,7 +10,7 @@
  */
 declare(strict_types=1);
 
-define('CB_DB_VERSION', 8);
+define('CB_DB_VERSION', 9);
 
 /** Run all pending steps. Costs only the (cached) settings lookup when up to date. */
 function cb_migrate(): void
@@ -275,6 +275,21 @@ function cb_migrate_msgids(): void
         }
         DB::$pdo->commit();
     } while (count($rows) === 500);
+}
+
+/** 9: roles in the backend, reachability and visits of backend accounts, calls to the sysop, reports, end of a call. */
+function cb_migrate_9(): void
+{
+    cb_add_column('levels', 'backend', "VARCHAR(10) NOT NULL DEFAULT 'none'");
+    cb_add_column('users', 'backend_seen', 'BIGINT NOT NULL DEFAULT 0');
+    cb_add_column('users', 'backend_visit', 'BIGINT NOT NULL DEFAULT 0');
+    cb_add_column('users', 'backend_prev', 'BIGINT NOT NULL DEFAULT 0');
+    cb_add_column('calls', 'ended', 'BIGINT NOT NULL DEFAULT 0');
+    cb_add_column('menus', 'head_screen', "VARCHAR(40) NOT NULL DEFAULT ''");
+    cb_add_column('menus', 'head_bar', 'INT NOT NULL DEFAULT 1');
+    foreach (['sysop_pages', 'msg_reports'] as $t) {
+        cb_create_table($t);
+    }
 }
 
 function cb_index_exists(string $table, string $name): bool

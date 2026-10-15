@@ -247,7 +247,7 @@ return [
     'thr_orig_gone' => '|12Die Ursprungsnachricht gibt es nicht mehr oder du darfst sie nicht lesen.|07',
     'thr_no_replies' => '|07Auf diese Nachricht gibt es keine Antworten.',
     'thr_choose' => '|07Antwort lesen |08(|151|08-|15{1}|08, |15Enter|07 zurück|08): |15',
-    'reader_help' => '|15N|07 nächste  |15P|07 vorige  |15R|07 antworten  |15A|07 nochmal  |15O|07 Original  |15T|07 Antworten|CR|15I|07 Profil des Absenders  |15Q|07 Ende',
+    'reader_help' => '|15N|07 nächste  |15P|07 vorige  |15R|07 antworten  |15A|07 nochmal  |15O|07 Original  |15T|07 Antworten|CR|15I|07 Profil des Absenders  |15!|07 melden  |15Q|07 Ende',
     'reader_help_sys' => '|15N|07 nächste  |15P|07 vorige  |15R|07 antworten  |15A|07 nochmal  |15O|07 Original  |15T|07 Antworten|CR|15I|07 Profil des Absenders  |15D|07 löschen  |15M|07 verschieben  |15Q|07 Ende',
     'tele_title' => 'Treffpunkt',
     'tele_intro' => '|07Hier triffst du alle, die gerade online sind. |15/?|07 Hilfe, |15/Q|07 verlassen.',
@@ -445,4 +445,12 @@ return [
     'js_idle_warn' => 'In einer Minute wird wegen Untätigkeit getrennt.',
     'js_open_wad' => 'In WAnsiDraw öffnen',
     'js_open_esc' => 'Esc schließt',
+
+    'page_wait' => '|14Der Sysop wird gerufen, bitte warten |08(|15Q|08 bricht ab)|07',
+    'page_cancel' => '|07Ruf abgebrochen.',
+    'page_declined' => '|12Der Sysop kann gerade nicht.|07',
+    'rep_reason' => '|07Was stimmt nicht? Kurzer Grund, Enter = ohne Grund.|CR|08> |15',
+    'rep_thanks' => '|10Danke, der Sysop sieht sich das an.|07',
+    'rep_already' => '|07Diese Nachricht hast du schon gemeldet.',
+    'rep_limit' => '|12Du hast heute schon 10 Nachrichten gemeldet.|07',
 ];

@@ -46,6 +46,7 @@ final class Engine
     private bool $hang = false;
     private ?array $levelRow = null;
     private array $mcache = [];
+    private bool $preview = false;
 
     public function __construct()
     {
@@ -56,16 +57,35 @@ final class Engine
         $this->w = new AnsiWriter();
     }
 
+    /** Engine without session for the previews in the backend. It renders only, run(), ping() and poll() refuse. */
+    public static function preview(): self
+    {
+        $e = (new ReflectionClass(self::class))->newInstanceWithoutConstructor();
+        $e->S = [];
+        $e->preview = true;
+        $e->w = new AnsiWriter();
+        return $e;
+    }
+
+    private function live(): void
+    {
+        if ($this->preview) {
+            throw new LogicException('preview engine cannot handle requests');
+        }
+    }
+
     /* ============================================================ request cycle */
 
     public function run(string $a, string $v): array
     {
+        $this->live();
         $this->cleanupNodes();
         if ($a === 'start') {
             // a reload in the meeting point counts as leaving it
             if (!empty($this->S['uid']) && $this->ownsNode()) {
                 $this->user = DB::row('SELECT * FROM {users} WHERE id=?', [(int)$this->S['uid']]);
                 $this->teleLeave();
+                $this->endCall();
                 $this->user = null;
             }
             $this->dropNode();
@@ -143,6 +163,7 @@ final class Engine
     /** Keepalive, keeps the node alive while the caller is in the editor or uploading. */
     public function ping(): array
     {
+        $this->live();
         if (empty($this->S['st']) || !$this->ownsNode()) {
             return ['ok' => false, 'csrf' => cb_csrf()];
         }
@@ -156,6 +177,7 @@ final class Engine
      */
     public function poll(): array
     {
+        $this->live();
         $this->cleanupNodes();
         if (empty($this->S['st']) || !$this->ownsNode()) {
             $this->S = [];
@@ -179,6 +201,7 @@ final class Engine
         DB::q('UPDATE {nodes} SET seen=? WHERE node=? AND sid=? AND user_id>0', [time(), (int)$this->S['node'], session_id()]);
         $this->deliverNodeMsgs();
         if (!$this->hang) {
+            $this->pageWaitCheck();
             $this->pollExtras();
         }
         return $this->resp();
@@ -306,6 +329,15 @@ final class Engine
             $this->w->write($prompt);
         }
         $this->ask = ['t' => 'hot', 'k' => $keys, 'c' => $clear];
+    }
+
+    /** End of the running call (calls.ended), once. */
+    private function endCall(): void
+    {
+        if (!empty($this->S['callid'])) {
+            DB::q('UPDATE {calls} SET ended=? WHERE id=? AND ended=0', [time(), (int)$this->S['callid']]);
+            unset($this->S['callid']);
+        }
     }
 
     public function line(int $max, string $prompt, bool $mask = false): void
@@ -534,6 +566,10 @@ final class Engine
     {
         $limit = time() - (Settings::int('idle_minutes', 5) * 60 + 120);
         $gone = DB::all('SELECT node, handle FROM {nodes} WHERE seen<? AND tele=1', [$limit]);
+        // a vanished caller: the call ends when the node was seen the last time
+        foreach (DB::all('SELECT node, user_id, seen FROM {nodes} WHERE seen<? AND user_id>0', [$limit]) as $v) {
+            cb_end_calls((int)$v['user_id'], (int)$v['node'], (int)$v['seen']);
+        }
         DB::q('DELETE FROM {nodes} WHERE seen<?', [$limit]);
         // nodes that never logged in are freed quickly, keepalive does not refresh
         // them (see ping() and poll()), only real input does through touch()
@@ -541,7 +577,8 @@ final class Engine
         foreach ($gone as $g) {
             $this->teleGone((int)$g['node'], (string)$g['handle']);
         }
-        DB::q('DELETE FROM {node_msgs} WHERE time<? OR node NOT IN (SELECT node FROM {nodes})', [time() - 3600]);
+        // negative nodes belong to the backend, they have no row in nodes
+        DB::q('DELETE FROM {node_msgs} WHERE time<? OR (node>0 AND node NOT IN (SELECT node FROM {nodes}))', [time() - 3600]);
     }
 
     /** True if the sysop disconnected this node. */
@@ -605,6 +642,8 @@ final class Engine
             $this->nodeMsg((int)$this->S['chat']['peer'], 'end', '');
         }
         $this->teleLeave();
+        $this->pageGone();
+        $this->endCall();
         if ($this->user) {
             DB::q('UPDATE {users} SET time_today=? WHERE id=?', [$this->usedSeconds(), (int)$this->user['id']]);
             cb_log((int)$this->user['id'], $this->user['handle'], 'Logoff');
@@ -731,7 +770,7 @@ final class Engine
         $this->S = ['st' => 'menu', 'node' => $node, 'uid' => $id, 'prevcall' => (int)$u['last_call'],
             'tbase' => (int)$u['time_today'], 'tstart' => time(), 'menu' => 'main'];
         DB::q('UPDATE {users} SET calls=calls+1, last_call=? WHERE id=?', [time(), $id]);
-        DB::insert('calls', ['user_id' => $id, 'handle' => $u['handle'], 'location' => $u['location'],
+        $this->S['callid'] = DB::insert('calls', ['user_id' => $id, 'handle' => $u['handle'], 'location' => $u['location'],
             'node' => $node, 'time' => time()]);
         $this->user = DB::row('SELECT * FROM {users} WHERE id=?', [$id]);
         cb_log($id, $u['handle'], 'Login on node ' . $node);
@@ -977,10 +1016,7 @@ final class Engine
         $items = DB::all('SELECT * FROM {menu_items} WHERE menu_id=? AND min_level<=? ORDER BY sort, id',
             [(int)$menu['id'], $this->lvl()]);
         if ((int)$this->user['expert'] !== 1 || $force) {
-            $this->cls();
-            if ($menu['screen'] === '' || !$this->screen($menu['screen'])) {
-                $this->autoMenu($menu, $items);
-            }
+            $this->drawMenu($menu, $items);
         }
         $keys = '?';
         foreach ($items as $it) {
@@ -990,10 +1026,67 @@ final class Engine
         $this->hot($keys, $this->L('menu_prompt', cb_esc($menu['title']), $this->minutesLeft()));
     }
 
-    private function autoMenu(array $menu, array $items): void
+    /** Clear the screen and draw the menu: its own screen, or the head screen and the automatic list. */
+    private function drawMenu(array $menu, array $items): void
     {
-        $this->bar(Settings::get('bbs_name', 'WebCarrier BBS'), $menu['title']);
+        $this->cls();
+        if ($menu['screen'] !== '' && $this->screen($menu['screen'])) {
+            return;
+        }
+        $head = (string)$menu['head_screen'];
+        $shown = $head !== '' && $this->headScreen($head);
+        if ($head !== '' && !$shown && !$this->preview) {
+            // missing head: just the list, logged once a day per menu
+            $text = 'Head screen ' . $head . ' of menu ' . $menu['name'] . ' is missing';
+            if (!DB::val('SELECT COUNT(*) FROM {log} WHERE text=? AND time>?', [$text, time() - 86400])) {
+                cb_log(0, '', $text);
+            }
+        }
+        $this->autoMenu($menu, $items, !$shown || (int)$menu['head_bar'] === 1);
+    }
+
+    /** Screen above the automatic list. After an ANSI head the cursor stands in the first column below it. */
+    private function headScreen(string $name): bool
+    {
+        $p = cb_screen_path($name);
+        if ($p === null) {
+            return false;
+        }
+        if (!str_ends_with($p, '.ans')) {
+            return $this->screen($name);
+        }
+        $data = cb_macros(cb_strip_sauce((string)file_get_contents($p)), fn($n) => $this->ansMacro($n), true);
+        $this->w->raw($data);
+        $this->w->buf .= "\e[0m";
+        $this->w->reset();
+        // the screen was cleared before, so a head of up to 24 lines ends in a known row
+        $h = cb_ansi_grid($data, 'ans')['h'] ?? 25;
+        if ($h < 25) {
+            $this->w->buf .= "\e[" . ($h + 1) . ';1H';
+        } elseif (!str_ends_with($data, "\n")) {
+            $this->nl();
+        }
+        return true;
+    }
+
+    /** The menu as $user sees it, with the prompt, for the preview in the backend. */
+    public function menuPreview(array $menu, array $user): string
+    {
+        $this->user = $user;
+        $this->S['menu'] = $menu['name'];
+        $items = DB::all('SELECT * FROM {menu_items} WHERE menu_id=? AND min_level<=? ORDER BY sort, id', [(int)$menu['id'], $this->lvl()]);
+        $this->drawMenu($menu, $items);
         $this->nl();
+        $this->write($this->L('menu_prompt', cb_esc($menu['title']), $this->minutesLeft()));
+        return $this->w->buf;
+    }
+
+    private function autoMenu(array $menu, array $items, bool $bar = true): void
+    {
+        if ($bar) {
+            $this->bar(Settings::get('bbs_name', 'WebCarrier BBS'), $menu['title']);
+            $this->nl();
+        }
         if (in_array('DOOR', array_map('strtoupper', array_column($items, 'command')), true)) {
             $box = $this->doorTopBox();
             if ($box !== '') {

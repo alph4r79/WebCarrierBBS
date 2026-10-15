@@ -2,6 +2,32 @@
 
 All notable changes to WebCarrier BBS. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version numbers follow [Semantic Versioning](https://semver.org/).
 
+## [1.9.0] - 2026-10-14
+
+### Added
+
+- Messages in the backend: every message opens in full with header and text as the terminal shows it, answers with a quote and the own signature, new messages, the original and the answers to a message, the previous and next message of an area. A search over subject, text and sender with filters for area and period works with the bulk actions.
+- My mail: inbox and sent mail of the own account with reading, answering, writing to a handle and a search; private mail of other users stays hidden.
+- Calls and chat in the backend: while a backend page is open the account is reachable, a caller who pages the sysop waits up to a minute, a bar on every page offers to start a chat or decline, and the tab shows the call. Chats start from a call, from the nodes on the overview or from the page of a user and look like the chat with the sysop in the terminal.
+- Roles in the backend per level: none, moderator or full. Moderators read, answer and moderate messages, handle reports, files, polls, oneliners and waiting users and use the chat; the router refuses everything else and logs it.
+- Reports: callers report messages with the key ! in the reader; a new backend page lists them with the reported message and lets the sysop delete or move the message, dismiss the report or write to the sender.
+- Circular letters: a private message to all users or all users from a level, optionally only those who called in the last 90 days, sent in steps.
+- Data export of a user as a ZIP with JSON and text for a request for access, without password hash, secrets of the second factor, the note of the sysop and reports about the user.
+- The page of a user lists the last 50 calls with their length; the statistics show the average length of a call.
+- The overview starts with what happened since the previous visit, with links to the filtered views.
+- Head screen for menus: an ANSI or text screen above the automatic list, with or without the title bar. The menu page picks screens from a list, warns when head and list do not fit on one screen and shows a preview.
+
+### Changed
+
+- The log has filters for kind, handle, period and text, pages of 100 entries, addresses that can be bookmarked and a CSV export.
+- The file list searches name, description and uploader with filters for area, state and period.
+- Every change in the backend writes a log entry.
+- Database version 9: roles of the levels, reachability and visits of backend accounts, the end of a call, head screens of menus, tables for calls to the sysop and reports.
+
+### Fixed
+
+- Calls that ended by a vanished line got no end; only the latest call of a user on that line is closed now.
+
 ## [1.8.1] - 2026-10-12
 
 ### Security
@@ -172,6 +198,7 @@ First public release.
 - Web installer for SQLite or MySQL/MariaDB
 - German and English
 
+[1.9.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/alph4r79/webcarrierbbs/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.6.0...v1.7.0

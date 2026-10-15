@@ -167,7 +167,8 @@ function page_files(array $admin): void
     $area = (int)($_GET['area'] ?? 0);
     $names = a_farea_names();
     if (a_post()) {
-        $back = $area ? ['area' => $area] : [];
+        $back = array_filter(['area' => $area, 'q' => (string)($_GET['q'] ?? ''), 'state' => (string)($_GET['state'] ?? ''),
+            'from' => (string)($_GET['from'] ?? ''), 'to' => (string)($_GET['to'] ?? '')]);
         if (isset($_POST['approve'])) {
             DB::q('UPDATE {files} SET approved=1 WHERE id=?', [(int)$_POST['approve']]);
             a_flash(t('File approved.'));
@@ -298,25 +299,40 @@ function page_files(array $admin): void
         echo '</table></div>';
     }
 
-    echo '<section class="panel"><h2>' . h(t('Add files')) . '</h2><form method="post" enctype="multipart/form-data" class="form">' . a_csrf() .
-        '<div class="grid2"><label>' . h(t('File area')) . '<select name="target">';
-    foreach ($names as $id => $n) {
-        echo '<option value="' . $id . '"' . ($id === $area ? ' selected' : '') . '>' . h($n) . '</option>';
+    if (a_full($admin)) {
+        echo '<section class="panel"><h2>' . h(t('Add files')) . '</h2><form method="post" enctype="multipart/form-data" class="form">' . a_csrf() .
+            '<div class="grid2"><label>' . h(t('File area')) . '<select name="target">';
+        foreach ($names as $id => $n) {
+            echo '<option value="' . $id . '"' . ($id === $area ? ' selected' : '') . '>' . h($n) . '</option>';
+        }
+        echo '</select></label><label>' . h(t('Files')) . '<input type="file" name="files[]" multiple></label></div>' .
+            '<label>' . h(t('Description (empty = FILE_ID.DIZ from the ZIP)')) . '<input name="updesc" maxlength="2000"></label>' .
+            '<p class="note">' . h(t('For many files use the file import instead. The PHP limit of your webspace is {1} per upload.', cb_kb(Engine::uploadMaxBytes()))) . '</p>' .
+            '<button class="btn" name="upload" value="1">' . h(t('Upload')) . '</button></form></section>';
     }
-    echo '</select></label><label>' . h(t('Files')) . '<input type="file" name="files[]" multiple></label></div>' .
-        '<label>' . h(t('Description (empty = FILE_ID.DIZ from the ZIP)')) . '<input name="updesc" maxlength="2000"></label>' .
-        '<p class="note">' . h(t('For many files use the file import instead. The PHP limit of your webspace is {1} per upload.', cb_kb(Engine::uploadMaxBytes()))) . '</p>' .
-        '<button class="btn" name="upload" value="1">' . h(t('Upload')) . '</button></form></section>';
 
-    echo '<form method="get" class="form row-actions"><input type="hidden" name="p" value="files"><select name="area" style="max-width:320px;margin:0">';
+    // search and filters, all of them in the address
+    $q = trim((string)($_GET['q'] ?? ''));
+    $state = in_array($_GET['state'] ?? '', ['approved', 'waiting'], true) ? (string)$_GET['state'] : '';
+    $from = (string)($_GET['from'] ?? '');
+    $to = (string)($_GET['to'] ?? '');
+    $filter = array_filter(['area' => isset($names[$area]) ? $area : 0, 'q' => $q, 'state' => $state, 'from' => $from, 'to' => $to]);
+    echo '<form method="get" class="form filterbar row-actions"><input type="hidden" name="p" value="files">' .
+        '<input name="q" value="' . h($q) . '" placeholder="' . h(t('Search name, description and uploader')) . '" aria-label="' . h(t('Search')) . '">' .
+        '<select name="area" aria-label="' . h(t('File area')) . '"><option value="0">' . h(t('All areas')) . '</option>';
     foreach ($names as $id => $n) {
         echo '<option value="' . $id . '"' . ($id === $area ? ' selected' : '') . '>' . h($n) . '</option>';
     }
-    echo '</select><button class="btn" type="submit">' . h(t('Show')) . '</button></form><br>';
-    if (!$area || !isset($names[$area])) {
+    echo '</select><select name="state" aria-label="' . h(t('State')) . '"><option value="">' . h(t('Approved and waiting')) . '</option>' .
+        '<option value="approved"' . ($state === 'approved' ? ' selected' : '') . '>' . h(t('Approved')) . '</option>' .
+        '<option value="waiting"' . ($state === 'waiting' ? ' selected' : '') . '>' . h(t('Waiting')) . '</option></select>' .
+        '<label class="inline">' . h(t('From')) . ' <input type="date" name="from" value="' . h($from) . '"></label>' .
+        '<label class="inline">' . h(t('to')) . ' <input type="date" name="to" value="' . h($to) . '"></label>' .
+        '<button class="btn" type="submit">' . h(t('Show')) . '</button>' . ($filter ? '<a href="' . h(a_url('files')) . '">' . h(t('Reset')) . '</a>' : '') . '</form>';
+    if (!$filter) {
         return;
     }
-    $edit = DB::row('SELECT * FROM {files} WHERE id=? AND area_id=?', [(int)($_GET['edit'] ?? 0), $area]);
+    $edit = isset($names[$area]) ? DB::row('SELECT * FROM {files} WHERE id=? AND area_id=?', [(int)($_GET['edit'] ?? 0), $area]) : null;
     if ($edit) {
         echo '<form method="post" class="form panel">' . a_csrf() . '<h2>' . h(t('Edit file')) . '</h2>' .
             '<label>' . h(t('File name')) . '<input name="filename" class="mono" maxlength="80" value="' . h($edit['filename']) . '">' .
@@ -325,23 +341,49 @@ function page_files(array $admin): void
             '<p class="row-actions"><button class="btn" name="save_file" value="' . (int)$edit['id'] . '">' . h(t('Save')) . '</button> ' .
             '<a class="btn ghost" href="' . h(a_url('files', ['area' => $area])) . '">' . h(t('Back')) . '</a></p></form>';
     }
-    $files = DB::all('SELECT * FROM {files} WHERE area_id=? ORDER BY filename', [$area]);
+    $where = [];
+    $par = [];
+    if (isset($names[$area])) {
+        $where[] = 'area_id=?';
+        $par[] = $area;
+    }
+    if ($q !== '') {
+        $like = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], mb_strtolower($q)) . '%';
+        $where[] = '(' . DB::lower('filename') . " LIKE ? ESCAPE '!' OR " . DB::lower('description') . " LIKE ? ESCAPE '!' OR " . DB::lower('uploader') . " LIKE ? ESCAPE '!')";
+        array_push($par, $like, $like, $like);
+    }
+    if ($state !== '') {
+        $where[] = 'approved=?';
+        $par[] = $state === 'approved' ? 1 : 0;
+    }
+    if (($t = a_date_ts($from)) > 0) {
+        $where[] = 'added>=?';
+        $par[] = $t;
+    }
+    if (($t = a_date_ts($to, true)) > 0) {
+        $where[] = 'added<=?';
+        $par[] = $t;
+    }
+    $files = DB::all('SELECT * FROM {files}' . ($where ? ' WHERE ' . implode(' AND ', $where) : '') . ' ORDER BY filename LIMIT 500', $par);
     if (!$files) {
-        echo '<div class="panel"><p>' . h(t('No files in this area.')) . '</p></div>';
+        echo '<div class="panel"><p>' . h(t('No files found.')) . '</p></div>';
         return;
     }
+    echo '<p class="note">' . h(t('{1} file(s), at most 500 are shown.', count($files))) . '</p>';
     $all = 'for(const c of this.form.querySelectorAll(\'input[name="ids[]"]\'))c.checked=this.checked';
-    echo '<form method="post" action="' . h(a_url('files', ['area' => $area])) . '">' . a_csrf() .
+    echo '<form method="post" action="' . h(a_url('files', $filter)) . '">' . a_csrf() .
         '<div class="tablewrap"><table><tr><th class="check"><input type="checkbox" onclick="' . h($all) . '" aria-label="' . h(t('Select all')) . '"></th><th>' .
-        h(t('File')) . '</th><th class="num">' . h(t('Size')) . '</th><th>' . h(t('Date')) . '</th><th class="num">DL</th><th>' . h(t('Description')) . '</th><th></th></tr>';
-    $wad = cb_wansidraw_base() !== '';
+        h(t('File')) . '</th><th>' . h(t('Area')) . '</th><th class="num">' . h(t('Size')) . '</th><th>' . h(t('Date')) . '</th><th class="num">DL</th><th>' .
+        h(t('Description')) . '</th><th></th></tr>';
+    $wad = cb_wansidraw_base() !== '' && a_full($admin);
     foreach ($files as $f) {
         $id = (int)$f['id'];
         $art = $wad && strtolower(pathinfo((string)$f['filename'], PATHINFO_EXTENSION)) === 'ans';
         echo '<tr' . ((int)$f['approved'] ? '' : ' class="pending"') . '><td class="check"><input type="checkbox" name="ids[]" value="' . $id . '" aria-label="' .
-            h($f['filename']) . '"></td><td>' . h($f['filename']) . '</td><td class="num">' . cb_kb((int)$f['size']) .
+            h($f['filename']) . '"></td><td>' . h($f['filename']) . ((int)$f['approved'] ? '' : ' <span class="tag">' . h(t('waiting')) . '</span>') .
+            '<br><span class="note">' . h($f['uploader']) . '</span></td><td>' . h($names[(int)$f['area_id']] ?? '?') . '</td><td class="num">' . cb_kb((int)$f['size']) .
             '</td><td class="num">' . date('d.m.y', (int)$f['added']) . '</td><td class="num">' . (int)$f['downloads'] . '</td><td>' .
-            nl2br(h($f['description'])) . '</td><td class="row-actions"><a class="btn small ghost" href="' . h(a_url('files', ['area' => $area, 'edit' => $id])) . '">' .
+            nl2br(h($f['description'])) . '</td><td class="row-actions"><a class="btn small ghost" href="' . h(a_url('files', ['area' => (int)$f['area_id'], 'edit' => $id])) . '">' .
             h(t('Edit')) . '</a>' . ($art ? '<a class="btn small ghost" target="_blank" rel="noopener" href="' . h(a_url('wansidraw', ['file' => $id])) . '">' .
             h(t('Open in WAnsiDraw')) . '</a>' : '') . '</td></tr>';
     }
@@ -350,9 +392,7 @@ function page_files(array $admin): void
         '<button class="btn small danger ghost" name="bulk" value="delete" onclick="return confirm(' . h(json_encode(t('Delete the selected files?'))) . ')">' .
         h(t('Delete')) . '</button><span class="move"><select name="move_to" aria-label="' . h(t('Move to')) . '"><option value="0">' . h(t('Move to')) . '</option>';
     foreach ($names as $aid => $n) {
-        if ($aid !== $area) {
-            echo '<option value="' . $aid . '">' . h($n) . '</option>';
-        }
+        echo '<option value="' . $aid . '">' . h($n) . '</option>';
     }
     echo '</select><button class="btn small ghost" name="bulk" value="move">' . h(t('Move')) . '</button></span></div></form>';
 }

@@ -77,9 +77,15 @@ function page_banlist(array $admin): void
 }
 
 /** Validate (with a level up to the own one) or delete users that wait for validation. */
+/** Highest level an account may give: full up to its own, moderators below their own and without backend rights. */
+function a_max_level(array $admin): int
+{
+    return a_full($admin) ? (int)$admin['level'] : (int)$admin['level'] - 1;
+}
+
 function a_pending_post(array $admin): void
 {
-    $maxLevel = (int)$admin['level'];
+    $maxLevel = a_max_level($admin);
     $done = ['approve' => 0, 'delete' => 0];
     $jobs = [];
     if (isset($_POST['approve_one'])) {
@@ -105,6 +111,10 @@ function a_pending_post(array $admin): void
                 a_flash(t('You cannot assign a level above your own.'), 'bad');
                 break;
             }
+            if (!a_full($admin) && cb_level_role($lvl) !== 'none') {
+                a_flash(t('Moderators cannot give a level with rights in the backend.'), 'bad');
+                break;
+            }
             DB::q('UPDATE {users} SET pending=0, level=? WHERE id=?', [$lvl, $id]);
             cb_log((int)$admin['id'], $admin['handle'], 'Validated user ' . $u['handle'] . ' with level ' . $lvl);
         } else {
@@ -124,7 +134,7 @@ function a_pending_post(array $admin): void
 
 function page_users(array $admin): void
 {
-    $maxLevel = (int)$admin['level'];
+    $maxLevel = a_max_level($admin);
     if (a_post() && (isset($_POST['approve_one']) || isset($_POST['delete_one']) || isset($_POST['bulk']))) {
         a_pending_post($admin);
     }
@@ -249,6 +259,9 @@ function page_user(array $admin): void
         a_go('users');
     }
     if (a_post()) {
+        if (isset($_POST['export'])) {
+            a_user_export($admin, $u);
+        }
         if (isset($_POST['clear_profile'])) {
             // the sysop can only empty these texts, not edit them
             $field = $_POST['clear_profile'] === 'signature' ? 'signature' : 'about';
@@ -361,6 +374,7 @@ function page_user(array $admin): void
             '<form method="post"' . a_confirm($btn . '?') . '>' . a_csrf() . '<button class="btn small danger ghost" name="clear_profile" value="' . $f . '">' . h($btn) . '</button></form>');
     }
     echo '<p class="note">' . h(t('Callers write these texts themselves in the terminal. You can only remove them.')) . '</p></div>';
+    a_user_calls($admin, $u);
     $answers = DB::all('SELECT * FROM {nu_answers} WHERE user_id=? ORDER BY id', [$id]);
     if ($answers) {
         echo '<div class="panel"><h2>' . h(t('Questionnaire')) . '</h2>' . a_answers_html($answers, true) .
@@ -443,6 +457,119 @@ function a_rules_post(): void
     a_go('levels');
 }
 
+/** Select of the backend role of a level; the sysop level is always full. */
+function a_role_select(int $level, string $cur, array $roles): string
+{
+    if ($level >= Settings::int('sysop_level', 255)) {
+        return '<td>' . h($roles['full']) . '</td>';
+    }
+    $h = '<td><select name="lv[' . $level . '][backend]" aria-label="' . h(t('Backend')) . '">';
+    foreach ($roles as $k => $label) {
+        $h .= '<option value="' . $k . '"' . ($k === $cur ? ' selected' : '') . '>' . h($label) . '</option>';
+    }
+    return $h . '</select></td>';
+}
+
+/** Last 50 calls of a user and the buttons for mail, chat and data export. */
+function a_user_calls(array $admin, array $u): void
+{
+    $id = (int)$u['id'];
+    $node = DB::val('SELECT node FROM {nodes} WHERE user_id=? AND kicked=0', [$id]);
+    echo '<div class="panel"><h2>' . h(t('Contact and data')) . '</h2><div class="row-actions">';
+    if ((int)$u['locked'] === 0 && (int)$u['pending'] === 0 && $id !== (int)$admin['id']) {
+        echo '<a class="btn small ghost" href="' . h(a_url('mail', ['compose' => 1, 'to' => $u['handle']])) . '">' . h(t('Write a private message')) . '</a>';
+    }
+    if ($node !== null && $id !== (int)$admin['id']) {
+        echo '<form method="post" action="' . h(a_url('chat')) . '">' . a_csrf() . '<button class="btn small ghost" name="chat_start" value="' . (int)$node . '">' .
+            h(t('Start chat (node {1})', (int)$node)) . '</button></form>';
+    }
+    echo '<form method="post">' . a_csrf() . '<button class="btn small ghost" name="export" value="1">' . h(t('Export data')) . '</button></form></div>' .
+        '<p class="note">' . h(t('The export is an answer to a request for access to the stored data: a ZIP with daten.json and daten.txt.')) . '</p></div>';
+    $calls = DB::all('SELECT * FROM {calls} WHERE user_id=? ORDER BY id DESC LIMIT 50', [$id]);
+    echo '<div class="panel"><h2>' . h(t('Calls')) . '</h2>';
+    if (!$calls) {
+        echo '<p class="note">' . h(t('No calls yet.')) . '</p></div>';
+        return;
+    }
+    echo '<div class="tablewrap"><table class="cards"><tr><th>' . h(t('Date')) . '</th><th>' . h(t('Node')) . '</th><th>' . h(t('Duration')) . '</th></tr>';
+    foreach ($calls as $c) {
+        $dur = (int)$c['ended'] > 0 ? max(0, (int)$c['ended'] - (int)$c['time']) : null;
+        echo '<tr><td data-label="' . h(t('Date')) . '">' . date('d.m.Y H:i', (int)$c['time']) . '</td><td data-label="' . h(t('Node')) . '">' . (int)$c['node'] .
+            '</td><td data-label="' . h(t('Duration')) . '">' . h($dur === null ? t('unknown') : a_duration($dur)) . '</td></tr>';
+    }
+    echo '</table></div></div>';
+}
+
+/** 75 seconds as "1:15 min", an hour and more as "1:02 h". */
+function a_duration(int $s): string
+{
+    if ($s >= 3600) {
+        return sprintf('%d:%02d h', intdiv($s, 3600), intdiv($s % 3600, 60));
+    }
+    return sprintf('%d:%02d min', intdiv($s, 60), $s % 60);
+}
+
+/** ZIP with all data of a user as JSON and as text, built in data/tmp and removed after sending. */
+function a_user_export(array $admin, array $u): never
+{
+    $data = cb_user_export((int)$u['id']);
+    if (!class_exists('ZipArchive')) {
+        a_flash(t('Your webspace has no ZipArchive, so the export cannot be created.'), 'bad');
+        a_go('user', ['id' => (int)$u['id']]);
+    }
+    $file = CB_DATA . '/tmp/export_' . bin2hex(random_bytes(8)) . '.zip';
+    $zip = new ZipArchive();
+    $zip->open($file, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    $zip->addFromString('daten.json', (string)json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    $zip->addFromString('daten.txt', a_export_text($data));
+    $zip->close();
+    cb_log((int)$admin['id'], $admin['handle'], 'Data export for ' . $u['handle']);
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    $name = 'daten-' . preg_replace('/[^A-Za-z0-9_\-]/', '_', (string)$u['handle']) . '-' . date('Y-m-d') . '.zip';
+    header('Content-Type: application/zip');
+    header('Content-Disposition: attachment; filename="' . $name . '"');
+    header('Content-Length: ' . filesize($file));
+    readfile($file);
+    @unlink($file);
+    exit;
+}
+
+/** The export as readable text in the language of the board. */
+function a_export_text(array $d): string
+{
+    $sections = ['account' => t('Account'), 'questionnaire' => t('Questionnaire'), 'calls' => t('Calls'), 'public_messages' => t('Public messages'),
+        'private_mail' => t('Private mail'), 'uploads' => t('Uploads'), 'downloads' => t('Downloads'), 'oneliners' => t('Oneliners'),
+        'meeting_point' => t('Meeting point'), 'poll_votes' => t('Votes in polls'), 'high_scores' => t('High scores'), 'reports_made' => t('Reports made'),
+        'log' => t('Log')];
+    $out = t('Data of {1} at {2}, {3}', $d['account']['handle'], $d['board'], date('d.m.Y H:i', (int)strtotime($d['generated']))) . "\n\n";
+    // one line per value, lists and groups indented below their key
+    $line = static function (string $indent, string $key, $v) use (&$line): string {
+        if (is_array($v)) {
+            $s = $indent . $key . "\n";
+            foreach ($v as $k => $x) {
+                $s .= $line($indent . '  ', is_int($k) ? '-' : $k . ':', $x);
+            }
+            return $s;
+        }
+        $v = $v === null ? '-' : (is_bool($v) ? ($v ? t('yes') : t('no')) : (string)$v);
+        return $indent . $key . ' ' . str_replace("\n", "\n" . $indent . '  ', $v) . "\n";
+    };
+    foreach ($sections as $key => $title) {
+        $out .= '== ' . $title . "\n";
+        if ($d[$key] === []) {
+            $out .= t('none') . "\n\n";
+            continue;
+        }
+        foreach ($d[$key] as $k => $v) {
+            $out .= $line('', is_int($k) ? '-' : $k . ':', $v);
+        }
+        $out .= "\n";
+    }
+    return $out;
+}
+
 function page_levels(array $admin): void
 {
     if (a_post()) {
@@ -459,7 +586,10 @@ function page_levels(array $admin): void
             }
             a_go('levels');
         }
+        $sysop = Settings::int('sysop_level', 255);
         foreach ((array)($_POST['lv'] ?? []) as $lvl => $row) {
+            $role = (string)($row['backend'] ?? 'none');
+            DB::q('UPDATE {levels} SET backend=? WHERE level=?', [(int)$lvl >= $sysop ? 'full' : (in_array($role, ['moderator', 'full'], true) ? $role : 'none'), (int)$lvl]);
             DB::update('levels', [
                 'name' => mb_substr(trim((string)($row['name'] ?? '')), 0, 40),
                 'minutes' => max(0, (int)($row['minutes'] ?? 0)),
@@ -483,17 +613,18 @@ function page_levels(array $admin): void
     echo '<h1>' . h(t('Levels')) . '</h1>';
     echo '<p class="note">' . h(t('Each user has a level from 0 to 255. A user gets the limits of the highest level row that is not above his own level. 0 minutes or 0 KB means unlimited. Ratio 3 means three downloads per upload, 0 switches the ratio off.')) . '</p>';
     echo '<form method="post" class="form">' . a_csrf() . '<div class="tablewrap"><table><tr><th>' . h(t('Level')) . '</th><th>' . h(t('Name')) .
-        '</th><th>' . h(t('Minutes per day')) . '</th><th>' . h(t('Download KB per day')) . '</th><th>' . h(t('Ratio')) . '</th><th></th></tr>';
+        '</th><th>' . h(t('Minutes per day')) . '</th><th>' . h(t('Download KB per day')) . '</th><th>' . h(t('Ratio')) . '</th><th>' . h(t('Backend')) . '</th><th></th></tr>';
+    $roles = ['none' => t('none'), 'moderator' => t('Moderator'), 'full' => t('full')];
     foreach (DB::all('SELECT * FROM {levels} ORDER BY level') as $l) {
         $k = (int)$l['level'];
         echo "<tr><td class=\"num\">$k</td><td><input name=\"lv[$k][name]\" value=\"" . h($l['name']) . "\"></td>" .
             "<td><input type=\"number\" name=\"lv[$k][minutes]\" value=\"" . (int)$l['minutes'] . "\"></td>" .
             "<td><input type=\"number\" name=\"lv[$k][dl_kb]\" value=\"" . (int)$l['dl_kb'] . "\"></td>" .
-            "<td><input type=\"number\" name=\"lv[$k][ratio]\" value=\"" . (int)$l['ratio'] . "\"></td>" .
+            "<td><input type=\"number\" name=\"lv[$k][ratio]\" value=\"" . (int)$l['ratio'] . "\"></td>" . a_role_select($k, (string)$l['backend'], $roles) .
             '<td><button class="btn small danger ghost" name="del" value="' . $k . '" onclick="return confirm(' . h(json_encode(t('Delete this level?'))) . ')">' . h(t('Delete')) . '</button></td></tr>';
     }
     echo '<tr><td><input type="number" name="new_level" min="1" max="255" placeholder="' . h(t('new')) . '"></td><td><input name="new_name" placeholder="' . h(t('Name')) . '"></td>' .
-        '<td><input type="number" name="new_minutes" value="60"></td><td><input type="number" name="new_dl" value="0"></td><td><input type="number" name="new_ratio" value="0"></td><td></td></tr>';
+        '<td><input type="number" name="new_minutes" value="60"></td><td><input type="number" name="new_dl" value="0"></td><td><input type="number" name="new_ratio" value="0"></td><td></td><td></td></tr>';
     echo '</table></div><p><button class="btn" type="submit">' . h(t('Save levels')) . '</button></p></form>';
 
     $on = Settings::get('auto_level', '0') === '1';

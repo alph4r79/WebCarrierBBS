@@ -158,6 +158,15 @@ function a_dash_notices(?array $admin = null): array
                 'actions' => $x['url'] !== '' ? [['link', t('More'), $x['url']]] : []];
         }
     }
+    $reports = (int)DB::val("SELECT COUNT(*) FROM {msg_reports} WHERE status='open'");
+    if ($reports > 0) {
+        $n[] = ['id' => 'reports', 'kind' => 'task', 'title' => t('{1} report(s) of messages are open', $reports),
+            'text' => t('Callers reported messages they find not right.'), 'actions' => [['link', t('Reports'), a_url('reports')]]];
+    }
+    if ($admin && !a_full($admin)) {
+        // moderators: only what they can work on, no notes about installation, updates and backups
+        $n = array_values(array_filter($n, static fn($x) => in_array($x['id'], ['validate', 'uploads', 'reports', 'totp', 'totp-reset', 'wrongpw'], true)));
+    }
     $dismissed = a_dismissed();
     $n = array_values(array_filter($n, static fn($x) => !in_array($x['kind'], ['info', 'news'], true) || !in_array($x['id'], $dismissed, true)));
     $rank = ['security' => 0, 'task' => 1, 'update' => 2, 'info' => 3, 'news' => 4];
@@ -182,6 +191,9 @@ function a_dash_post(array $admin): void
         $row = DB::row('SELECT * FROM {nodes} WHERE node=?', [$node]);
         if ($row && $row['sid'] !== session_id()) {
             DB::q('UPDATE {nodes} SET kicked=1 WHERE node=?', [$node]);
+            if ((int)$row['user_id'] > 0) {
+                cb_end_calls((int)$row['user_id'], $node, time());
+            }
             cb_log((int)$admin['id'], $admin['handle'], 'Disconnected node ' . $node . ($row['handle'] !== '' ? ' (' . $row['handle'] . ')' : '') . ' (backend)');
             a_flash(t('Node {1} is being disconnected.', $node));
         }
@@ -310,7 +322,7 @@ function page_dash(array $admin): void
         }
     }
 
-    echo '<h1>' . h(t('Overview')) . '</h1><div class="dash"><div class="dash-main">';
+    echo '<h1>' . h(t('Overview')) . '</h1>' . a_since_box($admin) . '<div class="dash"><div class="dash-main">';
 
     echo '<section class="panel dash-notices"><h2>' . h(t('Notices')) . '</h2>';
     if (!$notices) {
@@ -360,19 +372,25 @@ function page_dash(array $admin): void
     }
     foreach ($rows as $r) {
         $own = $r['sid'] === session_id();
+        $chat = (int)$r['user_id'] > 0 && !$own ? '<form method="post" action="' . h(a_url('chat')) . '">' . a_csrf() .
+            '<button class="btn small ghost" name="chat_start" value="' . (int)$r['node'] . '">' . h(t('Chat')) . '</button></form>' : '';
         echo '<tr><td>' . (int)$r['node'] . '</td><td>' . h($r['handle'] ?: t('(logging in)')) . '</td><td>' . h($r['activity']) .
-            '</td><td>' . date('H:i', (int)$r['since']) . '</td><td>' . ($own ? '<span class="note">' . h(t('you')) . '</span>' :
+            '</td><td>' . date('H:i', (int)$r['since']) . '</td><td class="row-actions">' . ($own ? '<span class="note">' . h(t('you')) . '</span>' : $chat .
             '<form method="post" action="' . h(a_url('dash')) . '"' . a_confirm(t('Disconnect node {1}?', (int)$r['node'])) . '>' . a_csrf() .
             '<button class="btn small danger ghost" name="kick" value="' . (int)$r['node'] . '">' . h(t('Disconnect')) . '</button></form>') . '</td></tr>';
     }
     echo '</table></div>';
-    if ($rows) {
+    if ($rows && a_full($admin)) {
         echo '<form method="post" action="' . h(a_url('dash')) . '" class="broadcast">' . a_csrf() .
             '<label for="bc-text">' . h(t('Broadcast to all nodes')) . '</label><div class="broadcast-row">' .
             '<input id="bc-text" name="text" maxlength="70" required><button class="btn small" name="broadcast" value="1">' . h(t('Send')) . '</button></div></form>';
     }
     echo '</section>';
 
+    if (!a_full($admin)) {
+        a_dash_rest($admin);
+        return;
+    }
     $draft = $_SESSION['cb_sysmsg_draft'] ?? null;
     unset($_SESSION['cb_sysmsg_draft']);
     $msg = is_array($draft) ? (string)$draft[0] : Settings::get('sysop_msg');
@@ -429,6 +447,62 @@ function page_dash(array $admin): void
     echo '</section></div></div>';
 }
 
+/** The rest of the overview for moderators: events without system entries, figures. */
+function a_dash_rest(array $admin): void
+{
+    [$sys, $sp] = cb_log_kind_sql('system');
+    echo '<section class="panel dash-events"><h2>' . h(t('Latest events')) . '</h2><table class="events"><tr><th>' . h(t('Time')) . '</th><th>' .
+        h(t('User')) . '</th><th>' . h(t('Event')) . '</th></tr>';
+    foreach (DB::all("SELECT * FROM {log} WHERE NOT ($sys) ORDER BY id DESC LIMIT 15", $sp) as $l) {
+        echo '<tr><td class="time">' . date('d.m. H:i', (int)$l['time']) . '</td><td>' . h($l['handle']) . '</td><td>' . h($l['text']) . '</td></tr>';
+    }
+    echo '</table></section></div><div class="dash-side"><section class="panel dash-stats"><h2>' . h(t('Figures')) . '</h2><dl class="kv">' .
+        '<dt>' . h(t('Online now')) . '</dt><dd>' . (int)DB::val('SELECT COUNT(*) FROM {nodes} WHERE user_id>0') . '</dd>' .
+        '<dt>' . h(t('Uploads waiting')) . '</dt><dd>' . (int)DB::val('SELECT COUNT(*) FROM {files} WHERE approved=0') . '</dd>' .
+        '<dt>' . h(t('Open reports')) . '</dt><dd>' . (int)DB::val("SELECT COUNT(*) FROM {msg_reports} WHERE status='open'") . '</dd></dl></section></div></div>';
+}
+
+/** Box "Since your last visit": counts since the start of the previous visit in the backend. */
+function a_since_box(array $admin): string
+{
+    $prev = (int)$admin['backend_prev'];
+    $h = '<section class="panel since"><h2>' . h(t('Since your last visit')) . '</h2>';
+    if ($prev <= 0) {
+        return $h . '<p class="note">' . h(t('From your next visit on, this box shows what happened in between.')) . '</p></section>';
+    }
+    $day = date('Y-m-d', $prev);
+    $full = a_full($admin);
+    $rows = [];
+    $newUsers = (int)DB::val('SELECT COUNT(*) FROM {users} WHERE created>?', [$prev]);
+    $waiting = (int)DB::val('SELECT COUNT(*) FROM {users} WHERE created>? AND pending=1', [$prev]);
+    if ($full && $newUsers > 0) {
+        $rows[] = [$newUsers, t('new user(s)') . ($waiting > 0 ? ', ' . t('of which {1} waiting', $waiting) : ''), a_url('users', $waiting > 0 ? ['filter' => 'pending'] : [])];
+    } elseif (!$full && $waiting > 0) {
+        $rows[] = [$waiting, t('new user(s) waiting for validation'), a_url('users', ['filter' => 'pending'])];
+    }
+    $rows[] = [(int)DB::val('SELECT COUNT(*) FROM {messages} WHERE private=0 AND posted>?', [$prev]), t('new public message(s)'), a_url('messages', ['from' => $day])];
+    $up = (int)DB::val('SELECT COUNT(*) FROM {files} WHERE added>? AND uploader_id<>?', [$prev, (int)$admin['id']]);
+    $upWait = (int)DB::val('SELECT COUNT(*) FROM {files} WHERE added>? AND approved=0', [$prev]);
+    $rows[] = [$up, t('new upload(s)') . ($upWait > 0 ? ', ' . t('of which {1} waiting', $upWait) : ''), a_url('files', ['from' => $day] + ($upWait > 0 ? ['state' => 'waiting'] : []))];
+    $rows[] = [(int)DB::val('SELECT COUNT(*) FROM {msg_reports} WHERE time>?', [$prev]), t('new report(s)'), a_url('reports')];
+    $rows[] = [(int)DB::val("SELECT COUNT(*) FROM {sysop_pages} WHERE status='missed' AND time>?", [$prev]), t('missed call(s)'),
+        a_url('log', ['q' => 'Missed page', 'from' => $day])];
+    if ($full) {
+        [$fail, $fp] = cb_log_kind_sql('fail');
+        $rows[] = [(int)DB::val("SELECT COUNT(*) FROM {log} WHERE time>? AND $fail", array_merge([$prev], $fp)), t('failed login(s)'), a_url('log', ['kind' => 'fail', 'from' => $day])];
+    }
+    $rows = array_filter($rows, static fn($r) => $r[0] > 0);
+    $h .= '<p class="note">' . h(t('Since {1}', date('d.m.Y H:i', $prev))) . '</p>';
+    if (!$rows) {
+        return $h . '<p>' . h(t('Nothing happened since your last visit.')) . '</p></section>';
+    }
+    $h .= '<ul class="since-list">';
+    foreach ($rows as [$n, $label, $url]) {
+        $h .= '<li><a href="' . h($url) . '"><strong>' . $n . '</strong> ' . h($label) . '</a></li>';
+    }
+    return $h . '</ul></section>';
+}
+
 function a_languages(): array
 {
     $names = ['de' => 'Deutsch', 'en' => 'English'];
@@ -471,7 +545,7 @@ function page_settings(array $admin): void
             ['sound', t('Modem and bell sounds'), 'bool', ''],
             ['show_footer', t('Show imprint and privacy links below the terminal'), 'bool', t('Recommended in Germany: the imprint must be reachable directly.')],
             ['noindex', t('Ask search engines not to index the BBS'), 'bool', ''],
-            ['tab_notify', t('Hint in the browser tab'), 'bool', t('While the tab with the terminal is in the background, its title and icon show that something happened: a chat, a message, the turn in a door or a disconnect coming up.')],
+            ['tab_notify', t('Hint in the browser tab'), 'bool', t('While the tab with the terminal is in the background, its title and icon show that something happened: a chat, a message, the turn in a door or a disconnect coming up. In the backend a call from a caller.')],
             ['crt', t('Tube effect'), 'select', ['off' => t('Off'), 'light' => t('Light (scanlines)'), 'strong' => t('Strong (scanlines, afterglow and glow)')]],
             ['wansidraw_url', t('Address of WAnsiDraw'), 'text', t('Callers and you can open ANSI files and screens in this editor. Empty switches the function off. The default is {1}.', CB_WANSIDRAW_URL)],
         ],
@@ -648,20 +722,124 @@ function page_oneliners(array $admin): void
         '<p><button class="btn small danger ghost" name="clear_tele" value="1">' . h(t('Delete all lines')) . '</button></p></form>';
 }
 
+/** Names of the kinds of log entries. */
+function a_log_kind_names(): array
+{
+    return ['login' => t('Logins and logoffs'), 'fail' => t('Failed attempts'), 'files' => t('Uploads and downloads'), 'backend' => t('Actions in the backend'),
+        'system' => t('Updates, backups and settings'), 'other' => t('Other')];
+}
+
+/** Log with filters for kind, handle, period and text, 100 entries a page, newest first. The filters are part of the address. */
 function page_log(array $admin): void
 {
+    $full = a_full($admin);
     if (a_post() && isset($_POST['clear'])) {
         DB::q('DELETE FROM {log}');
+        cb_log((int)$admin['id'], $admin['handle'], 'Cleared the log');
         a_flash(t('Log cleared.'));
         a_go('log');
     }
+    $kinds = a_log_kind_names();
+    if (!$full) {
+        unset($kinds['system']);
+    }
+    $f = ['kind' => (string)($_GET['kind'] ?? ''), 'handle' => trim((string)($_GET['handle'] ?? '')), 'from' => (string)($_GET['from'] ?? ''),
+        'to' => (string)($_GET['to'] ?? ''), 'q' => trim((string)($_GET['q'] ?? ''))];
+    $f['kind'] = isset($kinds[$f['kind']]) ? $f['kind'] : '';
+    $where = [];
+    $par = [];
+    if ($f['kind'] !== '') {
+        [$sql, $p] = cb_log_kind_sql($f['kind']);
+        $where[] = $sql;
+        $par = array_merge($par, $p);
+    }
+    if (!$full) {
+        // moderators do not see backups, updates and settings
+        [$sql, $p] = cb_log_kind_sql('system');
+        $where[] = "NOT ($sql)";
+        $par = array_merge($par, $p);
+    }
+    if ($f['handle'] !== '') {
+        $where[] = DB::lower('handle') . '=?';
+        $par[] = mb_strtolower($f['handle']);
+    }
+    if (($t = a_date_ts($f['from'])) > 0) {
+        $where[] = 'time>=?';
+        $par[] = $t;
+    }
+    if (($t = a_date_ts($f['to'], true)) > 0) {
+        $where[] = 'time<=?';
+        $par[] = $t;
+    }
+    if ($f['q'] !== '') {
+        $where[] = DB::lower('text') . " LIKE ? ESCAPE '!'";
+        $par[] = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], mb_strtolower($f['q'])) . '%';
+    }
+    $sqlWhere = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+    if ($full && isset($_GET['csv'])) {
+        a_log_csv($admin, $sqlWhere, $par, $f);
+    }
+    $total = (int)DB::val('SELECT COUNT(*) FROM {log}' . $sqlWhere, $par);
+    $pages = max(1, (int)ceil($total / 100));
+    $pg = max(1, min($pages, (int)($_GET['pg'] ?? 1)));
+    $rows = DB::all('SELECT * FROM {log}' . $sqlWhere . ' ORDER BY id DESC LIMIT 100 OFFSET ' . (($pg - 1) * 100), $par);
+    $filter = array_filter($f);
+
     echo '<h1>' . h(t('Log')) . '</h1>';
-    echo '<p class="note">' . h(t('The statistics count uploads and downloads from the log. Clearing the log also removes these numbers.')) . '</p>';
-    echo '<form method="post"' . a_confirm(t('Clear the whole log? The upload and download statistics are cleared as well.')) . '>' . a_csrf() .
-        '<p><button class="btn small danger ghost" name="clear" value="1">' . h(t('Clear log')) . '</button></p></form>';
-    echo '<div class="tablewrap"><table><tr><th>' . h(t('Date')) . '</th><th>' . h(t('User')) . '</th><th>' . h(t('Event')) . '</th></tr>';
-    foreach (DB::all('SELECT * FROM {log} ORDER BY id DESC LIMIT 300') as $l) {
-        echo '<tr><td class="num">' . date('d.m.y H:i:s', (int)$l['time']) . '</td><td>' . h($l['handle']) . '</td><td>' . h($l['text']) . '</td></tr>';
+    echo '<form method="get" class="form filterbar logfilter"><input type="hidden" name="p" value="log"><select name="kind" aria-label="' . h(t('Kind')) . '">' .
+        '<option value="">' . h(t('All kinds')) . '</option>';
+    foreach ($kinds as $k => $label) {
+        echo '<option value="' . $k . '"' . ($k === $f['kind'] ? ' selected' : '') . '>' . h($label) . '</option>';
+    }
+    echo '</select><input name="handle" value="' . h($f['handle']) . '" placeholder="' . h(t('Handle')) . '" aria-label="' . h(t('Handle')) . '">' .
+        '<label class="inline">' . h(t('From')) . ' <input type="date" name="from" value="' . h($f['from']) . '"></label>' .
+        '<label class="inline">' . h(t('to')) . ' <input type="date" name="to" value="' . h($f['to']) . '"></label>' .
+        '<input name="q" value="' . h($f['q']) . '" placeholder="' . h(t('Text contains')) . '" aria-label="' . h(t('Text contains')) . '">' .
+        '<button class="btn" type="submit">' . h(t('Filter')) . '</button>' . ($filter ? '<a href="' . h(a_url('log')) . '">' . h(t('Reset')) . '</a>' : '') . '</form>';
+    echo '<p class="row-actions"><span class="note">' . h(t('{1} entries', $total)) . '</span>';
+    if ($full) {
+        echo '<a class="btn small ghost" href="' . h(a_url('log', $filter + ['csv' => 1])) . '">' . h(t('Download as CSV')) . '</a>';
+    }
+    echo '</p>';
+    $names = a_log_kind_names();
+    echo '<div class="tablewrap"><table class="cards log"><tr><th>' . h(t('Date')) . '</th><th>' . h(t('User')) . '</th><th>' . h(t('Kind')) . '</th><th>' . h(t('Event')) . '</th></tr>';
+    foreach ($rows as $l) {
+        echo '<tr><td class="num" data-label="' . h(t('Date')) . '">' . date('d.m.y H:i:s', (int)$l['time']) . '</td><td data-label="' . h(t('User')) . '">' . h($l['handle']) .
+            '</td><td data-label="' . h(t('Kind')) . '">' . h($names[cb_log_kind((string)$l['text'])]) . '</td><td class="ev">' . h($l['text']) . '</td></tr>';
+    }
+    if (!$rows) {
+        echo '<tr><td colspan="4" class="note">' . h(t('No entries.')) . '</td></tr>';
     }
     echo '</table></div>';
+    if ($pages > 1) {
+        echo '<nav class="row-actions pager" aria-label="' . h(t('Pages')) . '">' .
+            ($pg > 1 ? '<a class="btn small ghost" href="' . h(a_url('log', $filter + ['pg' => $pg - 1])) . '">' . h(t('Newer')) . '</a>' : '') .
+            '<span class="note">' . h(t('Page {1} of {2}', $pg, $pages)) . '</span>' .
+            ($pg < $pages ? '<a class="btn small ghost" href="' . h(a_url('log', $filter + ['pg' => $pg + 1])) . '">' . h(t('Older')) . '</a>' : '') . '</nav>';
+    }
+    if ($full) {
+        echo '<form method="post"' . a_confirm(t('Clear the whole log? The upload and download statistics are cleared as well.')) . '>' . a_csrf() .
+            '<p class="note">' . h(t('The statistics count uploads and downloads from the log. Clearing the log also removes these numbers.')) . '</p>' .
+            '<p><button class="btn small danger ghost" name="clear" value="1">' . h(t('Clear log')) . '</button></p></form>';
+    }
+}
+
+/** The filtered log as CSV (UTF-8 with BOM for spreadsheets), at most 10000 lines. */
+function a_log_csv(array $admin, string $where, array $par, array $f): never
+{
+    cb_log((int)$admin['id'], $admin['handle'], 'Exported the log as CSV' . ($f !== array_filter([]) ? ' (' . http_build_query(array_filter($f)) . ')' : ''));
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="webcarrierbbs-log-' . date('Y-m-d-His') . '.csv"');
+    $out = fopen('php://output', 'wb');
+    fwrite($out, "\xEF\xBB\xBF");
+    $names = a_log_kind_names();
+    fputcsv($out, [t('Date'), t('User'), t('Kind'), t('Event')], ';');
+    foreach (DB::all('SELECT * FROM {log}' . $where . ' ORDER BY id DESC LIMIT 10000', $par) as $l) {
+        fputcsv($out, [date('Y-m-d H:i:s', (int)$l['time']), $l['handle'], $names[cb_log_kind((string)$l['text'])], $l['text']], ';');
+    }
+    fclose($out);
+    exit;
 }

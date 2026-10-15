@@ -68,6 +68,12 @@ trait EngineSysop
                     $this->w->buf .= "\x07\r\n";
                     $this->hint('msg');
                     break;
+                case 'pdecl':
+                    // the backend declined the call
+                    if (($this->S['st'] ?? '') === 'pagewait') {
+                        $this->pageDeclined();
+                    }
+                    break;
                 case 'chat':
                     if (!$chat) {
                         // the sysop takes the caller out of the meeting point
@@ -100,6 +106,9 @@ trait EngineSysop
     private function chatPeerOnline(): bool
     {
         $c = $this->S['chat'];
+        if ((int)$c['peer'] < 0) {
+            return cb_backend_chat_alive((int)$c['peer'], (string)$c['handle']);
+        }
         return (bool)DB::val('SELECT COUNT(*) FROM {nodes} WHERE node=? AND handle=? AND kicked=0', [(int)$c['peer'], (string)$c['handle']]);
     }
 
@@ -107,6 +116,11 @@ trait EngineSysop
     private function joinChat(int $peer, string $handle): void
     {
         $this->S['chat'] = ['peer' => $peer, 'handle' => $handle];
+        // a call that was waiting is answered now
+        if (!empty($this->S['pw'])) {
+            DB::q("UPDATE {sysop_pages} SET status='taken' WHERE id=? AND status='waiting'", [(int)$this->S['pw']['id']]);
+            unset($this->S['pw']);
+        }
         $this->S['st'] = 'chat';
         $this->act(Lang::get('act_chat'));
         $this->nl();
@@ -688,6 +702,7 @@ trait EngineSysop
             $this->say('kick_none', $n);
         } else {
             DB::q('UPDATE {nodes} SET kicked=1 WHERE node=?', [$n]);
+            cb_end_calls((int)$row['user_id'], $n, time());
             $this->sysLog('Disconnected node ' . $n . ($row['handle'] !== '' ? ' (' . $row['handle'] . ')' : ''));
             $this->say('kick_done', $n);
         }

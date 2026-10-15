@@ -1,6 +1,6 @@
 # WebCarrier BBS: Sysop-Handbuch
 
-Version 1.8.1
+Version 1.9.0
 
 Für Betreiber der Mailbox: Installation, Einrichtung, Backend, Menüs, Screens, Dateiimport, Doors und Betrieb.
 
@@ -124,43 +124,48 @@ Zugriffsrechte für Bereiche funktionieren ebenfalls über Level: Jeder Nachrich
 
 ## 7. Das Sysop-Backend
 
-Erreichbar unter `/sysop/`. Einloggen darf jeder Account, dessen Level mindestens dem Wert „Level mit Sysop-Rechten“ entspricht (Standard 255). Hat der Account einen zweiten Faktor, folgt nach dem Passwort die Frage nach dem Code aus der App (siehe „Zweiter Faktor“ weiter unten). Das Backend funktioniert auch auf dem Handy.
+Erreichbar unter `/sysop/`. Einloggen darf jeder Account, dessen Level mindestens dem Wert „Level mit Sysop-Rechten“ entspricht (Standard 255), und jeder Account mit einem Level, dem du auf der Seite „Level“ eine Rolle im Backend gibst (siehe „Rollen“ weiter unten). Hat der Account einen zweiten Faktor, folgt nach dem Passwort die Frage nach dem Code aus der App (siehe „Zweiter Faktor“ weiter unten). Das Backend funktioniert auch auf dem Handy.
 
 Beim Speichern der Einstellungen prüft das Backend zwei Werte: Der Sysop-Level muss zwischen 1 und deinem eigenen Level liegen (sonst wäre jeder Sysop oder du würdest dich selbst aussperren), und der Level für neue User muss darunter liegen. Ungültige Werte werden korrigiert und du bekommst einen Hinweis.
 
 | Bereich | Wofür |
 |---|---|
-| Übersicht | Meldungen, belegte Nodes mit Trennen und Rundruf, Kennzahlen, letzte Ereignisse, Systeminfos (siehe unten) |
+| Übersicht | Was seit deinem letzten Besuch passiert ist, Meldungen, belegte Nodes mit Chat, Trennen und Rundruf, Kennzahlen, letzte Ereignisse, Systeminfos (siehe unten) |
+| Meine Post | Deine eigene private Post: Posteingang, Gesendet, lesen, antworten, schreiben, suchen (siehe unten) |
+| Chat | Chat mit einem Anrufer, aus einem Ruf oder von einer Node aus gestartet (siehe unten) |
+| Meldungen | Nachrichten, die Anrufer gemeldet haben (siehe unten) |
 | Statistik | Zahlenband mit den wichtigsten Werten, Diagramme zu Anrufen, Uhrzeiten, neuen Usern, Uploads und Downloads, Bestenlisten (siehe unten) |
 | Einstellungen | Name, Sprache, Zeitzone, Nodes, Neuanmeldung, Terminal mit Röhren-Effekt und Hinweis im Browser-Tab, Adresse von WAnsiDraw, Uploads, Update-Prüfung, Kennung der Box |
 | Impressum und Datenschutz | Rechtstexte als reiner Text |
-| User | Anlegen, suchen, bearbeiten, Level ändern, sperren, Passwort setzen, löschen, neue User freischalten |
-| Level | Zeit, Downloadlimit und Ratio je Level, Regeln zum automatischen Hochstufen (siehe unten) |
+| User | Anlegen, suchen, bearbeiten, Level ändern, sperren, Passwort setzen, löschen, neue User freischalten, Anrufliste, Daten exportieren |
+| Level | Zeit, Downloadlimit, Ratio und Rolle im Backend je Level, Regeln zum automatischen Hochstufen (siehe unten) |
 | Sperrliste | Gesperrte Handles und Wörter (siehe unten) |
 | Fragebogen | Fragen an neue User bei der Anmeldung (siehe unten) |
 | Nachrichtenbereiche | Anlegen, umbenennen, Rechte, Reihenfolge, löschen |
-| Nachrichten | Öffentliche Nachrichten lesen, löschen und in andere Bereiche verschieben. Private Post wird hier bewusst nicht angezeigt |
+| Nachrichten | Öffentliche Nachrichten suchen, lesen, beantworten, schreiben, löschen und verschieben, Rundschreiben. Private Post anderer wird nicht angezeigt |
 | Oneliner | Oneliner und Zeilen des Treffpunkts moderieren |
 | Umfragen | Umfragen anlegen, Ergebnis ansehen, beenden, löschen (siehe unten) |
 | Dateibereiche | Anlegen, Rechte, Uploads erlauben |
-| Dateien | Uploads freigeben, umbenennen, Beschreibungen ändern, verschieben, löschen, Dateien per Browser hochladen |
+| Dateien | Suchen, Uploads freigeben, umbenennen, Beschreibungen ändern, verschieben, löschen, Dateien per Browser hochladen |
 | Dateiimport | Viele Dateien auf einmal aus `data/import` übernehmen |
-| Menüs | Menüstruktur und Hotkeys bearbeiten |
+| Menüs | Menüstruktur und Hotkeys bearbeiten, Screen oder Kopf-Screen wählen, mit Vorschau (siehe Abschnitt 8) |
 | Screens | ANSI- und Text-Screens hochladen, bearbeiten, mit Vorschau, in WAnsiDraw öffnen |
 | Texte | Eigene Fassungen der Terminaltexte, siehe Abschnitt 12 |
 | Doors | Installierte Doors, ins Menü aufnehmen, Spielstände zurücksetzen, fehlerhafte Dateien, siehe Abschnitt 11 |
-| Log | Logins, Uploads, Downloads, Änderungen |
+| Log | Logins, Uploads, Downloads, Änderungen, mit Filtern, Suche und CSV-Export (siehe unten) |
 | Backup | Sicherung als ZIP herunterladen, siehe Abschnitt 13 |
 | Mein Zugang | Zweiten Faktor für dein eigenes Konto einrichten und abschalten, Notfallcodes (siehe unten) |
 
 ### Übersicht
 
-Ganz oben stehen die **Meldungen**, sortiert nach Wichtigkeit. Vor jedem Titel steht die Art:
+Ganz oben steht der Kasten **„Seit deinem letzten Besuch“**. Ein Besuch beginnt mit dem Login ins Backend, gezählt wird seit dem Beginn des vorigen Besuchs: neue User (davon wartend), neue öffentliche Nachrichten, neue Uploads (davon wartend), neue Meldungen, verpasste Rufe und Fehlversuche beim Login. Es erscheinen nur Zeilen mit einer Zahl über 0, jede führt auf die passende Seite oder die gefilterte Ansicht des Protokolls. Ist nichts passiert, steht dort genau das. Beim allerersten Besuch ist der Kasten noch leer.
+
+Darunter stehen die **Meldungen**, sortiert nach Wichtigkeit. Vor jedem Titel steht die Art:
 
 | Art | Beispiele |
 |---|---|
 | Sicherheit | Der Ordner `install` liegt noch auf dem Server, ein abgebrochenes Update wurde aufgeräumt, der zweite Faktor deines Kontos wurde über die Datei `data/2fa_reset.txt` abgeschaltet |
-| Aufgabe | Impressum oder Datenschutzerklärung leer, Uploads warten auf deine Freigabe, neue User warten auf Freischaltung, Door-Dateien konnten nicht geladen werden |
+| Aufgabe | Impressum oder Datenschutzerklärung leer, Uploads warten auf deine Freigabe, neue User warten auf Freischaltung, offene Meldungen zu Nachrichten, Door-Dateien konnten nicht geladen werden |
 | Update | Neue Version verfügbar, Ergebnis des letzten Updates (einmalig) |
 | Hinweis | Noch kein Backup oder letztes Backup älter als 30 Tage, Update-Prüfung ausgeschaltet, dein Konto hat keinen zweiten Faktor |
 | Neuigkeit | Meldungen des Projekts, nur bei eingeschalteter Update-Prüfung |
@@ -169,7 +174,7 @@ Hinweise und Neuigkeiten kannst du mit „Ausblenden“ wegklicken. Der Hinweis 
 
 Unter den Nodes steht der Kasten **„Nachricht des Sysops“**. Was du dort einträgst, sieht jeder Anrufer nach dem Login unter der Zeile mit Restzeit und Post, mit „Nachricht von“ und deinem Namen darüber. Erlaubt sind bis zu 3 Zeilen mit je 76 Zeichen, Pipe-Codes für Farben wie `|14` zählen dabei nicht mit. `|CL`, `|CR` und andere Steuercodes werden entfernt. Ist eine Zeile zu lang oder sind es mehr als 3 Zeilen, wird nichts gespeichert und du bekommst einen Hinweis, dein Text bleibt im Feld stehen. Mit „Anzeigen bis“ legst du optional einen Tag fest, bis einschließlich dem die Nachricht erscheint. Danach sehen Anrufer sie nicht mehr, im Backend bleibt sie mit dem Hinweis „abgelaufen“ stehen, bis du sie änderst oder mit „Nachricht entfernen“ löschst. Jede Änderung steht im Log. Ohne Nachricht sieht die Begrüßung aus wie immer.
 
-Darunter folgen die belegten Nodes. Neben jeder Node steht der Knopf „Trennen“, deine eigene Sitzung im Terminal ist davon ausgenommen. Unter der Liste schickst du mit „Rundruf an alle Nodes“ eine Zeile an alle, die gerade online sind. Getrennte Anrufer sehen „Der Sysop hat die Verbindung getrennt.“, ein Rundruf erscheint beim Anrufer gelb mit einem Klingelton. Dann folgen die Kennzahlen (User, Anrufe heute, gerade online, öffentliche Nachrichten, Dateien, wartende Uploads), die letzten Ereignisse aus dem Log und der Kasten „System“ mit Version, PHP-Version, Datenbank, letztem Backup und dem Stand der Update-Prüfung. Unter den Kennzahlen führt ein Link zur Statistik. Auf dem Handy steht alles untereinander, auf breiten Bildschirmen stehen Kennzahlen und System in einer schmalen Spalte rechts.
+Darunter folgen die belegten Nodes. Neben jeder Node mit einem Anrufer stehen die Knöpfe „Chat“ und „Trennen“, deine eigene Sitzung im Terminal ist davon ausgenommen. Unter der Liste schickst du mit „Rundruf an alle Nodes“ eine Zeile an alle, die gerade online sind. Getrennte Anrufer sehen „Der Sysop hat die Verbindung getrennt.“, ein Rundruf erscheint beim Anrufer gelb mit einem Klingelton. Dann folgen die Kennzahlen (User, Anrufe heute, gerade online, öffentliche Nachrichten, Dateien, wartende Uploads), die letzten Ereignisse aus dem Log und der Kasten „System“ mit Version, PHP-Version, Datenbank, letztem Backup und dem Stand der Update-Prüfung. Unter den Kennzahlen führt ein Link zur Statistik. Auf dem Handy steht alles untereinander, auf breiten Bildschirmen stehen Kennzahlen und System in einer schmalen Spalte rechts.
 
 ### Statistik
 
@@ -284,7 +289,59 @@ Ein Klick auf die Frage zeigt das Ergebnis. Solange niemand abgestimmt hat, kann
 
 ### Nachrichten
 
-Die Liste unter „Nachrichten“ zeigt die letzten 200 öffentlichen Nachrichten, auf Wunsch nur eines Bereichs. Über die Häkchen links (das Häkchen im Tabellenkopf wählt alle) löschst du mehrere Nachrichten auf einmal oder verschiebst sie in einen anderen Bereich, etwa wenn jemand im falschen Bereich geschrieben hat. In der Einzelansicht einer Nachricht geht beides auch direkt. Private Post lässt sich hier weder sehen noch verschieben.
+Die Liste unter „Nachrichten“ zeigt die letzten 200 öffentlichen Nachrichten, auf Wunsch nur eines Bereichs. Darüber suchst du in Betreff, Text und Absender, Groß- und Kleinschreibung spielt dabei keine Rolle, auch nicht bei Umlauten, genau wie bei der Suche im Terminal. Dazu filterst du nach Bereich und Zeitraum. Die Filter stehen in der Adresse, eine Suche lässt sich also als Lesezeichen speichern.
+
+Ein Klick auf den Betreff öffnet die Nachricht ganz: oben Bereich, Von, An, Betreff und Datum, darunter der Text so, wie ihn der Leser im Terminal zeigt. Pipe-Codes erscheinen dabei als Zeichen und nicht als Farben, weil das Terminal Text von Anrufern ebenfalls wörtlich ausgibt, und HTML aus dem Text erscheint als Text. Zitatzeilen sind wie im Terminal farbig abgesetzt. Von dort antwortest du, verschiebst oder löschst die Nachricht, springst zur Ursprungsnachricht oder zu den Antworten darauf (wie O und T im Terminal) und blätterst zur vorigen und nächsten Nachricht im Bereich.
+
+**Antworten und neu schreiben:** Das Formular hat Bereich, Empfänger (leer heißt an alle), Betreff und Text. Bei einer Antwort steht im Text ein Zitat-Vorschlag wie im Terminal, ohne die Signatur der Ursprungsnachricht. Zeilen über 75 Zeichen werden beim Speichern umbrochen wie im Editor des Terminals, mehr Zeilen als „Maximale Zeilen pro Nachricht“ werden abgelehnt. Absender ist dein Konto, deine Signatur wird angehängt und deine Zahl der Beiträge steigt, wie beim Schreiben im Terminal. Antworten merken sich ihre Ursprungsnachricht und deren Kennung. Die Sperrliste gilt für Sysops wie bisher nicht.
+
+**Rundschreiben:** Unten auf der Seite (nur mit voller Rolle) schickst du eine private Nachricht an viele User auf einmal: an alle oder an alle ab einem Level, wahlweise nur an User, die in den letzten 90 Tagen angerufen haben. Gesperrte und wartende User und dein eigenes Konto bekommen nichts. Vor dem Senden zeigt die Seite, wie viele Empfänger es sind, und fragt noch einmal nach. Gesendet wird in Schritten zu 500, damit das Zeitlimit des Hosters nicht greift, höchstens 5.000 Empfänger pro Rundschreiben. Jeder Empfänger bekommt eine eigene private Nachricht mit deiner Signatur und sieht sie wie jede andere Post, auch im Kasten „Neu seit deinem letzten Anruf“. Ins Log kommen Betreff und Zahl der Empfänger, nicht der Text.
+
+### Meine Post
+
+Unter „Meine Post“ liest du die private Post deines eigenen Kontos: Posteingang und Gesendet, mit eigenem Suchfeld. Gelesene Post wird wie im Terminal als gelesen markiert. Du antwortest mit Zitat-Vorschlag oder schreibst neu an einen Handle, den es geben muss und der weder gesperrt ist noch auf seine Freischaltung wartet. Auf der Seite eines Users führt „Private Nachricht schreiben“ direkt dorthin. Private Post anderer User zeigt das Backend nicht an, auch dir nicht und auch nicht über eine geänderte Adresse. Die einzige Ausnahme ist eine private Nachricht, die ihr Empfänger gemeldet hat (siehe „Meldungen“).
+
+### Rufe und Chat
+
+Solange eine Seite des Backends offen ist, giltst du als erreichbar. Jede Seite fragt dafür alle 15 Sekunden kurz beim Server nach, im Hintergrund alle 30 Sekunden. Erreichbar ist ein Konto, wenn diese Abfrage höchstens 75 Sekunden zurückliegt. Die Abfrage bringt zugleich wartende Rufe, offene Meldungen, wartende User und Uploads mit.
+
+Ruft ein Anrufer den Sysop und ist ein Konto im Backend erreichbar, sieht er „Der Sysop wird gerufen, bitte warten (Q bricht ab)“. Bei dir erscheint oben auf jeder Seite eine gelbe Leiste „Anna (Node 2) ruft dich“ mit „Chat starten“ und „Ablehnen“, und ist der Tab im Hintergrund, zeigen Titel und Symbol den Ruf (Schalter „Hinweis im Browser-Tab“ in den Einstellungen). Nimmt innerhalb von 60 Sekunden niemand an, geht es für den Anrufer weiter wie ohne Sysop: Er kann eine Nachricht hinterlassen, der Ruf gilt als verpasst und steht im Log. „Ablehnen“ zeigt dem Anrufer „Der Sysop kann gerade nicht“ und bietet ihm ebenfalls eine Nachricht an. Bist du zusätzlich im Terminal eingeloggt, wirst du dort wie bisher gerufen und kannst den Chat auch von dort starten. Ist niemand erreichbar, ändert sich für den Anrufer nichts.
+
+Den **Chat** startest du aus der Leiste, aus der Liste der Nodes in der Übersicht oder von der Seite eines Users, der gerade online ist. Für den Anrufer sieht er aus wie der Chat mit dem Sysop im Terminal, als Name erscheint dein Handle. Die Seite holt alle 1,5 Sekunden neue Zeilen, eine eigene Zeile hat höchstens 70 Zeichen, Enter sendet, „Chat beenden“ beendet ihn für beide. Ist der Anrufer gerade im Treffpunkt, verlässt er ihn dafür. Schließt du die Seite, endet der Chat für den Anrufer nach spätestens 45 Sekunden mit der üblichen Meldung, legt der Anrufer auf, siehst du es auf der Chatseite. Alles läuft über kurze Abfragen, ohne Websockets und ohne Dienste von außen.
+
+### Rollen: Co-Sysops und Moderatoren
+
+Auf der Seite „Level“ hat jedes Level eine Rolle im Backend: keine (Standard), Moderator oder voll. Ein User bekommt die Rolle der höchsten Levelzeile, die nicht über seinem Level liegt, wie bei Zeit und Downloadlimit. Das Level mit Sysop-Rechten hat immer die volle Rolle. Voll bedeutet alles wie bisher. Im Terminal ändert die Rolle nichts, das Sysop-Menü dort bleibt beim Sysop-Level.
+
+| Moderator darf | Moderator darf nicht |
+|---|---|
+| Übersicht (ohne Update-Prüfung und ohne Hinweise zur Installation), Nodes trennen | Rundruf an alle Nodes, Nachricht des Sysops |
+| Nachrichten lesen, suchen, beantworten, schreiben, verschieben und löschen | Rundschreiben |
+| Eigene private Post, Chat und Rufe, Meldungen | Seiten anderer User, User bearbeiten, sperren oder löschen, Auskunft |
+| Oneliner und Zeilen des Treffpunkts löschen | Einstellungen, Impressum und Datenschutz, Statistik |
+| Umfragen anlegen und beenden | Umfragen ändern oder löschen |
+| Dateien suchen, freigeben, Beschreibung ändern, verschieben und löschen | Dateien hochladen, Dateiimport, Bereiche anlegen oder ändern |
+| Wartende User freischalten oder ablehnen, mit einem Level unter dem eigenen und ohne Rolle im Backend | Level, Sperrliste, Fragebogen, Menüs, Screens, Texte, Doors |
+| Protokoll lesen, ohne Einträge zu Sicherungen, Updates und Einstellungen | CSV-Export und Leeren des Protokolls, Sicherung, Update |
+| Eigenen zweiten Faktor einrichten | |
+
+Die Prüfung sitzt im Router des Backends, nicht nur im Menü: Verbotene Seiten und Aktionen antworten auch bei direkt eingegebener Adresse mit „Das darfst du nicht.“ und einem Logeintrag. Das Menü zeigt Moderatoren nur, was sie dürfen. Wird ein Level herabgesetzt, gilt das beim nächsten Seitenaufruf. Der zweite Faktor und der Hinweis darauf gelten für Moderatoren genauso.
+
+### Meldungen
+
+Anrufer melden mit der Taste ! im Nachrichtenleser eine Nachricht, die ihnen nicht in Ordnung scheint, mit einem kurzen Grund. Das geht für öffentliche Nachrichten und für private Post, die sie bekommen haben, nicht für eigene Nachrichten, pro Nachricht einmal und höchstens 10 Mal am Tag. Sysops sehen die Taste nicht.
+
+Unter „Meldungen“ stehen offene Meldungen oben, mit Nachricht, Absender, Bereich oder „privat“, Grund und Melder. Bei einer gemeldeten privaten Nachricht siehst du genau diese eine Nachricht, sonst nichts aus dem Postfach. Du löschst oder verschiebst die Nachricht (die Meldung ist damit erledigt), verwirfst die Meldung, schreibst dem Absender privat oder gehst auf seine Seite. Wird eine gemeldete Nachricht anderswo gelöscht, bleibt die Meldung mit dem Vermerk „Nachricht gelöscht“ stehen. Erledigte Meldungen bleiben 90 Tage sichtbar und werden dann gelöscht. Die Zahl offener Meldungen steht in der Übersicht und kommt mit der Abfrage jeder Seite, neue Meldungen zeigt auch der Tab.
+
+### Protokoll
+
+Die Seite „Log“ filtert nach Art, Handle, Zeitraum und einem Text, 100 Einträge pro Seite, neueste oben, mit Blättern. Die Filter stehen in der Adresse, eine Ansicht lässt sich als Lesezeichen speichern. Die Art leitet die Box aus dem Text des Eintrags ab: Logins und Abmelden, Fehlversuche, Uploads und Downloads, Aktionen im Backend, Updates, Sicherungen und Einstellungen, Sonstiges. Jede Aktion im Backend, die etwas ändert oder Daten herausgibt, steht im Log mit dem Handle dessen, der sie ausgeführt hat. „Als CSV herunterladen“ liefert die aktuelle Filterung mit höchstens 10.000 Zeilen, in UTF-8, das Tabellenprogramme mit Umlauten richtig lesen. Am Handy steht jeder Eintrag als Karte untereinander.
+
+### Anrufliste und Auskunft
+
+Die Seite eines Users zeigt seine letzten 50 Anrufe mit Datum, Node und Dauer. Das Ende eines Anrufs speichert die Box beim Auflegen, beim Trennen, bei Untätigkeit, bei Zeitende und wenn eine verschwundene Leitung aufgeräumt wird (dann der Zeitpunkt, zu dem sie zuletzt gesehen wurde). Anrufe aus der Zeit vor Version 1.9.0 zeigen „unbekannt“. Die Statistik zeigt im Zahlenband die durchschnittliche Dauer der Anrufe der letzten 30 Tage, nur aus Anrufen mit bekanntem Ende.
+
+„Daten exportieren“ (nur mit voller Rolle) lädt eine ZIP-Datei mit `daten.json` und `daten.txt`, siehe Abschnitt 14. Über die Häkchen links (das Häkchen im Tabellenkopf wählt alle) löschst du mehrere Nachrichten auf einmal oder verschiebst sie in einen anderen Bereich, etwa wenn jemand im falschen Bereich geschrieben hat. In der Einzelansicht einer Nachricht geht beides auch direkt. Private Post lässt sich hier weder sehen noch verschieben.
 
 ### Neues seit dem letzten Anruf
 
@@ -338,7 +395,15 @@ Die Kennung steckt in der Datenbank und zieht mit der Sicherung um. Stellst du e
 
 Jedes Menü ist eine Liste von Hotkeys. Anrufer starten nach dem Login im Menü `main`. Ein Menüpunkt besteht aus Taste, Text, Befehl, Daten, Mindestlevel und Sortierung. Als Taste geht jedes Zeichen, auch Umlaute.
 
-Ein Menü wird automatisch als zweispaltige Liste mit Titelleiste gezeichnet. Trägst du beim Menü einen Screen-Namen ein, wird stattdessen dieser ANSI-Screen gezeigt, dann musst du die Hotkeys im Screen selbst darstellen. Die Taste `?` ist reserviert und zeigt das Menü erneut (für User im Expertenmodus, die nur die Eingabezeile sehen).
+Für das Aussehen eines Menüs gibt es drei Wege, eingestellt auf der Seite des Menüs:
+
+- **Automatisch** (kein Screen, kein Kopf-Screen): Die Box zeichnet eine Titelleiste und darunter die Menüpunkte als zweispaltige Liste. Passt, solange dir die schlichte Darstellung reicht, und neue Menüpunkte erscheinen von selbst.
+- **Kopf-Screen und automatische Liste:** Ein ANSI- oder Text-Screen steht oben, zum Beispiel ein Logo oder ein Kasten, darunter folgt die automatische Liste, auf Wunsch ohne die Titelleiste (Haken „Titelleiste unter dem Kopf zeigen“). Passt, wenn das Menü nach deiner Box aussehen soll, du die Tasten aber nicht von Hand pflegen willst: Neue Menüpunkte, auch aus Updates, erscheinen weiter automatisch. Im Doors-Menü steht der Kopf über dem Kasten mit den Bestenlisten.
+- **Eigener Screen statt Menü:** Der Screen ersetzt das ganze Menü, die Tasten müssen im Bild selbst stehen. Passt für ein komplett gestaltetes Menü. Ein eingetragener Kopf-Screen wird dann nicht gezeigt, die Seite weist darauf hin.
+
+Beide Felder sind Auswahllisten mit allen Screens. Kopf, Titelleiste, Liste und Eingabezeile sollten zusammen auf 24 Zeilen passen. Die Seite rechnet das beim Öffnen und nach dem Speichern nach (die Höhe des Kopfs bei ANSI über den Parser, bei Text die Zahl der Zeilen; die Liste mit den Menüpunkten für das niedrigste Level, das das Menü betreten darf) und zeigt sonst einen gelben Hinweis wie „Kopf 9 Zeilen, Menü 15 Zeilen: zusammen zu hoch für einen Bildschirm, Anrufer müssen scrollen.“ Speichern geht trotzdem, abgeschnitten wird nichts, das Terminal scrollt dann wie bei jedem langen Screen. Der Kasten mit den Bestenlisten im Doors-Menü ist in dieser Rechnung nicht enthalten, weil seine Höhe von den Bestwerten abhängt. Unter den Feldern zeigt eine Vorschau das gespeicherte Menü so, wie ein Anrufer mit deinem Level es sieht. Fehlt ein eingetragener Kopf-Screen (gelöscht oder umbenannt), zeigen Anrufer das Menü ohne Kopf und ohne Fehlermeldung, im Log steht es höchstens einmal am Tag pro Menü.
+
+Die Taste `?` ist reserviert und zeigt das Menü erneut. Das braucht, wer im Expertenmodus ist: Er sieht nur die Eingabezeile, also auch keinen Kopf, mit `?` das ganze Menü samt Kopf.
 
 | Befehl | Daten | Funktion |
 |---|---|---|
@@ -364,7 +429,7 @@ Ein Menü wird automatisch als zweispaltige Liste mit Titelleiste gezeichnet. Tr
 | USERLIST | | Liste aller User, mit P das Profil eines Users |
 | USERINFO | | Statistik des Anrufers |
 | SETTINGS | | Ort, Passwort, Modemgeschwindigkeit, Expertenmodus |
-| PAGE | | Sysop rufen: Ist ein Sysop online, wird er benachrichtigt, sonst kann der Anrufer eine Nachricht hinterlassen |
+| PAGE | | Sysop rufen: Ist ein Sysop im Terminal online oder eine Seite des Backends offen, wird er benachrichtigt, sonst kann der Anrufer eine Nachricht hinterlassen |
 | COMMENT | | Private Nachricht direkt an den Sysop |
 | DOOR | Door-Id | Startet eine Door |
 | DOORTOP | | Bestenlisten der Doors (siehe Abschnitt 11) |
@@ -375,6 +440,8 @@ Ein Menü wird automatisch als zweispaltige Liste mit Titelleiste gezeichnet. Tr
 | LOGOFF | | Ausloggen mit Rückfrage |
 
 Beispiel: Ein neues Bulletin „Termine“ anlegen. Unter „Screens“ einen Text-Screen `termine` anlegen und füllen, dann im Menü `bull` einen Punkt mit Taste `3`, Text „Termine“, Befehl `SCREEN`, Daten `termine` ergänzen.
+
+Beispiel: Ein eigenes Hauptmenü. Unter „Screens“ einen ANSI-Screen `hauptmenue` hochladen und beim Menü `main` im Feld „Screen“ auswählen. Die Tasten im Bild müssen zu denen im Menü-Editor passen. Bringt ein Update neue Menüpunkte, landen sie im Menü-Editor, im Bild aber nicht: Die gehören dann von Hand hinein. Wer das vermeiden will, wählt `hauptmenue` stattdessen als Kopf-Screen und lässt die Liste darunter automatisch zeichnen.
 
 ### Sysop-Menü im Terminal
 
@@ -406,7 +473,7 @@ Webspace kann keine dauerhaften Verbindungen halten. Das Terminal fragt deshalb 
 
 **Nachricht an eine Node:** Unter „Wer ist online“ schickt ein Anrufer mit N eine Zeile an eine andere Node. Sie erscheint hellcyan als „*** Nachricht von Handle (Node 2): …“ mit Klingelton. Wer das nicht möchte, schaltet unter Einstellungen „Node-Nachrichten annehmen“ aus, Sysops erreichen trotzdem jeden. Pro Absender geht höchstens eine Nachricht alle 10 Sekunden, an die eigene Node, an freie Nodes und an wartende User gar keine. Das Log nennt Absender und Empfänger, nicht den Text.
 
-**Sysop rufen:** Wählt ein Anrufer „Sysop rufen“ und du bist im Terminal eingeloggt, bekommst du „*** Handle auf Node n ruft dich. Sysop-Menü, Taste C zum Chatten.“ mit Klingelton, und der Anrufer erfährt, dass du benachrichtigt wurdest. Ist kein Sysop online, kann er wie bisher eine Nachricht hinterlassen.
+**Sysop rufen:** Ist eine Seite des Backends offen, wartet der Anrufer bis zu einer Minute auf einen Chat (siehe „Rufe und Chat“ in Abschnitt 7). Wählt ein Anrufer „Sysop rufen“ und du bist im Terminal eingeloggt, bekommst du „*** Handle auf Node n ruft dich. Sysop-Menü, Taste C zum Chatten.“ mit Klingelton, und der Anrufer erfährt, dass du benachrichtigt wurdest. Ist kein Sysop online, kann er wie bisher eine Nachricht hinterlassen.
 
 ## 9. Screens, Pipe-Codes und Makros
 
@@ -650,12 +717,17 @@ Bringt eine neue Version Änderungen an der Datenbank mit, werden sie beim erste
 - Alle Formulare und Terminal-Anfragen sind gegen Cross-Site-Request-Forgery geschützt, alle Datenbankabfragen laufen über Prepared Statements.
 - Downloads laufen über Einmal-Links, die nur für den angemeldeten Anrufer und zehn Minuten gelten. Dateien im Ordner `data/` sind direkt nicht erreichbar.
 - Die Box speichert keine IP-Adressen und keine E-Mail-Adressen. Gespeichert werden Handle, Ort, Passwort-Hash, Nutzungsstatistik, Nachrichten, Uploads und das Ereignislog. Es wird nur ein technisch notwendiges Session-Cookie gesetzt. Externe Schriften oder Dienste werden nicht geladen. Die Zugriffslogs des Webservers bei deinem Hoster sind davon unabhängig und gehören mit in die Datenschutzerklärung.
-- Private Post ist im Backend nicht einsehbar. Mit Sysop-Level kannst du sie im Terminal aber lesen und löschen. Schreib in die Datenschutzerklärung, wie du damit umgehst.
+- Private Post anderer ist im Backend nicht einsehbar, nur deine eigene unter „Meine Post“ und eine private Nachricht, die ihr Empfänger gemeldet hat. Mit Sysop-Level kannst du private Post im Terminal aber lesen und löschen. Schreib in die Datenschutzerklärung, wie du damit umgehst.
 - Das Log lässt sich im Backend jederzeit leeren. Damit sind auch die Upload- und Download-Zahlen der Statistik weg.
 - Der Treffpunkt speichert die letzten 50 Zeilen mit Handle und Zeit, ältere werden laufend überschrieben. Unter „Oneliner“ löschst du sie jederzeit.
 - „Über mich“ und die Signatur schreiben Anrufer selbst, sie bleiben bis zur Änderung oder bis der User gelöscht wird. Die Signatur steht danach fest in den Nachrichten, die mit ihr geschrieben wurden.
 - Bei Umfragen speichert die Box, wer wofür gestimmt hat, damit niemand zweimal abstimmt. Andere Anrufer sehen nur die Summen. Wird ein User gelöscht, bleiben seine Stimmen ohne Verbindung zu ihm stehen, sie lassen sich niemandem mehr zuordnen und das Ergebnis ändert sich nicht. Mit der Umfrage werden auch ihre Stimmen gelöscht.
 - Nachrichten an eine Node werden nicht gespeichert, nur zugestellt. Im Log steht, wer wem geschrieben hat.
+- Meldungen speichern die Nachricht, wer sie gemeldet hat, den Grund und wer sie erledigt hat, dazu Absender und Betreff der Nachricht. Erledigte Meldungen werden nach 90 Tagen gelöscht, offene bleiben, bis du sie erledigst.
+- Rufe an den Sysop speichern Node, Handle, Zeit und Ausgang (angenommen, abgebrochen, verpasst). Sie werden nach 30 Tagen gelöscht, verpasste Rufe stehen zusätzlich im Log.
+- Bei jedem Anruf speichert die Box neben dem Beginn jetzt auch das Ende. Die Anrufliste bleibt wie bisher, bis der User gelöscht wird.
+- Für Backend-Konten speichert die Box den Zeitpunkt der letzten Abfrage einer Backend-Seite (für die Erreichbarkeit) und den Beginn des letzten und vorletzten Besuchs.
+- **Auskunft:** „Daten exportieren“ auf der Seite eines Users erstellt eine ZIP-Datei für eine Anfrage nach Art. 15 DSGVO: `daten.json` (alle Daten als JSON) und `daten.txt` (dieselben Daten lesbar in der Sprache der Box). Enthalten sind Kontodaten, Einstellungen, Über mich und Signatur, Antworten auf den Fragebogen, Anrufe, öffentliche Nachrichten, private Post von und an den User, Uploads und Downloads, Oneliner, Zeilen im Treffpunkt, Stimmen in Umfragen, Bestwerte in Doors, Meldungen, die er abgegeben hat, und die Logeinträge zu ihm. Nicht enthalten sind Passwort-Hash, Geheimnis und Notfallcodes des zweiten Faktors (sie würden die Sicherheit des Kontos gefährden und sind keine Angaben über die Person), die Notiz des Sysops (deine interne Arbeitsnotiz) und Meldungen anderer über den User (sie würden die Melder offenlegen). Prüfe vor der Herausgabe, ob die private Post Angaben Dritter enthält, die du schwärzen musst. Der Export entsteht in `data/tmp` und wird nach dem Herunterladen gelöscht, er steht im Log.
 - Antworten aus dem Fragebogen der Anmeldung sind personenbezogene Angaben. Sie sind nur für die Sysop-Ebene sichtbar, bleiben bis du sie löschst und verschwinden mit dem User. Nenne den Fragebogen in deiner Datenschutzerklärung, wenn du ihn einschaltest.
 - „In WAnsiDraw öffnen“ überträgt nichts an den Server von wansidraw.de: Die Zeichnung steht im Teil der Adresse nach dem `#`, den Browser nicht mitsenden. Der Anrufer ruft dabei aber die Seite des Editors auf, dessen Betreiber sieht wie bei jedem Link den Abruf selbst. Mit einer leeren Adresse in den Einstellungen ist die Funktion aus.
 - Der Hinweis im Browser-Tab und der Röhren-Effekt laufen nur im Browser des Anrufers, dafür wird nichts gespeichert außer der Einstellung, ob ein Anrufer den Effekt abgeschaltet hat.

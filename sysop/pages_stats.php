@@ -153,6 +153,12 @@ function page_stats(array $admin): void
         [t('Public messages, 30 days'), (string)$msgs[0], a_cmp($msgs[0], $msgs[1], t('the 30 days before'))],
         [t('Uploads / downloads, 30 days'), $ud[0] . ' / ' . $ud[1], t('before: {1}', $udBefore[0] . ' / ' . $udBefore[1])],
     ];
+    // only calls with a known end, older versions did not store it
+    $avg = DB::val('SELECT AVG(c.ended - c.time) FROM ' . a_calls_from() . ' AND c.time>=? AND c.ended>0',
+        [Settings::int('sysop_level', 255), $day(29)]);
+    if ($avg !== null) {
+        $band[] = [t('Average length of a call, 30 days'), a_duration((int)round((float)$avg)), t('calls with a known end')];
+    }
 
     echo '<h1>' . h(t('Statistics')) . '</h1><dl class="kpis">';
     foreach ($band as $b) {

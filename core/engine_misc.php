@@ -334,6 +334,19 @@ trait EngineMisc
     private function pageSysop(): void
     {
         $online = array_values(array_diff($this->sysopNodes(), [(int)$this->S['node']]));
+        if (cb_backend_reachable()) {
+            // somebody is in the backend: the caller waits up to a minute for a chat
+            foreach ($online as $n) {
+                $this->nodeMsg($n, 'page', $this->L('page_notify',
+                    cb_esc((string)$this->user['handle']), (int)$this->S['node']));
+            }
+            $id = DB::insert('sysop_pages', ['node' => (int)$this->S['node'], 'user_id' => (int)$this->user['id'],
+                'handle' => (string)$this->user['handle'], 'time' => time(), 'status' => 'waiting']);
+            $this->S['pw'] = ['id' => $id, 't' => time()];
+            cb_log((int)$this->user['id'], $this->user['handle'], 'Paged the sysop');
+            $this->go('pagewait');
+            return;
+        }
         if ($online) {
             foreach ($online as $n) {
                 $this->nodeMsg($n, 'page', $this->L('page_notify',
@@ -357,6 +370,66 @@ trait EngineMisc
         $this->nl();
         $this->S['st'] = 'page_ask';
         $this->yn($this->L('page_leave'), true);
+    }
+
+    private function e_pagewait(): void
+    {
+        $this->nl();
+        $this->say('page_wait');
+        // fp: the terminal asks every 1.5 seconds, so the chat starts at once
+        $this->hot('Q', '', true);
+        $this->ask['fp'] = true;
+    }
+
+    /** Q while waiting: the call is withdrawn. */
+    private function i_pagewait(string $v): void
+    {
+        $this->pageGone();
+        $this->nl();
+        $this->say('page_cancel');
+        $this->nl();
+        $this->pause();
+    }
+
+    /** Checked with every poll while the caller waits: after a minute nobody answered. */
+    private function pageWaitCheck(): void
+    {
+        if (($this->S['st'] ?? '') !== 'pagewait' || empty($this->S['pw'])) {
+            return;
+        }
+        if (time() - (int)$this->S['pw']['t'] < CB_PAGE_SECONDS) {
+            return;
+        }
+        $pw = $this->S['pw'];
+        unset($this->S['pw']);
+        if (DB::q("UPDATE {sysop_pages} SET status='missed' WHERE id=? AND status='waiting'", [(int)$pw['id']])->rowCount()) {
+            cb_log((int)$this->user['id'], (string)$this->user['handle'], 'Missed page from ' . $this->user['handle'] . ' (node ' . $this->S['node'] . ')');
+        }
+        $this->nl();
+        $this->say('page_noanswer');
+        $this->nl();
+        $this->S['st'] = 'page_ask';
+        $this->yn($this->L('page_leave'), true);
+    }
+
+    private function pageDeclined(): void
+    {
+        unset($this->S['pw']);
+        $this->nl();
+        $this->say('page_declined');
+        $this->w->buf .= "\x07";
+        $this->nl();
+        $this->S['st'] = 'page_ask';
+        $this->yn($this->L('page_leave'), true);
+    }
+
+    /** The caller leaves while waiting (Q, hang up): the call is gone. */
+    private function pageGone(): void
+    {
+        if (!empty($this->S['pw'])) {
+            DB::q("UPDATE {sysop_pages} SET status='gone' WHERE id=? AND status='waiting'", [(int)$this->S['pw']['id']]);
+            unset($this->S['pw']);
+        }
     }
 
     private function i_page_ask(string $v): void

@@ -67,7 +67,7 @@ Die Punkte können je nach Box anders aussehen. Typisch sind:
 | Y | Deine Statistik |
 | S | Deine Einstellungen |
 | C | Nachricht an den Sysop |
-| P | Sysop rufen |
+| P | Sysop rufen. Ist der Sysop am Rechner, steht dort „Der Sysop wird gerufen, bitte warten“, bis er den Chat startet, höchstens eine Minute. Q bricht ab. Antwortet er nicht, kannst du ihm eine Nachricht hinterlassen |
 | I / X | Impressum und Datenschutz |
 | T | Treffpunkt, der Chat für alle |
 | V | Umfragen |
@@ -99,6 +99,7 @@ Nachrichten sind nach Themen in **Bereiche** sortiert. Im Nachrichtenmenü:
 | T | Antworten auf diese Nachricht als Liste, eine Nummer öffnet sie |
 | I | Profil des Absenders |
 | D | Löschen (nur private Post, die an dich ging) |
+| ! | Melden: Du hältst die Nachricht für nicht in Ordnung, der Sysop schaut sie sich an. Geht für Nachrichten anderer und private Post, die du bekommen hast, einmal pro Nachricht |
 | ? | Hilfe mit allen Tasten |
 | Q | Lesen beenden |
 

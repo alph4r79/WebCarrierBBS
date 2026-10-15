@@ -381,7 +381,8 @@
 
   setInterval(function () {
     if (phase !== 'online' || !ask || pending || polling || uploading || term.busy()) { return; }
-    if (Date.now() - lastPoll < (ask.t === 'chat' ? 1500 : 10000)) { return; }
+    // fp: a prompt that waits for something from the other side (call to the sysop)
+    if (Date.now() - lastPoll < (ask.t === 'chat' || ask.fp ? 1500 : 10000)) { return; }
     lastPoll = Date.now();
     polling = true;
     fetch(CFG.base + 'api.php', {

@@ -69,12 +69,12 @@ function page_menus(array $admin): void
         a_go('menu', ['id' => $id]);
     }
     echo '<h1>' . h(t('Menus')) . '</h1>';
-    echo '<p class="note">' . h(t('Every menu is a list of hotkeys. Callers start in the menu called main. A menu either shows its own ANSI screen or is drawn automatically from its items.')) . '</p>';
+    echo '<p class="note">' . h(t('Every menu is a list of hotkeys. Callers start in the menu called main. A menu is drawn automatically from its items, optionally with a head screen above the list, or shows its own screen instead.')) . '</p>';
     echo '<div class="tablewrap"><table><tr><th>' . h(t('Name')) . '</th><th>' . h(t('Title')) . '</th><th>' . h(t('Screen')) . '</th><th class="num">' . h(t('Items')) . '</th><th></th></tr>';
     foreach (DB::all('SELECT * FROM {menus} ORDER BY name') as $m) {
         $n = (int)DB::val('SELECT COUNT(*) FROM {menu_items} WHERE menu_id=?', [(int)$m['id']]);
         echo '<tr><td><a href="' . h(a_url('menu', ['id' => $m['id']])) . '"><code>' . h($m['name']) . '</code></a></td><td>' . h($m['title']) . '</td><td>' .
-            h($m['screen'] ?: t('automatic')) . '</td><td class="num">' . $n . '</td><td class="row-actions"><a class="btn small ghost" href="' .
+            h($m['screen'] ?: ($m['head_screen'] !== '' ? t('automatic, head {1}', $m['head_screen']) : t('automatic'))) . '</td><td class="num">' . $n . '</td><td class="row-actions"><a class="btn small ghost" href="' .
             h(a_url('menu', ['id' => $m['id']])) . '">' . h(t('Edit')) . '</a>';
         if ($m['name'] !== 'main') {
             echo '<form method="post"' . a_confirm(t('Delete menu {1}?', $m['name'])) . '>' . a_csrf() . '<button class="btn small danger ghost" name="del" value="' .
@@ -102,7 +102,15 @@ function page_menu(array $admin): void
             a_flash(t('Item deleted.'));
             a_go('menu', ['id' => $id]);
         }
-        DB::update('menus', ['title' => a_in('title', 60), 'screen' => strtolower(preg_replace('/[^a-zA-Z0-9_\-]/', '', a_in('screen', 40)) ?? ''),
+        // a screen from the list, or the old value if it is missing by now
+        $names = a_screen_names();
+        $pick = static function (string $k) use ($names, $m): string {
+            $v = a_screen_name(a_in($k, 40));
+            return $v === '' || in_array($v, $names, true) ? $v : (string)$m[$k];
+        };
+        $head = $pick('head_screen');
+        DB::update('menus', ['title' => a_in('title', 60), 'screen' => $pick('screen'), 'head_screen' => $head,
+            'head_bar' => $head === '' ? (int)$m['head_bar'] : (isset($_POST['head_bar']) ? 1 : 0),
             'min_level' => a_int('min_level', 0, 255)], 'id=?', [$id]);
         $rows = (array)($_POST['it'] ?? []);
         if (trim((string)($_POST['new']['hotkey'] ?? '')) !== '') {
@@ -139,10 +147,40 @@ function page_menu(array $admin): void
         }
         return $h . '</select>';
     };
-    echo '<h1>' . h(t('Menu {1}', $m['name'])) . '</h1><form method="post" class="form">' . a_csrf();
+    $names = a_screen_names();
+    $screenSel = static function (string $k) use ($names, $m): string {
+        $cur = (string)$m[$k];
+        $h = '<select name="' . $k . '" id="menu-' . $k . '" class="mono"><option value="">' . h(t('(none)')) . '</option>';
+        if ($cur !== '' && !in_array($cur, $names, true)) {
+            $h .= '<option value="' . h($cur) . '" selected>' . h($cur . ' ' . t('(missing)')) . '</option>';
+        }
+        foreach ($names as $n) {
+            $h .= '<option value="' . h($n) . '"' . ($n === $cur ? ' selected' : '') . '>' . h($n) . '</option>';
+        }
+        return $h . '</select>';
+    };
+    echo '<h1>' . h(t('Menu {1}', $m['name'])) . '</h1>';
+    if ($m['screen'] !== '' && $m['head_screen'] !== '') {
+        echo '<div class="flash warn"><p>' . h(t('The screen replaces the menu, the head screen is not shown then.')) . '</p></div>';
+    } elseif ($m['screen'] === '' && $m['head_screen'] !== '') {
+        if (!cb_screen_path($m['head_screen'])) {
+            echo '<div class="flash warn"><p>' . h(t('The head screen {1} does not exist. Callers see the menu without it.', $m['head_screen'])) . '</p></div>';
+        } else {
+            [$hh, $mh] = a_menu_height($m);
+            if ($hh + $mh > 24) {
+                echo '<div class="flash warn"><p>' . h(t('Head {1} lines, menu {2} lines: together too tall for one screen, callers have to scroll.', $hh, $mh)) . '</p></div>';
+            }
+        }
+    }
+    echo '<form method="post" class="form">' . a_csrf();
     echo '<section class="panel"><div class="grid2"><label>' . h(t('Title')) . '<input name="title" value="' . h($m['title']) . '"></label>' .
-        '<label>' . h(t('Own ANSI screen (empty = draw automatically)')) . '<input name="screen" class="mono" value="' . h($m['screen']) . '"></label>' .
-        '<label>' . h(t('Minimum level to enter')) . '<input type="number" name="min_level" value="' . (int)$m['min_level'] . '"></label></div></section>';
+        '<label>' . h(t('Minimum level to enter')) . '<input type="number" name="min_level" value="' . (int)$m['min_level'] . '"></label>' .
+        '<label>' . h(t('Screen')) . $screenSel('screen') . '<span class="note">' . h(t('Replaces the whole menu. The keys have to be in the picture itself.')) . '</span></label>' .
+        '<label>' . h(t('Head screen')) . $screenSel('head_screen') . '<span class="note">' . h(t('Stands above the automatic list of the menu items.')) . '</span></label></div>' .
+        '<label class="inline"><input type="checkbox" name="head_bar" id="menu-head_bar" data-needs="menu-head_screen"' . ((int)$m['head_bar'] === 1 ? ' checked' : '') .
+        ($m['head_screen'] === '' ? ' disabled' : '') . '> ' . h(t('Show the title bar below the head')) . '</label>' .
+        '<h2>' . h(t('Preview')) . '</h2><p class="note">' . h(t('The saved menu as a caller with your level {1} sees it.', (int)$admin['level'])) . '</p>' .
+        '<div class="preview"><canvas id="pv"></canvas></div></section>';
     echo '<div class="tablewrap"><table><tr><th>' . h(t('Key')) . '</th><th>' . h(t('Label')) . '</th><th>' . h(t('Command')) . '</th><th>' . h(t('Data')) .
         '</th><th>' . h(t('Min. level')) . '</th><th>' . h(t('Sort')) . '</th><th></th></tr>';
     foreach (DB::all('SELECT * FROM {menu_items} WHERE menu_id=? ORDER BY sort, id', [$id]) as $it) {
@@ -163,6 +201,40 @@ function page_menu(array $admin): void
         echo '<tr><td><code>' . $c . '</code></td><td>' . h($desc) . '</td></tr>';
     }
     echo '</table></div><p class="note">' . h(t('The key ? is reserved: it shows the menu again, which matters in expert mode.')) . '</p></section>';
+    $bytes = Engine::preview()->menuPreview($m, $admin);
+    echo '<script src="../assets/font.js?v=' . CB_VERSION . '"></script><script src="../assets/terminal.js?v=' . CB_VERSION . '"></script>';
+    echo '<script>(function(){var t=new CarrierTerm(document.getElementById("pv"));t.setBaud(0);t.write(' .
+        json_encode(CP437::transport($bytes), JSON_HEX_TAG | JSON_HEX_AMP) . ');}());</script>';
+}
+
+/** Screen names without extension, sorted. */
+function a_screen_names(): array
+{
+    $names = array_values(array_unique(array_map(static fn(string $f): string => pathinfo($f, PATHINFO_FILENAME), array_keys(a_screen_list()))));
+    sort($names);
+    return $names;
+}
+
+/** Lines of a screen in the terminal: ANSI through the parser, text screens by their lines (macros not filled in). */
+function a_screen_height(string $name): int
+{
+    $p = cb_screen_path($name);
+    if ($p === null) {
+        return 0;
+    }
+    $raw = (string)file_get_contents($p);
+    $g = str_ends_with($p, '.ans') ? cb_ansi_grid(cb_strip_sauce($raw), 'ans') : cb_ansi_grid($raw, 'pipe');
+    return $g === null ? CB_ART_MAX_H : (int)$g['h'];
+}
+
+/**
+ * [head, menu] height in lines for a menu with head screen: title bar with the empty line below it,
+ * two columns of the items for the lowest level that may enter, empty line and prompt.
+ */
+function a_menu_height(array $m): array
+{
+    $items = (int)DB::val('SELECT COUNT(*) FROM {menu_items} WHERE menu_id=? AND min_level<=?', [(int)$m['id'], (int)$m['min_level']]);
+    return [a_screen_height((string)$m['head_screen']), ((int)$m['head_bar'] === 1 ? 2 : 0) + (int)ceil($items / 2) + 2];
 }
 
 /* ------------------------------------------------------------------ screens */

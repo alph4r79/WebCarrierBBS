@@ -28,6 +28,8 @@ require __DIR__ . '/pages_doors.php';
 require __DIR__ . '/pages_polls.php';
 require __DIR__ . '/pages_questions.php';
 require __DIR__ . '/pages_account.php';
+require __DIR__ . '/pages_mail.php';
+require __DIR__ . '/pages_live.php';
 
 header('X-Frame-Options: DENY');
 header('X-Content-Type-Options: nosniff');
@@ -99,6 +101,7 @@ function a_confirm(string $msg): string
     return ' onsubmit="return confirm(' . h(json_encode($msg, JSON_UNESCAPED_UNICODE)) . ')"';
 }
 
+/** The logged in backend account with its role (full or moderator), checked on every request. */
 function a_admin(): ?array
 {
     $id = (int)($_SESSION['cb_admin'] ?? 0);
@@ -106,11 +109,25 @@ function a_admin(): ?array
         return null;
     }
     $u = DB::row('SELECT * FROM {users} WHERE id=? AND locked=0', [$id]);
-    if (!$u || (int)$u['level'] < Settings::int('sysop_level', 255)) {
+    $role = $u ? cb_backend_role($u) : 'none';
+    if ($role === 'none') {
         unset($_SESSION['cb_admin']);
         return null;
     }
-    return $u;
+    return $u + ['role' => $role];
+}
+
+function a_full(array $admin): bool
+{
+    return ($admin['role'] ?? '') === 'full';
+}
+
+/** A moderator tried something only full accounts may do: short message, log entry, back to the overview. */
+function a_refuse(array $admin, string $what): never
+{
+    cb_log((int)$admin['id'], $admin['handle'], 'Refused for moderator: ' . mb_substr($what, 0, 120));
+    a_flash(t('You are not allowed to do this.'), 'bad');
+    a_go('dash');
 }
 
 function a_levels(): array
@@ -161,6 +178,8 @@ if (!$admin) {
         DB::q('UPDATE {nodes} SET sid=? WHERE sid=?', [session_id(), $old]);
         unset($_SESSION['cb_2fa']);
         $_SESSION['cb_admin'] = (int)$u['id'];
+        // a visit starts with the login, the overview counts since the start of the previous one
+        DB::q('UPDATE {users} SET backend_prev=backend_visit, backend_visit=?, backend_seen=? WHERE id=?', [time(), time(), (int)$u['id']]);
         cb_log((int)$u['id'], $u['handle'], 'Sysop backend login');
         a_go('dash');
     };
@@ -177,7 +196,8 @@ if (!$admin) {
         unset($_SESSION['cb_2fa']);
         a_go('dash');
     } elseif ($post && $step && isset($_POST['code'])) {
-        $u = DB::row('SELECT * FROM {users} WHERE id=? AND locked=0 AND totp_on=1 AND level>=?', [(int)$step['uid'], Settings::int('sysop_level', 255)]);
+        $u = DB::row('SELECT * FROM {users} WHERE id=? AND locked=0 AND totp_on=1', [(int)$step['uid']]);
+        $u = $u && cb_backend_role($u) !== 'none' ? $u : null;
         $blocked = !$u || cb_login_blocked((int)$u['id']);
         $how = $blocked ? null : cb_second_factor($u, (string)$_POST['code']);
         if ($how !== null) {
@@ -200,8 +220,7 @@ if (!$admin) {
     } elseif ($post && isset($_POST['handle'])) {
         $u = DB::row('SELECT * FROM {users} WHERE handle_lc=?', [mb_strtolower(a_in('handle', 30))]);
         $blocked = $u && cb_login_blocked((int)$u['id']);
-        if ($u && !$blocked && password_verify((string)($_POST['pass'] ?? ''), $u['pass']) && (int)$u['locked'] === 0
-            && (int)$u['level'] >= Settings::int('sysop_level', 255)) {
+        if ($u && !$blocked && password_verify((string)($_POST['pass'] ?? ''), $u['pass']) && cb_backend_role($u) !== 'none') {
             if (cb_totp_reset_file($u)) {
                 $u['totp_on'] = 0;
             }
@@ -243,41 +262,91 @@ if (!$admin) {
 
 /* ------------------------------------------------------------------ routing */
 
+// title (null: not in the menu), function, roles that may open it
 $pages = [
-    'dash' => ['Overview', 'page_dash'],
-    'stats' => ['Statistics', 'page_stats'],
-    'settings' => ['Settings', 'page_settings'],
-    'legal' => ['Imprint and privacy', 'page_legal'],
+    'dash' => ['Overview', 'page_dash', 'mod'],
+    'mail' => ['My mail', 'page_mail', 'mod'],
+    'chat' => ['Chat', 'page_chat', 'mod'],
+    'reports' => ['Reports', 'page_reports', 'mod'],
+    'stats' => ['Statistics', 'page_stats', 'full'],
+    'settings' => ['Settings', 'page_settings', 'full'],
+    'legal' => ['Imprint and privacy', 'page_legal', 'full'],
     '-1' => null,
-    'users' => ['Users', 'page_users'],
-    'user' => [null, 'page_user'],
-    'levels' => ['Levels', 'page_levels'],
-    'banlist' => ['Ban list', 'page_banlist'],
-    'questions' => ['Questionnaire', 'page_questions'],
+    'users' => ['Users', 'page_users', 'mod'],
+    'user' => [null, 'page_user', 'full'],
+    'levels' => ['Levels', 'page_levels', 'full'],
+    'banlist' => ['Ban list', 'page_banlist', 'full'],
+    'questions' => ['Questionnaire', 'page_questions', 'full'],
     '-2' => null,
-    'msgareas' => ['Message areas', 'page_msgareas'],
-    'messages' => ['Messages', 'page_messages'],
-    'oneliners' => ['Oneliners', 'page_oneliners'],
-    'polls' => ['Polls', 'page_polls'],
-    'poll' => [null, 'page_poll'],
+    'msgareas' => ['Message areas', 'page_msgareas', 'full'],
+    'messages' => ['Messages', 'page_messages', 'mod'],
+    'oneliners' => ['Oneliners', 'page_oneliners', 'mod'],
+    'polls' => ['Polls', 'page_polls', 'mod'],
+    'poll' => [null, 'page_poll', 'mod'],
     '-3' => null,
-    'fileareas' => ['File areas', 'page_fileareas'],
-    'files' => ['Files', 'page_files'],
-    'import' => ['File import', 'page_import'],
+    'fileareas' => ['File areas', 'page_fileareas', 'full'],
+    'files' => ['Files', 'page_files', 'mod'],
+    'import' => ['File import', 'page_import', 'full'],
     '-4' => null,
-    'menus' => ['Menus', 'page_menus'],
-    'menu' => [null, 'page_menu'],
-    'screens' => ['Screens', 'page_screens'],
-    'screen' => [null, 'page_screen'],
-    'texts' => ['Texts', 'page_texts'],
-    'doors' => ['Doors', 'page_doors'],
-    'log' => ['Log', 'page_log'],
-    'backup' => ['Backup', 'page_backup'],
-    'account' => ['My account', 'page_account'],
-    'wansidraw' => [null, 'page_wansidraw'],
+    'menus' => ['Menus', 'page_menus', 'full'],
+    'menu' => [null, 'page_menu', 'full'],
+    'screens' => ['Screens', 'page_screens', 'full'],
+    'screen' => [null, 'page_screen', 'full'],
+    'texts' => ['Texts', 'page_texts', 'full'],
+    'doors' => ['Doors', 'page_doors', 'full'],
+    'log' => ['Log', 'page_log', 'mod'],
+    'backup' => ['Backup', 'page_backup', 'full'],
+    'account' => ['My account', 'page_account', 'mod'],
+    'wansidraw' => [null, 'page_wansidraw', 'full'],
+    'status' => [null, 'page_status', 'mod'],
+    'chatpoll' => [null, 'page_chatpoll', 'mod'],
+];
+/*
+ * What a moderator may do on the pages he may open: [allowed POST actions or null for all,
+ * forbidden POST actions]. A POST needs one allowed and no forbidden action field.
+ */
+$modRules = [
+    'dash' => [['kick', 'dismiss', 'chat_start'], ['broadcast', 'sysmsg_save', 'sysmsg_clear', 'update_now', 'check_now', 'enable_check', 'skip']],
+    'messages' => [null, ['circ_prepare', 'circ_send', 'circ_next']],
+    'oneliners' => [['del', 'del_tele', 'clear_tele'], []],
+    'polls' => [['create'], []],
+    'poll' => [['close'], ['delete', 'save']],
+    'files' => [['approve', 'del', 'save_file', 'bulk'], ['upload']],
+    'users' => [['approve_one', 'delete_one', 'bulk'], ['create']],
+    'log' => [[], ['clear']],
 ];
 if (!isset($pages[$page]) || $pages[$page] === null) {
     $page = 'dash';
+}
+cb_backend_touch((int)$admin['id']);
+if (!a_full($admin)) {
+    if ($pages[$page][2] !== 'mod') {
+        a_refuse($admin, 'page ' . $page);
+    }
+    $rule = $modRules[$page] ?? [null, []];
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        $keys = array_keys($_POST);
+        $bad = array_intersect($keys, $rule[1]);
+        if ($bad || ($rule[0] !== null && !array_intersect($keys, $rule[0]))) {
+            a_refuse($admin, 'page ' . $page . ', ' . implode(', ', array_slice(array_diff($keys, ['csrf']), 0, 3)));
+        }
+    }
+    // users: only the list of users waiting for validation, the log without the export
+    if (($page === 'users' && ($_GET['filter'] ?? '') !== 'pending') || ($page === 'log' && isset($_GET['csv']))) {
+        a_refuse($admin, 'page ' . $page . ' ' . http_build_query($_GET));
+    }
+}
+// every change in the backend leaves a log entry; actions without an own entry get a general one
+// chat lines are no change of the board
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && !in_array($page, ['status', 'chatpoll'], true) && !($page === 'chat' && isset($_POST['line']))
+    && cb_csrf_ok($_POST['csrf'] ?? null)) {
+    $logBefore = (int)DB::val('SELECT COALESCE(MAX(id),0) FROM {log}');
+    register_shutdown_function(static function () use ($admin, $page, $logBefore) {
+        if (!DB::val('SELECT COUNT(*) FROM {log} WHERE id>? AND user_id=?', [$logBefore, (int)$admin['id']])) {
+            $keys = array_slice(array_values(array_diff(array_keys($_POST), ['csrf'])), 0, 3);
+            cb_log((int)$admin['id'], $admin['handle'], 'Backend ' . $page . ': ' . implode(', ', $keys));
+        }
+    });
 }
 
 ob_start();
@@ -298,7 +367,7 @@ $current = ['user' => 'users', 'menu' => 'menus', 'screen' => 'screens', 'poll' 
 <body class="admin">
 <header class="band">
   <span class="brand"><?= h(Settings::get('bbs_name', 'WebCarrier BBS')) ?></span>
-  <span class="where"><?= h($admin['handle']) ?>
+  <span class="where"><?= h($admin['handle']) ?><?= a_full($admin) ? '' : ' <span class="role">' . h(t('Moderator')) . '</span>' ?>
     <form method="post" action="<?= h(a_url('logout')) ?>" style="display:inline"><?= a_csrf() ?>
       <button class="btn small ghost" style="color:#fff;border-color:#aab" type="submit"><?= h(t('Log out')) ?></button></form>
   </span>
@@ -306,12 +375,13 @@ $current = ['user' => 'users', 'menu' => 'menus', 'screen' => 'screens', 'poll' 
 <nav class="nav" aria-label="<?= h(t('Sysop backend')) ?>">
 <?php foreach ($pages as $key => $pg): ?>
   <?php if ($pg === null): ?><span class="sep"></span><?php continue; endif; ?>
-  <?php if ($pg[0] === null) { continue; } ?>
+  <?php if ($pg[0] === null || ($pg[2] !== 'mod' && !a_full($admin))) { continue; } ?>
   <a href="<?= h(a_url((string)$key)) ?>"<?= $key === $current ? ' aria-current="page"' : '' ?>><?= h(t($pg[0])) ?></a>
 <?php endforeach; ?>
   <span class="sep"></span>
   <a href="../" target="_blank" rel="noopener"><?= h(t('Open the BBS')) ?></a>
 </nav>
+<?= a_live_markup($admin) ?>
 <main class="page">
 <?php foreach ($flash as [$type, $msg]): ?>
   <div class="flash <?= h($type) ?>"><p><?= h($msg) ?></p></div>
@@ -319,5 +389,6 @@ $current = ['user' => 'users', 'menu' => 'menus', 'screen' => 'screens', 'poll' 
 <?= $content ?>
 </main>
 <?= cb_credit(t('Source code')) ?>
+<script src="../assets/sysop.js?v=<?= CB_VERSION ?>"></script>
 </body>
 </html>

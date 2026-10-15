@@ -220,11 +220,10 @@ trait EngineMessages
         }
         $areas = $v === '2' ? array_map('intval', array_column($this->readableAreas(), 'id')) : [(int)($this->curMArea()['id'] ?? 0)];
         $areas = $areas ?: [0];
-        $like = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], mb_strtolower($q)) . '%';
+        [$cond, $par] = cb_msg_search($q);
         $in = implode(',', array_fill(0, count($areas), '?'));
-        $ids = array_map('intval', array_column(DB::all('SELECT id FROM {messages} WHERE private=0 AND area_id IN (' . $in . ') AND (' .
-            DB::lower('subject') . " LIKE ? ESCAPE '!' OR " . DB::lower('body') . " LIKE ? ESCAPE '!' OR " . DB::lower('from_name') . " LIKE ? ESCAPE '!')
-            ORDER BY id DESC LIMIT 51", array_merge($areas, [$like, $like, $like])), 'id'));
+        $ids = array_map('intval', array_column(DB::all('SELECT id FROM {messages} WHERE private=0 AND area_id IN (' . $in . ') AND ' . $cond .
+            ' ORDER BY id DESC LIMIT 51', array_merge($areas, $par)), 'id'));
         if (!$ids) {
             unset($this->S['ms']);
             $this->nl();
@@ -417,6 +416,9 @@ trait EngineMessages
             }
         }
         $keys = "NPRAQOTI?\r";
+        if ($m && $this->canReport($m)) {
+            $keys .= '!';
+        }
         $prompt = $this->L('reader_prompt');
         if ($m && $this->isSysop() && (int)$m['private'] === 0) {
             $keys .= 'DM';
@@ -450,6 +452,13 @@ trait EngineMessages
                 $this->nl();
                 $this->say($this->isSysop() ? 'reader_help_sys' : 'reader_help');
                 $this->nl();
+                $this->readerPrompt();
+                return;
+            case '!':
+                if ($m && $this->canReport($m)) {
+                    $this->startReport($m);
+                    return;
+                }
                 $this->readerPrompt();
                 return;
             case 'O':
@@ -522,6 +531,46 @@ trait EngineMessages
         $this->go('rmsg');
     }
 
+    /** Callers report public messages and private mail they got, not their own. Sysops do not report. */
+    private function canReport(array $m): bool
+    {
+        if ($this->isSysop() || (int)$m['from_id'] === (int)$this->user['id']) {
+            return false;
+        }
+        return (int)$m['private'] === 0 || (int)$m['to_id'] === (int)$this->user['id'];
+    }
+
+    private function startReport(array $m): void
+    {
+        $uid = (int)$this->user['id'];
+        $this->nl();
+        if (DB::val('SELECT COUNT(*) FROM {msg_reports} WHERE msg_id=? AND reporter_id=?', [(int)$m['id'], $uid])) {
+            $this->say('rep_already');
+        } elseif ((int)DB::val('SELECT COUNT(*) FROM {msg_reports} WHERE reporter_id=? AND time>=?', [$uid, strtotime('today')]) >= 10) {
+            $this->say('rep_limit');
+        } else {
+            $this->S['st'] = 'rreport';
+            $this->line(60, $this->L('rep_reason'));
+            return;
+        }
+        $this->nl();
+        $this->readerPrompt();
+    }
+
+    private function i_rreport(string $v): void
+    {
+        $m = DB::row('SELECT * FROM {messages} WHERE id=?', [(int)($this->S['rd']['mid'] ?? 0)]);
+        $uid = (int)$this->user['id'];
+        if ($m && $this->canReport($m) && !DB::val('SELECT COUNT(*) FROM {msg_reports} WHERE msg_id=? AND reporter_id=?', [(int)$m['id'], $uid])) {
+            DB::insert('msg_reports', ['msg_id' => (int)$m['id'], 'reporter_id' => $uid, 'reason' => CP437::clean($v, 60), 'time' => time(),
+                'status' => 'open', 'msg_from' => mb_substr((string)$m['from_name'], 0, 30), 'msg_subject' => mb_substr((string)$m['subject'], 0, 80)]);
+            cb_log($uid, (string)$this->user['handle'], 'Reported message ' . $m['id']);
+            $this->say('rep_thanks');
+            $this->nl();
+        }
+        $this->readerPrompt();
+    }
+
     /** Show another message right after the current one; N continues where the reader was. */
     private function readerInsert(int $id): void
     {
@@ -583,38 +632,8 @@ trait EngineMessages
         $this->startPost([
             'private' => $private ? 1 : 0, 'area_id' => (int)$m['area_id'],
             'to' => $m['from_name'], 'to_id' => (int)$m['from_id'], 'subj' => mb_substr($subj, 0, 70),
-            'reply_to' => (int)$m['id'], 'quote' => $this->quoteLines($m), 'back' => 'reader',
+            'reply_to' => (int)$m['id'], 'quote' => cb_quote_lines($m), 'back' => 'reader',
         ]);
-    }
-
-    private function quoteLines(array $m): array
-    {
-        $ini = '';
-        foreach (preg_split('/[\s._\-]+/u', (string)$m['from_name']) as $p) {
-            if ($p !== '' && mb_strlen($ini) < 2) {
-                $ini .= mb_strtoupper(mb_substr($p, 0, 1));
-            }
-        }
-        // without the signature block, it starts with the line "-- "
-        $body = (string)$m['body'];
-        $lines = explode("\n", str_replace("\r", '', $body));
-        foreach ($lines as $i => $l) {
-            if (rtrim($l) === '--') {
-                $body = implode("\n", array_slice($lines, 0, $i));
-                break;
-            }
-        }
-        $out = [];
-        foreach (cb_wrap($body, 70) as $l) {
-            if (trim($l) === '') {
-                continue;
-            }
-            $out[] = ' ' . $ini . '> ' . $l;
-            if (count($out) >= 40) {
-                break;
-            }
-        }
-        return $out;
     }
 
     /* ------------------------------------------------------------ posting */
