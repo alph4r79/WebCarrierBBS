@@ -518,7 +518,17 @@
         if (line.length) { line = line.slice(0, -1); bs(); }
         return;
       }
-      if (k === '\x1b') { return; }
+      if (k === '\x1b') {
+        // only lines that allow it (x): drop the typed text and report an abort
+        if (ask.t === 'line' && ask.x) {
+          while (line.length) { line = line.slice(0, -1); bs(); }
+          ask = null;
+          term.showCursor(false);
+          term.write('\r\n');
+          send('in', '\x1b');
+        }
+        return;
+      }
       if (CP.canType(k) && line.length < (ask.m || 80)) {
         line += k;
         term.print(ask.p ? '*' : k);

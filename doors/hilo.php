@@ -15,12 +15,13 @@ if (!class_exists('HiLoDoor')) {
         private const TEXTS = [
             'de' => [
                 'title' => 'Hi-Lo, die Zahlenrate-Door',
-                'intro' => '|07Ich denke an eine Zahl zwischen |151|07 und |15100|07. Du hast |157|07 Versuche.',
+                'intro' => '|07Ich denke an eine Zahl zwischen |151|07 und |15100|07. Du hast |157|07 Versuche. |15Esc|07 gibt auf.',
                 'guess' => '|07Versuch {1} von 7, dein Tipp|08: |15',
                 'higher' => '|11Höher!|07',
                 'lower' => '|11Niedriger!|07',
                 'win' => '|10Richtig! Du hast die {1} in {2} Versuchen gefunden.|07',
                 'lose' => '|12Keine Versuche mehr. Die Zahl war {1}.|07',
+                'giveup' => '|12Aufgegeben. Die Zahl war {1}.|07',
                 'best' => '|14Neuer persönlicher Rekord!|07',
                 'again' => '|07Nochmal spielen',
                 'top' => '|03Ruhmeshalle (wenigste Versuche)',
@@ -30,12 +31,13 @@ if (!class_exists('HiLoDoor')) {
             ],
             'en' => [
                 'title' => 'Hi-Lo, the number guessing door',
-                'intro' => '|07I am thinking of a number between |151|07 and |15100|07. You have |157|07 tries.',
+                'intro' => '|07I am thinking of a number between |151|07 and |15100|07. You have |157|07 tries. |15Esc|07 gives up.',
                 'guess' => '|07Try {1} of 7, your guess|08: |15',
                 'higher' => '|11Higher!|07',
                 'lower' => '|11Lower!|07',
                 'win' => '|10Correct! You found {1} in {2} tries.|07',
                 'lose' => '|12Out of tries. The number was {1}.|07',
+                'giveup' => '|12You gave up. The number was {1}.|07',
                 'best' => '|14New personal best!|07',
                 'again' => '|07Play again',
                 'top' => '|03Hall of fame (fewest tries)',
@@ -53,6 +55,18 @@ if (!class_exists('HiLoDoor')) {
                 $s = str_replace('{' . ($i + 1) . '}', (string)$a, $s);
             }
             return $s;
+        }
+
+        /** True if the caller cancelled the line with Escape. Boards before 1.10.0 have no cancelled(). */
+        private function cancelled(Engine $e): bool
+        {
+            return method_exists($e, 'cancelled') && $e->cancelled();
+        }
+
+        /** Line for the next guess, Escape cancels it. */
+        private function askGuess(Engine $e, int $try): void
+        {
+            $e->line(3, $this->t($e, 'guess', $try), false, true);
         }
 
         /** Best result of the caller to the high score list of the board (fewer tries are better). */
@@ -83,7 +97,7 @@ if (!class_exists('HiLoDoor')) {
             $st = ['n' => random_int(1, 100), 'try' => 1, 'phase' => 'guess'];
             $e->write($this->t($e, 'intro'));
             $e->nl(2);
-            $e->line(3, $this->t($e, 'guess', 1));
+            $this->askGuess($e, 1);
         }
 
         public function input(Engine $e, string $v): void
@@ -98,9 +112,16 @@ if (!class_exists('HiLoDoor')) {
                 }
                 return;
             }
+            // Escape is an abort, not an empty line: the game ends, nothing is counted
+            if ($this->cancelled($e)) {
+                $e->write($this->t($e, 'giveup', $st['n']));
+                $e->nl();
+                $this->askAgain($e, $st);
+                return;
+            }
             $g = (int)trim($v);
             if ($g < 1 || $g > 100) {
-                $e->line(3, $this->t($e, 'guess', $st['try']));
+                $this->askGuess($e, $st['try']);
                 return;
             }
             if ($g === $st['n']) {
@@ -125,7 +146,7 @@ if (!class_exists('HiLoDoor')) {
                 $this->askAgain($e, $st);
                 return;
             }
-            $e->line(3, $this->t($e, 'guess', $st['try']));
+            $this->askGuess($e, $st['try']);
         }
 
         private function askAgain(Engine $e, array &$st): void
@@ -159,6 +180,6 @@ return [
     'name' => 'Hi-Lo',
     'class' => 'HiLoDoor',
     'description' => 'Guess a number between 1 and 100 in seven tries. Keeps a hall of fame.',
-    'version' => '1.2.0',
+    'version' => '1.3.0',
     'score' => 'low',
 ];

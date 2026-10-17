@@ -47,6 +47,7 @@ final class Engine
     private ?array $levelRow = null;
     private array $mcache = [];
     private bool $preview = false;
+    private bool $cancel = false;
 
     public function __construct()
     {
@@ -131,6 +132,12 @@ final class Engine
                     $this->ask = $this->S['ask'] ?? null;
                 }
             } else {
+                // Escape in a line asked for with $esc: an abort instead of a line, see cancelled()
+                $ask = $this->S['ask'] ?? null;
+                if ($v === "\x1b" && is_array($ask) && ($ask['t'] ?? '') === 'line' && !empty($ask['x'])) {
+                    $this->cancel = true;
+                    $v = '';
+                }
                 $this->input($v);
             }
         }
@@ -340,11 +347,21 @@ final class Engine
         }
     }
 
-    public function line(int $max, string $prompt, bool $mask = false): void
+    /** Line prompt. With $esc the caller can cancel it with Escape: the handler gets '' and cancelled() is true. */
+    public function line(int $max, string $prompt, bool $mask = false, bool $esc = false): void
     {
         unset($this->S['dhot']);
         $this->w->write($prompt);
         $this->ask = ['t' => 'line', 'm' => $max, 'p' => $mask];
+        if ($esc) {
+            $this->ask['x'] = true;
+        }
+    }
+
+    /** True while the current input is the abort of a line(..., true) with Escape. */
+    public function cancelled(): bool
+    {
+        return $this->cancel;
     }
 
     public function yn(string $prompt, bool $defYes): void

@@ -1,6 +1,6 @@
 # WebCarrier BBS: Sysop-Handbuch
 
-Version 1.9.0
+Version 1.10.0
 
 Für Betreiber der Mailbox: Installation, Einrichtung, Backend, Menüs, Screens, Dateiimport, Doors und Betrieb.
 

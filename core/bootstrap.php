@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 define('CB_ROOT', dirname(__DIR__));
 define('CB_DATA', CB_ROOT . '/data');
-define('CB_VERSION', '1.9.0');
+define('CB_VERSION', '1.10.0');
 define('CB_AUTHOR', 'Christoph Scheel');
 define('CB_AUTHOR_URL', 'https://chrisscheel.de');
 // AGPL section 13: users of a networked installation must be able to get the source.

@@ -140,7 +140,7 @@ Am Ende jedes Aufrufs forderst du genau eine Eingabe an:
 | `hot($tasten, $prompt)` | Eine Taste aus `$tasten` (Großbuchstaben), `''` heißt beliebige Taste, `"\r"` in der Liste erlaubt Enter | Die Taste als Großbuchstabe, Enter als `"\r"`. Bei `''` immer `"\r"` |
 | `pause()` | Enter | Immer `"\r"` |
 | `wait($ms, $prompt)` | Keine Taste: Die Ausgabe bleibt `$ms` Millisekunden stehen (0 bis 5000), dann geht es von selbst weiter | Immer `''` |
-| `line($max, $prompt, $maske)` | Eine Zeile mit höchstens `$max` Zeichen, mit `$maske = true` verdeckt | Der eingegebene Text, ungefiltert |
+| `line($max, $prompt, $maske, $esc)` | Eine Zeile mit höchstens `$max` Zeichen, mit `$maske = true` verdeckt. Mit `$esc = true` kann der Anrufer sie mit Escape abbrechen (ab 1.10.0, siehe unten) | Der eingegebene Text, ungefiltert. Nach einem Abbruch `''` und `$e->cancelled()` ist `true` |
 | `yn($prompt, $standardJa)` | Ja oder Nein in der Sprache der Box (J/N oder Y/N), Enter nimmt den Standard | Die Taste, auswerten mit `$e->yes($v, $standardJa)` |
 | `editor($zeilen, $breite, $max)` | Mehrzeiligen Text im Zeileneditor, `$zeilen` sind vorgegebene Zeilen | Der Text mit `"\n"` zwischen den Zeilen, `"\x00"` wenn der Anrufer abgebrochen oder nichts geschrieben hat |
 
@@ -155,6 +155,18 @@ Einige Dinge, die man gern vergisst:
   }
   $this->computerZug($e);                   // ältere Versionen: sofort
   ```
+- **Abbrechen mit Escape** (ab Version 1.10.0). Fordert die Door eine Zeile mit `$e->line($max, $prompt, false, true)` an, beendet Escape die Eingabe sofort. Das Terminal verwirft die bisher getippten Zeichen, und `input()` wird mit `''` aufgerufen. Ob das ein Abbruch oder eine leere Zeile war, sagt `$e->cancelled()`: `true` nach Escape, sonst `false`, auch bei einer leeren Zeile. Die Methode gilt nur für den laufenden Aufruf von `input()`. Ohne `$esc` (Standard) ignoriert das Terminal Escape in Zeilen wie bisher, die Door bekommt davon nichts mit. Ein Abbruch kommt bewusst nicht einfach als leere Zeile an, denn bei manchen Abfragen hat eine leere Zeile eine eigene Bedeutung, etwa „alles“ bei einem Betrag. Deshalb muss eine Door den Abbruch ausdrücklich anfordern. Bei `hot()`, `yn()`, `pause()` und im Editor ändert sich nichts. Soll die Door auch auf älteren Versionen laufen: Den vierten Parameter von `line()` ignorieren ältere Versionen einfach, `cancelled()` gibt es dort nicht, prüf es mit `method_exists()`:
+
+  ```php
+  // in input(), wenn die Door nach einem Betrag gefragt hat
+  if (method_exists($e, 'cancelled') && $e->cancelled()) {
+      $this->zurueckInsMenue($e);          // Escape: nichts buchen
+      return;
+  }
+  $betrag = trim($v) === '' ? $guthaben : (int)trim($v);   // leer heißt alles
+  ```
+
+  Die mitgelieferte Door Hi-Lo macht es so: Escape bei der Frage nach dem Tipp gibt das Spiel auf.
 - **Großbuchstaben bei `hot()`.** Ab Version 1.5.0 kommt die Taste in `input()` immer groß an, auch wenn der Anrufer `j` drückt. Ältere Versionen liefern die Taste so, wie sie gedrückt wurde. Ein zusätzliches `$k = strtoupper($v);` schadet nicht und hält die Door mit älteren Versionen verträglich.
 - **Zeilen säubern.** Für Text nimmst du `CP437::clean($v, $max)`. Das entfernt Steuerzeichen, kürzt auf `$max` Zeichen und schneidet Leerzeichen am Rand ab. Für Zahlen reicht `(int)trim($v)`, prüf aber den erlaubten Bereich.
 - **Prompts** sind normaler Text mit Pipe-Codes. Endet der Prompt mit `|15`, erscheint die Eingabe des Anrufers weiß.
@@ -259,7 +271,7 @@ Daraus folgt: **Speichere wichtige Fortschritte sofort** mit `doorSet()`, nicht 
 
 ## 9. Beispiel: ein Gästebuch
 
-Ein vollständiges Beispiel, das alles Wichtige zeigt: eigene Texte auf Deutsch und Englisch, Tasten und Zeilen abfragen, den Zustand zwischen zwei Eingaben, Daten der ganzen Door unter der Id `0` und einen Zähler pro User. Die Datei gehört nach `doors/gaestebuch.php`. Ein zweites, etwas längeres Beispiel ist das mitgelieferte Spiel `doors/hilo.php` mit Spielstand und Bestenliste.
+Ein vollständiges Beispiel, das alles Wichtige zeigt: eigene Texte auf Deutsch und Englisch, Tasten und Zeilen abfragen, den Zustand zwischen zwei Eingaben, Daten der ganzen Door unter der Id `0` und einen Zähler pro User. Die Datei gehört nach `doors/gaestebuch.php`. Ein zweites, etwas längeres Beispiel ist das mitgelieferte Spiel `doors/hilo.php` mit Spielstand, Bestenliste und Abbruch mit Escape.
 
 ```php
 <?php
@@ -402,7 +414,8 @@ Die Methoden der Engine, die für Doors gedacht sind. `$e` ist das Engine-Objekt
 | `screen($name)` | Screen aus `data/screens/` zeigen, `false` wenn es ihn nicht gibt |
 | `w->raw($bytes)` | CP437-Bytes unverändert ausgeben, etwa eine ANSI-Datei |
 | `hot($tasten, $prompt = '', $clear = false)` | Eine Taste abfragen, `$clear` löscht den Prompt nach dem Tastendruck |
-| `line($max, $prompt, $maske = false)` | Eine Zeile abfragen |
+| `line($max, $prompt, $maske = false, $esc = false)` | Eine Zeile abfragen, mit `$esc` per Escape abbrechbar (ab 1.10.0) |
+| `cancelled()` | `true`, wenn die aktuelle Eingabe der Abbruch einer Zeile mit Escape ist, ab 1.10.0 |
 | `yn($prompt, $standardJa)` | Ja/Nein abfragen |
 | `yes($v, $standardJa)` | Antwort auf `yn()` auswerten |
 | `pause()` | „Enter weiter“, danach `input()` mit `"\r"` |
@@ -443,6 +456,7 @@ Bevor du eine Door weitergibst:
 - [ ] `start()` und jeder Weg durch `input()` enden mit genau einer Eingabeanforderung oder mit `leaveDoor()`.
 - [ ] Kein `echo`, kein `exit`.
 - [ ] Zeilen werden mit `CP437::clean()` gesäubert.
+- [ ] Wo Escape abbrechen soll, fragt die Door mit `line(..., true)` und prüft in `input()` zuerst `cancelled()`.
 - [ ] Text von Anrufern geht durch `cb_esc()`.
 - [ ] Alle Texte stehen in der Door selbst, auf Deutsch und Englisch, und keine Zeile ist breiter als 79 Zeichen.
 - [ ] Wichtige Fortschritte werden sofort mit `doorSet()` gespeichert.

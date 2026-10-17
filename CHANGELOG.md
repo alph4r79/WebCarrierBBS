@@ -2,6 +2,17 @@
 
 All notable changes to WebCarrier BBS. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version numbers follow [Semantic Versioning](https://semver.org/).
 
+## [1.10.0] - 2026-10-17
+
+### Added
+
+- Doors can let callers cancel a line with Escape: `line()` takes a fourth parameter, the door then gets an empty input and `cancelled()` returns true, so an abort can be told apart from an empty line. Doors that do not ask for it see no change.
+- Hi-Lo: Escape at the guess gives up the game (door version 1.3.0).
+
+### Fixed
+
+- Escape in a line of a door was swallowed by the terminal, so a door had no way to cancel an input.
+
 ## [1.9.0] - 2026-10-14
 
 ### Added
@@ -198,6 +209,7 @@ First public release.
 - Web installer for SQLite or MySQL/MariaDB
 - German and English
 
+[1.10.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/alph4r79/webcarrierbbs/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/alph4r79/webcarrierbbs/compare/v1.7.0...v1.8.0
