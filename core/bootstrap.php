@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 define('CB_ROOT', dirname(__DIR__));
 define('CB_DATA', CB_ROOT . '/data');
-define('CB_VERSION', '1.10.0');
+define('CB_VERSION', '1.11.0');
 define('CB_AUTHOR', 'Christoph Scheel');
 define('CB_AUTHOR_URL', 'https://chrisscheel.de');
 // AGPL section 13: users of a networked installation must be able to get the source.
@@ -23,6 +23,7 @@ require __DIR__ . '/update.php';
 require __DIR__ . '/totp.php';
 require __DIR__ . '/ansiart.php';
 require __DIR__ . '/backend.php';
+require __DIR__ . '/upcheck.php';
 
 function cb_installed(): bool
 {
@@ -48,8 +49,7 @@ function cb_session(): void
     if (session_status() === PHP_SESSION_ACTIVE) {
         return;
     }
-    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    $https = cb_https();
     session_name('WEBCARRIERBBS');
     session_set_cookie_params([
         'lifetime' => 0,
@@ -61,6 +61,22 @@ function cb_session(): void
     ini_set('session.gc_maxlifetime', '7200');
     ini_set('session.use_strict_mode', '1');
     session_start();
+}
+
+function cb_https(): bool
+{
+    return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+}
+
+/** Address of the board as the caller reached it, e.g. "https://bbs.example.org/", '' without a host. */
+function cb_bbs_url(): string
+{
+    $host = preg_replace('/[^A-Za-z0-9.\-:\[\]]/', '', (string)($_SERVER['HTTP_HOST'] ?? '')) ?? '';
+    if ($host === '') {
+        return '';
+    }
+    return (cb_https() ? 'https://' : 'http://') . $host . cb_base_path();
 }
 
 /** Web path of the installation, e.g. "/" or "/bbs/". */

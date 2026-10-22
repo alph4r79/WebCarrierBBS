@@ -1,7 +1,9 @@
 <?php
 /**
  * WebCarrier BBS: receives an upload while the engine waits in the upload state.
- * The file is parked in data/tmp until the user has entered a description.
+ * The file is checked at once (signature, damaged ZIP, double by checksum), a rejected one is
+ * deleted. Otherwise it gets the BBS ad and is parked in data/tmp until the user has entered
+ * a description.
  *
  * Copyright (C) 2026 Christoph Scheel <https://chrisscheel.de>
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -26,6 +28,17 @@ function up_fail(string $msg): never
     exit;
 }
 
+/** Rejected by the check: file gone, log entry, the engine shows the reason (see i_fup()). */
+function up_reject(string $tmp, array $u, string $name, string $why, string $key, array $args = []): never
+{
+    @unlink($tmp);
+    // not "Upload ...", the statistics count those lines
+    cb_log((int)$u['id'], (string)$u['handle'], 'Rejected upload ' . $name . ': ' . $why);
+    $_SESSION['cb_up_rej'] = ['k' => $key, 'a' => $args];
+    echo json_encode(['ok' => false, 'rej' => true]);
+    exit;
+}
+
 if (!cb_csrf_ok((string)($_POST['csrf'] ?? ''))) {
     up_fail('session');
 }
@@ -39,6 +52,7 @@ $a = DB::row('SELECT * FROM {file_areas} WHERE id=?', [$area]);
 if (!$u || !$a || (int)$a['uploads'] !== 1 || (int)$a['ul_level'] > (int)$u['level']) {
     up_fail('denied');
 }
+unset($_SESSION['cb_up_rej']);
 $file = $_FILES['file'] ?? null;
 if (!$file || !is_array($file) || ($file['error'] ?? 1) !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
     up_fail(Lang::get('fup_failed'));
@@ -74,6 +88,19 @@ if (!move_uploaded_file($file['tmp_name'], $tmp)) {
     up_fail(Lang::get('fup_failed'));
 }
 
+$why = cb_upload_check($tmp, $name);
+if ($why !== null) {
+    $msg = ['type' => ['content does not match the extension', 'fup_rej_type'], 'damaged' => ['damaged archive', 'fup_rej_damaged'],
+        'limit' => ['archive over the limits', 'fup_rej_limit']][$why];
+    up_reject($tmp, $u, $name, $msg[0], $msg[1]);
+}
+$orig = (string)hash_file('sha256', $tmp);
+$dupe = cb_file_dupe($orig);
+if ($dupe !== null) {
+    [$key, $args, $why] = cb_dupe_message($dupe, (int)$u['level']);
+    up_reject($tmp, $u, $name, $why, $key, $args);
+}
+
 $diz = '';
 if ($ext === 'zip' && class_exists('ZipArchive')) {
     $z = new ZipArchive();
@@ -91,5 +118,14 @@ if ($ext === 'zip' && class_exists('ZipArchive')) {
     }
 }
 
-$_SESSION['cb_up'] = ['tmp' => $tmp, 'name' => $name, 'size' => (int)filesize($tmp), 'diz' => mb_substr($diz, 0, 2000)];
+// the ad after FILE_ID.DIZ was read, size and checksum afterwards
+if ($ext === 'zip' && Settings::get('bbs_ad_on', '0') === '1') {
+    $err = cb_ad_insert($tmp, (string)$u['handle']);
+    if ($err !== null) {
+        cb_log((int)$u['id'], (string)$u['handle'], 'BBS ad not added to upload ' . $name . ': ' . $err);
+    }
+    clearstatcache(true, $tmp);
+}
+$_SESSION['cb_up'] = ['tmp' => $tmp, 'name' => $name, 'size' => (int)filesize($tmp), 'diz' => mb_substr($diz, 0, 2000),
+    'sha256' => (string)hash_file('sha256', $tmp), 'sha256_orig' => $orig];
 echo json_encode(['ok' => true]);

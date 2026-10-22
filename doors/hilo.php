@@ -69,20 +69,62 @@ if (!class_exists('HiLoDoor')) {
             $e->line(3, $this->t($e, 'guess', $try), false, true);
         }
 
-        /** Best result of the caller to the high score list of the board (fewer tries are better). */
-        private function reportBest(Engine $e): void
+        /** True on boards with the high score list (1.6.0 and newer). Older ones keep the best value in door_data. */
+        private function hasList(Engine $e): bool
         {
-            $best = $e->doorGet('best');
-            if ($best !== null) {
-                $n = (int)$best;
+            return method_exists($e, 'doorScore') && function_exists('cb_door_top') && function_exists('cb_door_rank');
+        }
+
+        private function doorId(Engine $e): string
+        {
+            return (string)($e->S['door'] ?? 'hilo');
+        }
+
+        /** Best result of the caller: from the high score list, on old boards from door_data. Null if none. */
+        private function best(Engine $e): ?int
+        {
+            if ($this->hasList($e) && $e->user) {
+                $rank = cb_door_rank($this->doorId($e), 'low', (int)$e->user['id']);
+                if ($rank !== null) {
+                    return (int)$rank[1]['value'];
+                }
+            }
+            $old = $e->doorGet('best');
+            return $old === null ? null : (int)$old;
+        }
+
+        /** New best result: into the high score list, only boards without it still use door_data. */
+        private function saveBest(Engine $e, int $n): void
+        {
+            if ($this->hasList($e)) {
                 $e->doorScore($n, $this->t($e, $n === 1 ? 'try1' : 'tries', $n));
+            } else {
+                $e->doorSet('best', (string)$n);
+            }
+        }
+
+        /**
+         * A best value from door_data that is not in the list yet (board without the takeover of 1.11.0)
+         * goes into the list, a better entry there is kept.
+         */
+        private function takeOverBest(Engine $e): void
+        {
+            if (!$this->hasList($e) || !$e->user) {
+                return;
+            }
+            $old = $e->doorGet('best');
+            if ($old === null || (int)$old < 1) {
+                return;
+            }
+            $rank = cb_door_rank($this->doorId($e), 'low', (int)$e->user['id']);
+            if ($rank === null || (int)$rank[1]['value'] > (int)$old) {
+                $this->saveBest($e, (int)$old);
             }
         }
 
         public function start(Engine $e): void
         {
-            // players from before 1.2.0 get into the list right away
-            $this->reportBest($e);
+            $this->takeOverBest($e);
             $e->cls();
             $e->bar($this->t($e, 'title'));
             $e->nl();
@@ -127,13 +169,12 @@ if (!class_exists('HiLoDoor')) {
             if ($g === $st['n']) {
                 $e->write($this->t($e, 'win', $st['n'], $st['try']));
                 $e->nl();
-                $best = $e->doorGet('best');
-                if ($best === null || (int)$best > $st['try']) {
-                    $e->doorSet('best', (string)$st['try']);
+                $best = $this->best($e);
+                if ($best === null || $best > $st['try']) {
+                    $this->saveBest($e, (int)$st['try']);
                     $e->write($this->t($e, 'best'));
                     $e->nl();
                 }
-                $this->reportBest($e);
                 $this->askAgain($e, $st);
                 return;
             }
@@ -156,10 +197,15 @@ if (!class_exists('HiLoDoor')) {
             $e->yn($this->t($e, 'again'), true);
         }
 
+        /** Top 5 from the high score list of the board, the same order as the box above the doors. */
         private function hallOfFame(Engine $e): void
         {
-            $rows = $e->doorAll('best');
-            usort($rows, static fn($a, $b) => (int)$a['v'] <=> (int)$b['v']);
+            if ($this->hasList($e)) {
+                $rows = array_map(static fn($r) => ['handle' => $r['handle'], 'v' => $r['value']], cb_door_top($this->doorId($e), 'low', 5));
+            } else {
+                $rows = $e->doorAll('best');
+                usort($rows, static fn($a, $b) => (int)$a['v'] <=> (int)$b['v']);
+            }
             $e->write($this->t($e, 'top'));
             $e->nl();
             if (!$rows) {
@@ -180,6 +226,6 @@ return [
     'name' => 'Hi-Lo',
     'class' => 'HiLoDoor',
     'description' => 'Guess a number between 1 and 100 in seven tries. Keeps a hall of fame.',
-    'version' => '1.3.0',
+    'version' => '1.3.1',
     'score' => 'low',
 ];

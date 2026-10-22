@@ -688,6 +688,16 @@ trait EngineFiles
             $this->menu();
             return;
         }
+        // rejected by the check in upload.php: the reason, then the next try
+        $rej = $_SESSION['cb_up_rej'] ?? null;
+        unset($_SESSION['cb_up_rej']);
+        if (is_array($rej) && str_starts_with((string)($rej['k'] ?? ''), 'fup_rej_')) {
+            $this->nl();
+            $this->say((string)$rej['k'], ...array_map(static fn($a) => cb_esc((string)$a), (array)($rej['a'] ?? [])));
+            $this->nl(2);
+            $this->upload($this->L('fup_prompt'));
+            return;
+        }
         $up = $_SESSION['cb_up'] ?? null;
         if (!$up || !is_file($up['tmp'] ?? '')) {
             $this->nl();
@@ -762,6 +772,19 @@ trait EngineFiles
             $this->pause();
             return;
         }
+        // the same file may have come in while this caller typed the description
+        $sha = (string)($up['sha256'] ?? '');
+        $orig = (string)($up['sha256_orig'] ?? $sha);
+        $dupe = cb_file_dupe($orig);
+        if ($dupe !== null) {
+            @unlink($up['tmp']);
+            [$key, $args, $why] = cb_dupe_message($dupe, $this->lvl());
+            cb_log((int)$this->user['id'], $this->user['handle'], 'Rejected upload ' . $name . ': ' . $why);
+            $this->say($key, ...array_map('cb_esc', $args));
+            $this->nl();
+            $this->pause();
+            return;
+        }
         if (!@rename($up['tmp'], "$dir/$name")) {
             @unlink($up['tmp']);
             $this->say('fup_failed');
@@ -780,7 +803,7 @@ trait EngineFiles
         DB::insert('files', [
             'area_id' => $area, 'filename' => $name, 'size' => (int)$up['size'], 'description' => mb_substr($desc, 0, 2000),
             'uploader_id' => (int)$this->user['id'], 'uploader' => $this->user['handle'], 'added' => time(),
-            'downloads' => 0, 'approved' => $approved, 'storage' => $area . '/' . $name,
+            'downloads' => 0, 'approved' => $approved, 'storage' => $area . '/' . $name, 'sha256' => $sha, 'sha256_orig' => $orig,
         ]);
         $kb = (int)ceil((int)$up['size'] / 1024);
         DB::q('UPDATE {users} SET ul_files=ul_files+1, ul_kb=ul_kb+? WHERE id=?', [$kb, (int)$this->user['id']]);

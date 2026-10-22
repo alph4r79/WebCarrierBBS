@@ -1,6 +1,6 @@
 <?php
 /**
- * Sysop backend: backup as ZIP download, the archive itself is built in core/backup.php.
+ * Sysop backend: backup as ZIP download and the daily backups, the archives are built in core/backup.php.
  *
  * Copyright (C) 2026 Christoph Scheel <https://chrisscheel.de>
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -44,6 +44,80 @@ function a_send_backup(array $admin, bool $withFiles): never
     exit;
 }
 
+/** Send a daily backup from data/backups. Does not return. */
+function a_send_auto_backup(array $admin, string $name): never
+{
+    $path = CB_DATA . '/backups/' . $name;
+    if (!preg_match(CB_AUTO_BACKUP_RE, $name) || !is_file($path)) {
+        a_flash(t('This backup does not exist.'), 'bad');
+        a_go('backup');
+    }
+    cb_log((int)$admin['id'], $admin['handle'], 'Automatic backup ' . $name . ' downloaded');
+    session_write_close();
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+    header('Content-Type: application/zip');
+    header('Content-Length: ' . filesize($path));
+    header('Content-Disposition: attachment; filename="webcarrierbbs-' . $name . '"');
+    header('Cache-Control: private, no-store');
+    readfile($path);
+    exit;
+}
+
+/** JSON for the overview: creates the daily backup if it is due. Only for full accounts, see the router. */
+function page_autobackup(array $admin): never
+{
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !cb_csrf_ok($_POST['csrf'] ?? null)) {
+        echo json_encode(['state' => 'error', 'text' => t('The form has expired. Please try again.')]);
+        exit;
+    }
+    // the backup may take a while, other pages of this session must not wait for it
+    session_write_close();
+    $r = cb_auto_backup((int)$admin['id'], $admin['handle']);
+    if ($r['state'] === 'done') {
+        $r['when'] = date('d.m.Y H:i', Settings::int('auto_backup_last', time()));
+    }
+    $r['text'] = match ($r['state']) {
+        'done' => t('Daily backup created.'),
+        'error' => t('The daily backup failed: {1}', $r['msg']),
+        default => t('The daily backup is up to date.'),
+    };
+    echo json_encode($r, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+/** Section "Automatic backups" of the backup page: setting, time of the last one, list. */
+function a_auto_backup_section(): string
+{
+    $last = Settings::int('auto_backup_last', 0);
+    $h = '<section class="panel"><h2>' . h(t('Automatic backups')) . '</h2>' .
+        '<form method="post" class="form">' . a_csrf() .
+        '<label class="inline"><input type="checkbox" name="auto_backup"' . (Settings::get('auto_backup', '1') === '1' ? ' checked' : '') . '> ' .
+        h(t('Daily backup')) . '</label><p class="hint">' .
+        h(t('When the overview of the backend is opened and the last automatic backup is older than 24 hours, a backup of the database is made in data/backups. The newest {1} are kept, older automatic backups are deleted. Backups from before an update are never touched.', CB_AUTO_BACKUP_KEEP)) .
+        '</p><p><button class="btn small" name="auto_save" value="1">' . h(t('Save')) . '</button></p></form>' .
+        '<p>' . h(t('Last automatic backup:')) . ' <strong>' . h($last ? date('d.m.Y H:i', $last) : t('never')) . '</strong></p>';
+    $err = cb_auto_backup_error();
+    if ($err !== null) {
+        $h .= '<div class="flash warn"><p>' . h(t('The last try on {1} failed: {2}', date('d.m.Y H:i', (int)$err['time']), (string)$err['msg'])) . '</p></div>';
+    }
+    $list = cb_auto_backups();
+    if (!$list) {
+        return $h . '<p class="note">' . h(t('There are no automatic backups yet.')) . '</p></section>';
+    }
+    $h .= '<div class="tablewrap"><table><tr><th>' . h(t('Date')) . '</th><th class="num">' . h(t('Size')) . '</th><th></th></tr>';
+    foreach ($list as $b) {
+        $h .= '<tr><td>' . h(date('d.m.Y H:i', $b['time'])) . '<br><span class="note mono">' . h($b['name']) . '</span></td><td class="num">' . h(a_size($b['size'])) .
+            '</td><td class="row-actions"><a class="btn small ghost" href="' . h(a_url('backup', ['auto' => $b['name']])) . '">' . h(t('Download')) . '</a>' .
+            '<form method="post"' . a_confirm(t('Delete this backup?')) . '>' . a_csrf() .
+            '<button class="btn small danger ghost" name="auto_del" value="' . h($b['name']) . '">' . h(t('Delete')) . '</button></form></td></tr>';
+    }
+    return $h . '</table></div></section>';
+}
+
 function page_backup(array $admin): void
 {
     $hasZip = class_exists('ZipArchive');
@@ -52,6 +126,28 @@ function page_backup(array $admin): void
         if (filemtime($old) < time() - 3600) {
             @unlink($old);
         }
+    }
+    if (isset($_GET['auto'])) {
+        a_send_auto_backup($admin, (string)$_GET['auto']);
+    }
+    if (a_post() && isset($_POST['auto_save'])) {
+        $on = isset($_POST['auto_backup']) ? '1' : '0';
+        if ($on !== Settings::get('auto_backup', '1')) {
+            Settings::set('auto_backup', $on);
+            cb_log((int)$admin['id'], $admin['handle'], $on === '1' ? 'Daily backup switched on' : 'Daily backup switched off');
+        }
+        a_flash(t('Settings saved.'));
+        a_go('backup');
+    }
+    if (a_post() && isset($_POST['auto_del'])) {
+        $name = (string)$_POST['auto_del'];
+        if (preg_match(CB_AUTO_BACKUP_RE, $name) && is_file(CB_DATA . '/backups/' . $name) && @unlink(CB_DATA . '/backups/' . $name)) {
+            cb_log((int)$admin['id'], $admin['handle'], 'Automatic backup ' . $name . ' deleted');
+            a_flash(t('The backup was deleted.'));
+        } else {
+            a_flash(t('The backup could not be deleted.'), 'bad');
+        }
+        a_go('backup');
     }
     if ($hasZip && a_post()) {
         try {
@@ -71,6 +167,7 @@ function page_backup(array $admin): void
         echo '<div class="panel"><p>' . h(t('Your webspace has no ZipArchive, so the backup cannot be created here. Save these by FTP instead:')) . '</p><ul>' .
             '<li><code>core/config.php</code></li><li><code>data/</code> ' . h(t('(complete, with the SQLite database, screens and file areas)')) . '</li></ul>' .
             (DB::$driver === 'mysql' ? '<p>' . h(t('For MySQL also export the database, for example with phpMyAdmin of your hoster.')) . '</p>' : '') . '</div>';
+        echo a_auto_backup_section();
         return;
     }
     $filesSize = cb_dir_size(CB_DATA . '/files');
@@ -81,4 +178,5 @@ function page_backup(array $admin): void
         '<button class="btn" type="submit">' . h(t('Download backup')) . '</button></form>';
     echo '<p class="note">' . h(t('To restore, upload WebCarrier BBS fresh and unpack the archive into the same folder, the installer is not needed then.')) .
         (DB::$driver === 'mysql' ? ' ' . h(t('Import database.sql into the database first, for example with phpMyAdmin.')) : '') . '</p>';
+    echo a_auto_backup_section();
 }

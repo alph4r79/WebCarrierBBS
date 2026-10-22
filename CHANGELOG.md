@@ -2,6 +2,23 @@
 
 All notable changes to WebCarrier BBS. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version numbers follow [Semantic Versioning](https://semver.org/).
 
+## [1.11.0] - 2026-10-22
+
+### Added
+
+- Reloading the terminal page (F5) no longer hangs up. A logged in caller gets the same screen and the open prompt back, in menus, the reader, the editor (finished lines are kept), lines with a mask, yes/no questions, pauses, file areas, the meeting point, the chat with the sysop, the sysop menu and doors; a running wait() of a door goes on. The line is bound to a random token kept only in the tab (sessionStorage) and to the session; after the last sign of life the node stays reserved for 120 seconds. A reload is no new call: no entry in the call list, no logon screens, nothing for the others in the meeting point, the sysop in a chat sees no abort. Idle time and the daily time limit go on. After a line error F5 brings the call back as well.
+- Daily backup: when a full account opens the overview of the backend and the last automatic backup is older than 24 hours, a backup of the database is made in the background into data/backups (prefix auto-), the newest 7 are kept. The backup page lists them for download and deletion and has the setting; a failed backup leaves a hint on the overview until one works.
+- Upload check for files uploaded in the terminal: the start of archives must match the extension (zip, rar, 7z, arj, lha/lzh, gz, tar.gz), ZIP archives are opened with a consistency check and every entry is checked against its CRC, with limits for the number of entries (2000) and the unpacked size (256 MB) in the settings. Refused uploads are deleted at once with a clear message to the caller and a log entry, they do not count for the upload statistics.
+- Doubles are found by SHA-256 checksum in all areas, approved or waiting, also when a downloaded file with the BBS ad comes back. Files from before this version get their checksum bit by bit with every visit of the overview, or at once with a button on the files page.
+- BBS ad: an optional text file the board puts into every ZIP uploaded in the terminal, in CP437 with CRLF, with its name made from the name of the board in 8.3 format, macros and a preview in the backend.
+- Macro @BBSURL@ with the address of the board.
+
+### Changed
+
+- Hi-Lo shows its hall of fame from the high score list of the board, so it always matches the box above the doors, and writes its best value only there (door version 1.3.1). Best values of older versions are taken over once.
+- Closing the tab of a logged in caller frees the node after two minutes instead of at once; a new call from the same browser session frees it right away.
+- Files uploaded or imported in the backend get their checksum when they are stored.
+
 ## [1.10.0] - 2026-10-17
 
 ### Added

@@ -287,6 +287,7 @@ $pages = [
     'fileareas' => ['File areas', 'page_fileareas', 'full'],
     'files' => ['Files', 'page_files', 'mod'],
     'import' => ['File import', 'page_import', 'full'],
+    'bbsad' => ['BBS ad', 'page_bbsad', 'full'],
     '-4' => null,
     'menus' => ['Menus', 'page_menus', 'full'],
     'menu' => [null, 'page_menu', 'full'],
@@ -300,6 +301,8 @@ $pages = [
     'wansidraw' => [null, 'page_wansidraw', 'full'],
     'status' => [null, 'page_status', 'mod'],
     'chatpoll' => [null, 'page_chatpoll', 'mod'],
+    'autobackup' => [null, 'page_autobackup', 'full'],
+    'hashstep' => [null, 'page_hashstep', 'full'],
 ];
 /*
  * What a moderator may do on the pages he may open: [allowed POST actions or null for all,
@@ -337,8 +340,8 @@ if (!a_full($admin)) {
     }
 }
 // every change in the backend leaves a log entry; actions without an own entry get a general one
-// chat lines are no change of the board
-if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && !in_array($page, ['status', 'chatpoll'], true) && !($page === 'chat' && isset($_POST['line']))
+// chat lines are no change of the board, the daily backup and the checksums log on their own when they change something
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && !in_array($page, ['status', 'chatpoll', 'autobackup', 'hashstep'], true) && !($page === 'chat' && isset($_POST['line']))
     && cb_csrf_ok($_POST['csrf'] ?? null)) {
     $logBefore = (int)DB::val('SELECT COALESCE(MAX(id),0) FROM {log}');
     register_shutdown_function(static function () use ($admin, $page, $logBefore) {

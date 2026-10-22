@@ -142,6 +142,7 @@ p { margin: 0 0 12px; }
 }
 .form textarea { min-height: 220px; resize: vertical; }
 .form textarea.mono, input.mono { font-family: var(--mono); font-size: 14px; }
+.form textarea.nowrap { white-space: pre; overflow-wrap: normal; overflow-x: auto; }
 .form .hint { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
 .form fieldset { border: 0; padding: 0; margin: 0 0 12px; }
 .grid2 { display: grid; gap: 0 16px; }
@@ -309,6 +310,7 @@ tr.answer-row .answers { margin: 0; }
 .msghead dt { color: var(--muted); }
 .msghead dd { margin: 0; overflow-wrap: anywhere; }
 .msgbody { margin: 0 0 12px; padding: 12px; background: #000; color: #aaa; font: 14px/1.45 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.adpreview { white-space: pre; overflow-wrap: normal; overflow-x: auto; line-height: 1.2; }
 .msgbody .q { color: #00aaaa; }
 .msgnav, .msgactions { margin: 0 0 12px; }
 .msgactions form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0; }

@@ -151,6 +151,12 @@ return [
     'fup_desc' => '|07Beschreibung|08: |15',
     'fup_desc_short' => '|12Bitte gib eine kurze Beschreibung ein.|07|CR',
     'fup_dupe' => '|12Eine Datei {1} gibt es in diesem Bereich schon.|07',
+    'fup_rej_type' => '|12Die Datei passt nicht zu ihrer Endung.|07',
+    'fup_rej_damaged' => '|12Das Archiv ist beschädigt.|07',
+    'fup_rej_limit' => '|12Das Archiv hat zu viele Einträge oder wird entpackt zu groß.|07',
+    'fup_rej_dupe' => '|12Diese Datei gibt es schon:|CR  |15{1}|12 in |15{2}|12.|07',
+    'fup_rej_dupe_x' => '|12Diese Datei gibt es in der Box schon.|07',
+    'fup_rej_wait' => '|12Diese Datei wartet schon auf Freigabe.|07',
     'fup_done' => '|10Danke! {1} ist jetzt online.|07',
     'fup_pending' => '|10Danke! {1} wird freigeschaltet, sobald der Sysop sie geprüft hat.|07',
 

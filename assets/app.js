@@ -1,7 +1,8 @@
 /*
  * WebCarrier BBS: terminal controller.
  * Dials the box, sends keys and lines to api.php, runs the line editor and file transfers,
- * shows a hint in the tab title while the tab is in the background.
+ * shows a hint in the tab title while the tab is in the background. After a reload of the tab
+ * the line is resumed with the token kept in sessionStorage.
  *
  * Copyright (C) 2026 Christoph Scheel <https://chrisscheel.de>
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -25,6 +26,7 @@
   var pending = false;     // request running
   var polling = false;     // poll request running
   var autoSent = false;    // running request is the automatic input after wait()
+  var resuming = false;    // running request is the resume after a reload
   var lastPoll = 0;
   var prompt = '';         // current prompt line incl. colours, redrawn after poll output
   var uploading = false;
@@ -37,6 +39,8 @@
   var ed = null;
   var audio = null;
   var COLS = 80;
+  var RT_KEY = 'webcarrierbbs.rt';
+  var ED_KEY = 'webcarrierbbs.ed';
 
   function col(n) {
     var map = [0, 4, 2, 6, 1, 5, 3, 7];
@@ -220,6 +224,34 @@
   }
   term.onBell = function () { tone([800], 0, 0.12, 0.05); };
 
+  /* ---------------------------------------------------------------- resume token */
+
+  /* sessionStorage: survives a reload of this tab, a new tab or window does not get it */
+  function rtGet() {
+    try { return window.sessionStorage.getItem(RT_KEY) || ''; } catch (e) { return ''; }
+  }
+  function rtSet(v) {
+    try {
+      if (v) { window.sessionStorage.setItem(RT_KEY, v); } else { window.sessionStorage.removeItem(RT_KEY); edDraft(null); }
+    } catch (e) { /* storage blocked: no resume then */ }
+  }
+
+  /* Finished lines of the editor live only here until /S, so they are kept for a reload as well.
+     sig ties them to the editor the box asked for. */
+  function edSig(a) {
+    return JSON.stringify([a.l || [], a.w || 0, a.m || 0]);
+  }
+  function edDraft(d) {
+    try {
+      if (d) { window.sessionStorage.setItem(ED_KEY, JSON.stringify(d)); } else { window.sessionStorage.removeItem(ED_KEY); }
+    } catch (e) { /* storage blocked */ }
+  }
+  function edRestore(a) {
+    var d = null;
+    try { d = JSON.parse(window.sessionStorage.getItem(ED_KEY) || 'null'); } catch (e) { d = null; }
+    return d && d.sig === edSig(a) && Array.isArray(d.lines) ? d.lines : null;
+  }
+
   /* ---------------------------------------------------------------- connection */
 
   function phoneNumber() {
@@ -253,20 +285,32 @@
       var b = CFG.baud > 0 ? CFG.baud : 115200;
       term.print(col(15) + 'CONNECT ' + b + '/ARQ/V42BIS' + col(7) + '\r\n\r\n');
       csrf = '';
+      rtSet('');
       send('start', '');
     }, wait);
   }
 
-  function send(a, v) {
+  /* Reload of the tab during a call: the box shows the last screen and the open prompt again. */
+  function resume(rt) {
+    phase = 'dialing';
+    resuming = true;
+    term.showCursor(false);
+    term.setBaud(0);
+    send('resume', '', rt);
+  }
+
+  function send(a, v, rt) {
     pending = true;
     autoSent = a === 'wait';
     ask = null;
     term.showCursor(false);
+    var body = { a: a, v: v, csrf: csrf };
+    if (rt) { body.rt = rt; }
     fetch(CFG.base + 'api.php', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ a: a, v: v, csrf: csrf })
+      body: JSON.stringify(body)
     }).then(function (r) {
       if (!r.ok) { throw new Error('HTTP ' + r.status); }
       return r.json();
@@ -274,24 +318,33 @@
       pending = false;
       term.flush();
       term.print('\r\n' + col(12) + (L.netfail || 'Line error.') + col(7));
-      hangup();
+      // the call may still be alive on the box: the token stays, so F5 can resume it
+      hangup(true);
     });
   }
 
   function handle(r) {
     pending = false;
+    var resumed = resuming && r.resumed === true;
+    resuming = false;
     if (r.csrf) { csrf = r.csrf; }
     if (phase === 'dialing') { phase = 'online'; }
-    term.setBaud(typeof r.baud === 'number' ? r.baud : CFG.baud);
+    if (r.rt) { rtSet(r.rt); } else if (r.hang || r.resumed === false) { rtSet(''); }
+    var baud = typeof r.baud === 'number' ? r.baud : CFG.baud;
+    // the restored screen comes at once, the modem speed counts from the next output on
+    term.setBaud(resumed ? 0 : baud);
     if (r.idle) { idleSec = r.idle; }
+    // idle time goes on over a reload
+    if (resumed && typeof r.il === 'number') { lastKey = Date.now() - r.il * 1000; }
     if (r.dl) { document.getElementById('dlframe').src = r.dl; }
     if (r.crt && crt) { crt.set(r.crt); }
     if (r.open) { openExternal(r.open); }
     if (r.notify) { notify(r.notify); }
     term.enqueue(r.o || '');
     var after = function () {
-      // the answer to an automatic input after wait() does not reset the idle timer
-      if (r.hang) { hangup(); } else { setAsk(r.ask, autoSent); }
+      if (resumed) { term.setBaud(baud); }
+      // the answer to an automatic input after wait() does not reset the idle timer, nor does a resumed line
+      if (r.hang) { hangup(); } else { setAsk(r.ask, autoSent || resumed, resumed); }
     };
     if (term.busy()) {
       term.onDrain = function () { term.onDrain = null; after(); };
@@ -300,21 +353,22 @@
     }
   }
 
-  function hangup() {
+  function hangup(keepToken) {
     phase = 'offline';
+    if (!keepToken) { rtSet(''); }
     ask = null; ed = null; keybuf = [];
     term.showCursor(false);
     term.print('\x1b[0m\r\n' + col(7) + (L.nocarrier || 'NO CARRIER') + '\r\n\r\n' + col(8) + (L.redial || '') + col(7));
   }
 
-  /* fromPoll: the idle timer is only reset by keys, not by polls */
-  function setAsk(a, fromPoll) {
+  /* fromPoll: the idle timer is only reset by keys, not by polls. resumed: the prompt after a reload. */
+  function setAsk(a, fromPoll, resumed) {
     ask = a || null;
     line = '';
     if (!fromPoll) { lastKey = Date.now(); }
     if (!ask) { return; }
     prompt = term.rowPrefix();
-    if (ask.t === 'edit') { startEditor(ask); }
+    if (ask.t === 'edit') { startEditor(ask, resumed ? edRestore(ask) : null); }
     if (ask.t === 'wait') {
       keybuf = [];
       startWait(ask);
@@ -540,10 +594,14 @@
 
   /* ---------------------------------------------------------------- line editor */
 
-  function startEditor(a) {
-    ed = { lines: (a.l || []).slice(0, a.m || 200), cur: '', w: Math.min(a.w || 74, 74), m: a.m || 200 };
+  function startEditor(a, lines) {
+    ed = { lines: (lines || a.l || []).slice(0, a.m || 200), cur: '', w: Math.min(a.w || 74, 74), m: a.m || 200, sig: edSig(a) };
+    edSave();
     if (ed.lines.length) { edList(); }
     edPrompt();
+  }
+  function edSave() {
+    if (ed) { edDraft({ sig: ed.sig, lines: ed.lines }); }
   }
   function edPrompt() {
     term.write(col(8) + pad(ed.lines.length + 1, 3) + ': ' + col(7));
@@ -564,6 +622,7 @@
     }
     ed.lines.push(ed.cur);
     ed.cur = '';
+    edSave();
     return true;
   }
   function edKey(k) {
@@ -581,6 +640,7 @@
           while (ed.lines.length && ed.lines[ed.lines.length - 1].trim() === '') { ed.lines.pop(); }
           var text = ed.lines.join('\n');
           ed = null;
+          edDraft(null);
           ask = null;
           term.showCursor(false);
           term.print(col(10) + (L.ed_saved || 'Saving...') + col(7) + '\r\n');
@@ -589,6 +649,7 @@
         }
         if (u === '/A') {
           ed = null;
+          edDraft(null);
           ask = null;
           term.showCursor(false);
           term.print(col(12) + (L.ed_aborted || 'Aborted.') + col(7) + '\r\n');
@@ -601,7 +662,7 @@
           term.print(col(11) + (L.ed_help || '') + col(7) + '\r\n');
         } else if (u.charAt(1) === 'D') {
           var n = parseInt(u.substr(2), 10);
-          if (n >= 1 && n <= ed.lines.length) { ed.lines.splice(n - 1, 1); }
+          if (n >= 1 && n <= ed.lines.length) { ed.lines.splice(n - 1, 1); edSave(); }
           edList();
         }
         edPrompt();
@@ -660,7 +721,8 @@
       var r = null;
       try { r = JSON.parse(x.responseText); } catch (e) { r = null; }
       term.print('\r\n');
-      if (!r || !r.ok) { term.print(col(12) + ((r && r.msg) || 'Error') + col(7) + '\r\n'); }
+      // rej: refused by the check of the box, the reason comes with the answer to \x01
+      if (!r || (!r.ok && !r.rej)) { term.print(col(12) + ((r && r.msg) || 'Error') + col(7) + '\r\n'); }
       send('in', '\x01');
     };
     x.onerror = function () {
@@ -706,13 +768,21 @@
     }).catch(function () {});
   }, 60000);
 
+  /* Leaving the page: before the login that is the end of the call. After it the box cannot tell a reload
+     from a closed tab, so the node waits a short time for this tab to come back with its token. */
   window.addEventListener('pagehide', function () {
     if (phase === 'online' && navigator.sendBeacon) {
-      var body = new Blob([JSON.stringify({ a: 'bye', v: '', csrf: csrf })], { type: 'application/json' });
+      var body = new Blob([JSON.stringify({ a: rtGet() ? 'away' : 'bye', v: '', csrf: csrf })], { type: 'application/json' });
       navigator.sendBeacon(CFG.base + 'api.php', body);
     }
   });
 
-  intro();
+  var token = rtGet();
+  if (token) {
+    term.reset();
+    resume(token);
+  } else {
+    intro();
+  }
   cv.focus();
 }());

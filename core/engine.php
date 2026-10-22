@@ -48,6 +48,19 @@ final class Engine
     private array $mcache = [];
     private bool $preview = false;
     private bool $cancel = false;
+    /** Resume token of a fresh login, sent to the terminal once. */
+    private ?string $rt = null;
+    /** Answer to a resume request: true resumed, false a new call instead. */
+    private ?bool $resumed = null;
+    /** Seconds since the last key, sent with a resumed line so the idle timer goes on. */
+    private ?int $il = null;
+    /** What the terminal echoed locally for the current input, see echoOf(). */
+    private string $echo = '';
+
+    /** A node stays reserved for a reload this many seconds after its last sign of life. */
+    public const RESUME_GRACE = 120;
+    /** Output kept per node since the last clear screen, for a reload. */
+    private const SCREEN_MAX = 65536;
 
     public function __construct()
     {
@@ -82,16 +95,7 @@ final class Engine
         $this->live();
         $this->cleanupNodes();
         if ($a === 'start') {
-            // a reload in the meeting point counts as leaving it
-            if (!empty($this->S['uid']) && $this->ownsNode()) {
-                $this->user = DB::row('SELECT * FROM {users} WHERE id=?', [(int)$this->S['uid']]);
-                $this->teleLeave();
-                $this->endCall();
-                $this->user = null;
-            }
-            $this->dropNode();
-            $this->S = [];
-            $this->go('connect');
+            $this->newCall();
         } elseif (empty($this->S['st']) || !$this->ownsNode()) {
             $this->S = [];
             $this->hang = true;
@@ -134,6 +138,8 @@ final class Engine
             } else {
                 // Escape in a line asked for with $esc: an abort instead of a line, see cancelled()
                 $ask = $this->S['ask'] ?? null;
+                $this->echo = $this->echoOf(is_array($ask) ? $ask : null, $v);
+                $this->S['lk'] = time();
                 if ($v === "\x1b" && is_array($ask) && ($ask['t'] ?? '') === 'line' && !empty($ask['x'])) {
                     $this->cancel = true;
                     $v = '';
@@ -145,9 +151,165 @@ final class Engine
             $this->menu();
         }
         if (!$this->hang) {
+            $this->recordScreen($this->echo . $this->w->buf);
             $this->touch();
         }
         return $this->resp();
+    }
+
+    /** New call. One from the same session ends the old call and frees its node, also a node kept for a reload. */
+    private function newCall(): void
+    {
+        if (!empty($this->S['uid']) && $this->ownsNode()) {
+            $this->user = DB::row('SELECT * FROM {users} WHERE id=?', [(int)$this->S['uid']]);
+            $this->teleLeave();
+            $this->endCall();
+            $this->user = null;
+        }
+        $this->dropNode();
+        $this->S = [];
+        $this->go('connect');
+    }
+
+    /**
+     * Reload of the terminal page with the resume token of the tab. The line goes on with the screen
+     * and the prompt it had if the token belongs to this session, the node is still ours and neither
+     * disconnected nor expired. Otherwise a normal new call starts.
+     */
+    public function resume(string $rt): array
+    {
+        $this->live();
+        $this->cleanupNodes();
+        $node = $this->resumableNode($rt);
+        if ($node === null) {
+            $this->user = null;
+            $this->levelRow = null;
+            $this->resumed = false;
+            $this->newCall();
+            if (!$this->hang) {
+                $this->touch();
+            }
+            return $this->resp();
+        }
+        $this->resumed = true;
+        DB::q('UPDATE {nodes} SET seen=?, away=0 WHERE node=? AND sid=?', [time(), (int)$this->S['node'], session_id()]);
+        cb_log((int)$this->user['id'], $this->user['handle'], 'Line resumed on node ' . (int)$this->S['node']);
+        $this->w->buf .= "\e[0m\e[2J\e[H" . self::screenBytes($node['screen'] ?? null);
+        $this->ask = is_array($this->S['ask'] ?? null) ? $this->S['ask'] : null;
+        if ($this->ask === null) {
+            $this->menu();
+            $this->recordScreen($this->w->buf);
+        }
+        $this->il = max(0, time() - (int)($this->S['lk'] ?? time()));
+        $this->touch();
+        return $this->resp();
+    }
+
+    /** Row of the node to resume, or null. Loads the user on success. */
+    private function resumableNode(string $rt): ?array
+    {
+        if ($rt === '' || strlen($rt) > 64 || empty($this->S['uid']) || empty($this->S['rt']) || empty($this->S['node'])
+            || empty($this->S['st']) || !hash_equals((string)$this->S['rt'], hash('sha256', $rt))) {
+            return null;
+        }
+        $n = DB::row('SELECT * FROM {nodes} WHERE node=? AND sid=? AND user_id=?', [(int)$this->S['node'], session_id(), (int)$this->S['uid']]);
+        if (!$n || (int)$n['kicked'] === 1 || max((int)$n['seen'], (int)$n['away']) < time() - self::RESUME_GRACE) {
+            return null;
+        }
+        $u = DB::row('SELECT * FROM {users} WHERE id=?', [(int)$this->S['uid']]);
+        if (!$u || (int)$u['locked'] === 1 || (int)$u['pending'] === 1) {
+            return null;
+        }
+        // idle time and time limit go on during a reload
+        $this->user = $u;
+        $this->levelRow = null;
+        $idle = max(1, Settings::int('idle_minutes', 5)) * 60;
+        if ($this->timeLeft() <= 0 || time() - (int)($this->S['lk'] ?? 0) >= $idle) {
+            return null;
+        }
+        return $n;
+    }
+
+    /** Pagehide of a logged in terminal: closed tab or reload. The node is freed after RESUME_GRACE unless the tab comes back. */
+    public function away(): array
+    {
+        $this->live();
+        if (!empty($this->S['uid']) && $this->ownsNode()) {
+            DB::q('UPDATE {nodes} SET away=? WHERE node=? AND sid=?', [time(), (int)$this->S['node'], session_id()]);
+        }
+        return ['ok' => true, 'csrf' => cb_csrf()];
+    }
+
+    /** Stored screen of a node as CP437 bytes. */
+    private static function screenBytes(mixed $s): string
+    {
+        return !is_string($s) || $s === '' ? '' : mb_convert_encoding($s, 'ISO-8859-1', 'UTF-8');
+    }
+
+    /**
+     * Add output to the screen of the node: from the last clear screen on, at most SCREEN_MAX bytes,
+     * the oldest part goes first. Only for logged in callers, nothing before the login is kept.
+     */
+    private function recordScreen(string $out, ?string $base = null): void
+    {
+        if ($out === '' || empty($this->S['uid']) || empty($this->S['node']) || $this->preview) {
+            return;
+        }
+        $p = strrpos($out, "\e[2J");
+        if ($p !== false) {
+            $buf = substr($out, $p);
+        } else {
+            $base ??= self::screenBytes(DB::val('SELECT screen FROM {nodes} WHERE node=? AND sid=?', [(int)$this->S['node'], session_id()]));
+            $buf = $base . $out;
+        }
+        if (strlen($buf) > self::SCREEN_MAX) {
+            $buf = substr($buf, -self::SCREEN_MAX);
+            // start with a full line, the rest of a cut escape sequence would show up as text
+            $nl = strpos($buf, "\n");
+            if ($nl !== false && $nl < 4096) {
+                $buf = substr($buf, $nl + 1);
+            }
+        }
+        DB::q('UPDATE {nodes} SET screen=? WHERE node=? AND sid=?', [CP437::transport($buf), (int)$this->S['node'], session_id()]);
+    }
+
+    /**
+     * What the terminal printed itself for an input, the same as assets/app.js does it: the key of a
+     * hot prompt, the line (stars for a mask), the own chat line, the lines of the editor.
+     */
+    private function echoOf(?array $ask, string $v): string
+    {
+        $clean = static fn(string $s): string => CP437::from(preg_replace('/[\x00-\x1F\x7F]/u', '', $s) ?? '');
+        switch ($ask['t'] ?? '') {
+            case 'hot':
+            case 'upload':
+                if ($v === "\x01") {
+                    return "\r\n";
+                }
+                if (!empty($ask['c'])) {
+                    return "\r\e[K";
+                }
+                $k = mb_strtoupper(mb_substr($v, 0, 1));
+                return ($k === "\r" || $k === ' ' ? '' : $clean($k)) . "\r\n";
+            case 'line':
+                if ($v === "\x1b" && !empty($ask['x'])) {
+                    return "\r\n";
+                }
+                $v = mb_substr($v, 0, max(1, (int)($ask['m'] ?? 80)));
+                return (!empty($ask['p']) ? str_repeat('*', mb_strlen($v)) : $clean($v)) . "\r\n";
+            case 'chat':
+                return "\r\e[K\e[0;1;37m> " . $clean(mb_substr($v, 0, 80)) . "\e[0;37m\r\n";
+            case 'edit':
+                if ($v === "\x00") {
+                    return "\e[0;1;31m" . CP437::from(Lang::get('js_ed_aborted')) . "\e[0;37m\r\n";
+                }
+                $out = '';
+                foreach (explode("\n", $v) as $i => $l) {
+                    $out .= "\e[0;1;30m" . sprintf('%3d', $i + 1) . ": \e[0;37m" . $clean($l) . "\r\n";
+                }
+                return $out . "\e[0;1;32m" . CP437::from(Lang::get('js_ed_saved')) . "\e[0;37m\r\n";
+        }
+        return '';
     }
 
     private function input(string $v): void
@@ -174,7 +336,7 @@ final class Engine
         if (empty($this->S['st']) || !$this->ownsNode()) {
             return ['ok' => false, 'csrf' => cb_csrf()];
         }
-        DB::q('UPDATE {nodes} SET seen=? WHERE node=? AND sid=? AND user_id>0', [time(), (int)$this->S['node'], session_id()]);
+        DB::q('UPDATE {nodes} SET seen=?, away=0 WHERE node=? AND sid=? AND user_id>0', [time(), (int)$this->S['node'], session_id()]);
         return ['ok' => true, 'csrf' => cb_csrf()];
     }
 
@@ -205,11 +367,18 @@ final class Engine
             $this->hangup();
             return $this->resp();
         }
-        DB::q('UPDATE {nodes} SET seen=? WHERE node=? AND sid=? AND user_id>0', [time(), (int)$this->S['node'], session_id()]);
+        DB::q('UPDATE {nodes} SET seen=?, away=0 WHERE node=? AND sid=? AND user_id>0', [time(), (int)$this->S['node'], session_id()]);
         $this->deliverNodeMsgs();
         if (!$this->hang) {
             $this->pageWaitCheck();
             $this->pollExtras();
+        }
+        if (!$this->hang && $this->w->buf !== '') {
+            // the terminal clears the prompt line, prints the output and the prompt again, unless a new prompt came
+            $base = self::screenBytes(DB::val('SELECT screen FROM {nodes} WHERE node=? AND sid=?', [(int)$this->S['node'], session_id()]));
+            $nl = strrpos($base, "\n");
+            $row = $this->ask === null ? ($nl === false ? $base : substr($base, $nl + 1)) : '';
+            $this->recordScreen("\r\e[K" . $this->w->buf . $row, $base);
         }
         return $this->resp();
     }
@@ -236,6 +405,15 @@ final class Engine
             'crt' => $this->crtMode(),
             'csrf' => cb_csrf(),
         ];
+        if ($this->rt !== null && !$this->hang) {
+            $r['rt'] = $this->rt;
+        }
+        if ($this->resumed !== null) {
+            $r['resumed'] = $this->resumed && !$this->hang;
+        }
+        if ($this->il !== null) {
+            $r['il'] = $this->il;
+        }
         if ($this->open !== null) {
             $r['open'] = $this->open;
         }
@@ -488,6 +666,7 @@ final class Engine
             'BBSNAME' => Settings::get('bbs_name', 'WebCarrier BBS'),
             'SYSOP' => Settings::get('sysop_name', 'Sysop'),
             'BBSLOC' => Settings::get('bbs_location', ''),
+            'BBSURL' => cb_bbs_url(),
             'VERSION' => CB_VERSION,
             'NODE' => (string)($this->S['node'] ?? 1),
             'NODES' => (string)Settings::int('max_nodes', 4),
@@ -581,17 +760,19 @@ final class Engine
 
     private function cleanupNodes(): void
     {
-        $limit = time() - (Settings::int('idle_minutes', 5) * 60 + 120);
-        $gone = DB::all('SELECT node, handle FROM {nodes} WHERE seen<? AND tele=1', [$limit]);
-        // a vanished caller: the call ends when the node was seen the last time
-        foreach (DB::all('SELECT node, user_id, seen FROM {nodes} WHERE seen<? AND user_id>0', [$limit]) as $v) {
-            cb_end_calls((int)$v['user_id'], (int)$v['node'], (int)$v['seen']);
+        // vanished: no sign of life for longer than the idle time, or the tab was left (away) and did not come back
+        $gone = 'seen<? OR (away>0 AND away<?)';
+        $par = [time() - (Settings::int('idle_minutes', 5) * 60 + 120), time() - self::RESUME_GRACE];
+        $tele = DB::all("SELECT node, handle FROM {nodes} WHERE ($gone) AND tele=1", $par);
+        // the call ends when the node was seen the last time, or when the tab was left
+        foreach (DB::all("SELECT node, user_id, seen, away FROM {nodes} WHERE ($gone) AND user_id>0", $par) as $v) {
+            cb_end_calls((int)$v['user_id'], (int)$v['node'], (int)$v['away'] > 0 ? (int)$v['away'] : (int)$v['seen']);
         }
-        DB::q('DELETE FROM {nodes} WHERE seen<?', [$limit]);
+        DB::q("DELETE FROM {nodes} WHERE $gone", $par);
         // nodes that never logged in are freed quickly, keepalive does not refresh
         // them (see ping() and poll()), only real input does through touch()
         DB::q('DELETE FROM {nodes} WHERE user_id=0 AND seen<?', [time() - 180]);
-        foreach ($gone as $g) {
+        foreach ($tele as $g) {
             $this->teleGone((int)$g['node'], (string)$g['handle']);
         }
         // negative nodes belong to the backend, they have no row in nodes
@@ -644,7 +825,7 @@ final class Engine
         if (empty($this->S['node'])) {
             return;
         }
-        DB::q('UPDATE {nodes} SET seen=?, user_id=?, handle=?, activity=? WHERE node=? AND sid=?', [
+        DB::q('UPDATE {nodes} SET seen=?, away=0, user_id=?, handle=?, activity=? WHERE node=? AND sid=?', [
             time(), (int)($this->user['id'] ?? 0), (string)($this->user['handle'] ?? ''),
             (string)($this->S['act'] ?? Lang::get('act_login')), (int)$this->S['node'], session_id(),
         ]);
@@ -786,6 +967,10 @@ final class Engine
         }
         $this->S = ['st' => 'menu', 'node' => $node, 'uid' => $id, 'prevcall' => (int)$u['last_call'],
             'tbase' => (int)$u['time_today'], 'tstart' => time(), 'menu' => 'main'];
+        // resume token for a reload of this tab, the session keeps only its hash
+        $this->rt = bin2hex(random_bytes(16));
+        $this->S['rt'] = hash('sha256', $this->rt);
+        $this->S['lk'] = time();
         DB::q('UPDATE {users} SET calls=calls+1, last_call=? WHERE id=?', [time(), $id]);
         $this->S['callid'] = DB::insert('calls', ['user_id' => $id, 'handle' => $u['handle'], 'location' => $u['location'],
             'node' => $node, 'time' => time()]);

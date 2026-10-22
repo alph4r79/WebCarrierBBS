@@ -159,6 +159,12 @@ return [
     'fup_desc' => '|07Description|08: |15',
     'fup_desc_short' => '|12Please enter a short description.|07|CR',
     'fup_dupe' => '|12A file named {1} already exists in this area.|07',
+    'fup_rej_type' => '|12The file does not match its extension.|07',
+    'fup_rej_damaged' => '|12The archive is damaged.|07',
+    'fup_rej_limit' => '|12The archive has too many entries or unpacks to too much data.|07',
+    'fup_rej_dupe' => '|12This file exists already:|CR  |15{1}|12 in |15{2}|12.|07',
+    'fup_rej_dupe_x' => '|12This file exists already on this board.|07',
+    'fup_rej_wait' => '|12This file is already waiting for approval.|07',
     'fup_done' => '|10Thank you! {1} is online now.|07',
     'fup_pending' => '|10Thank you! {1} will be available after the sysop has checked it.|07',
 

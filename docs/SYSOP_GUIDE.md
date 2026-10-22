@@ -1,6 +1,6 @@
 # WebCarrier BBS: Sysop-Handbuch
 
-Version 1.10.0
+Version 1.11.0
 
 Für Betreiber der Mailbox: Installation, Einrichtung, Backend, Menüs, Screens, Dateiimport, Doors und Betrieb.
 
@@ -102,7 +102,17 @@ Wie groß Uploads sein dürfen, bestimmt das kleinste von drei Limits: die Einst
 
 ## 6. Grundbegriffe: Nodes, Level, Zeit, Ratio
 
-**Nodes** sind die „Telefonleitungen“ deiner Box. In den Einstellungen legst du fest, wie viele Anrufer gleichzeitig online sein dürfen (Standard 4). Sind alle belegt, bekommt der nächste Anrufer die Meldung, dass alle Leitungen besetzt sind. Eine Node wird frei, wenn sich jemand ausloggt, den Browser-Tab schließt oder zu lange nichts eingibt (Einstellung „Auflegen nach Minuten ohne Eingabe“). Eine Leitung, auf der noch niemand eingeloggt ist, wird schon nach drei Minuten ohne Eingabe frei, damit niemand alle Nodes am Login-Prompt blockieren kann. Wer im Editor schreibt oder gerade eine Datei hochlädt, behält seine Node, auch wenn das länger dauert.
+**Nodes** sind die „Telefonleitungen“ deiner Box. In den Einstellungen legst du fest, wie viele Anrufer gleichzeitig online sein dürfen (Standard 4). Sind alle belegt, bekommt der nächste Anrufer die Meldung, dass alle Leitungen besetzt sind. Eine Node wird frei, wenn sich jemand ausloggt, zu lange nichts eingibt (Einstellung „Auflegen nach Minuten ohne Eingabe“) oder den Browser-Tab schließt. Nach dem Schließen bleibt die Node noch zwei Minuten für ein Neuladen reserviert (siehe unten). Eine Leitung, auf der noch niemand eingeloggt ist, wird schon nach drei Minuten ohne Eingabe frei, damit niemand alle Nodes am Login-Prompt blockieren kann. Wer im Editor schreibt oder gerade eine Datei hochlädt, behält seine Node, auch wenn das länger dauert.
+
+**Neu laden (F5):** Lädt ein eingeloggter Anrufer die Seite neu, legt die Box nicht auf. Er sieht wieder genau den Bildschirm, auf dem er war, mit derselben Eingabe: Menü, Nachrichtenleser, Editor (fertige Zeilen bleiben erhalten, nur die halb getippte Zeile geht verloren), Zeileneingabe auch mit Maske, Ja/Nein-Frage, „Enter weiter“, Dateibereiche, Treffpunkt, Chat mit dem Sysop, Sysop-Menü und Doors. Lief gerade eine Wartepause einer Door, geht sie an derselben Stelle weiter. War ein Download oder Upload unterwegs, bricht der Browser ihn ab, die Box fragt dann einfach wieder nach der Eingabe.
+
+- Möglich macht das ein zufälliges Token, das die Leitung beim Login bekommt. Der Browser hält es nur für diesen einen Tab (sessionStorage), ein neuer Tab oder ein anderes Fenster bekommt es nicht. Die Box nimmt die Leitung nur wieder auf, wenn das Token zur selben Sitzung gehört, die Node noch diesem User gehört, nicht getrennt ist und nicht abgelaufen ist. Sonst beginnt ohne Fehlermeldung ein normaler neuer Anruf.
+- **Gnadenfrist:** Nach dem letzten Lebenszeichen des Terminals bleibt die Node 120 Sekunden reserviert. Schließt jemand den Tab, sagt der Browser der Box noch Bescheid, die Frist läuft ab diesem Moment. Erst danach räumt die Box die Node ab und beendet den Anruf mit diesem Zeitpunkt als Ende.
+- Die Fristen für Untätigkeit und Tageszeit laufen während eines Neuladens weiter. Ist eine davon inzwischen um, gibt es keine Wiederaufnahme, sondern einen neuen Anruf.
+- Ein Neuladen ist **kein neuer Anruf**: kein Eintrag in der Anrufliste, die Zahl der Anrufe bleibt, kein „Neu seit deinem letzten Anruf“, keine Logon-Screens, andere im Treffpunkt sehen kein Verlassen und Betreten, der Sysop im Chat sieht keinen Abbruch. Ins Log kommt die Zeile „Line resumed on node N“ mit dem Handle.
+- Vor dem Login (Anmeldung, Neuanmeldung, Fragebogen, zweiter Faktor) gibt es keine Wiederaufnahme, ein Neuladen fängt dort wie bisher von vorne an.
+- Ausloggen, Trennen durch den Sysop und das Ende der Tageszeit machen das Token sofort ungültig. Nach einem „Leitungsfehler“ im Terminal bleibt es erhalten, ein F5 holt die Leitung dann innerhalb der Frist zurück.
+- Wer den Tab schließt und die Box neu öffnet, macht einen neuen Anruf. Kommt er aus derselben Browser-Sitzung, gibt die Box die alte Node dabei sofort frei, auch wenn deshalb sonst alle Leitungen belegt wären.
 
 **Level** steuern alles, was ein User darf. Jeder User hat einen Wert von 0 bis 255. Mitgeliefert sind:
 
@@ -135,7 +145,7 @@ Beim Speichern der Einstellungen prüft das Backend zwei Werte: Der Sysop-Level 
 | Chat | Chat mit einem Anrufer, aus einem Ruf oder von einer Node aus gestartet (siehe unten) |
 | Meldungen | Nachrichten, die Anrufer gemeldet haben (siehe unten) |
 | Statistik | Zahlenband mit den wichtigsten Werten, Diagramme zu Anrufen, Uhrzeiten, neuen Usern, Uploads und Downloads, Bestenlisten (siehe unten) |
-| Einstellungen | Name, Sprache, Zeitzone, Nodes, Neuanmeldung, Terminal mit Röhren-Effekt und Hinweis im Browser-Tab, Adresse von WAnsiDraw, Uploads, Update-Prüfung, Kennung der Box |
+| Einstellungen | Name, Sprache, Zeitzone, Nodes, Neuanmeldung, Terminal mit Röhren-Effekt und Hinweis im Browser-Tab, Adresse von WAnsiDraw, Uploads mit den Grenzen der ZIP-Prüfung, Update-Prüfung, Kennung der Box |
 | Impressum und Datenschutz | Rechtstexte als reiner Text |
 | User | Anlegen, suchen, bearbeiten, Level ändern, sperren, Passwort setzen, löschen, neue User freischalten, Anrufliste, Daten exportieren |
 | Level | Zeit, Downloadlimit, Ratio und Rolle im Backend je Level, Regeln zum automatischen Hochstufen (siehe unten) |
@@ -146,19 +156,22 @@ Beim Speichern der Einstellungen prüft das Backend zwei Werte: Der Sysop-Level 
 | Oneliner | Oneliner und Zeilen des Treffpunkts moderieren |
 | Umfragen | Umfragen anlegen, Ergebnis ansehen, beenden, löschen (siehe unten) |
 | Dateibereiche | Anlegen, Rechte, Uploads erlauben |
-| Dateien | Suchen, Uploads freigeben, umbenennen, Beschreibungen ändern, verschieben, löschen, Dateien per Browser hochladen |
+| Dateien | Suchen, Uploads freigeben, umbenennen, Beschreibungen ändern, verschieben, löschen, Dateien per Browser hochladen, Prüfsummen nachträglich berechnen |
 | Dateiimport | Viele Dateien auf einmal aus `data/import` übernehmen |
+| BBS-Ad | Textdatei, die die Box in hochgeladene ZIP-Archive legt, mit Vorschau, siehe Abschnitt 10 |
 | Menüs | Menüstruktur und Hotkeys bearbeiten, Screen oder Kopf-Screen wählen, mit Vorschau (siehe Abschnitt 8) |
 | Screens | ANSI- und Text-Screens hochladen, bearbeiten, mit Vorschau, in WAnsiDraw öffnen |
 | Texte | Eigene Fassungen der Terminaltexte, siehe Abschnitt 12 |
 | Doors | Installierte Doors, ins Menü aufnehmen, Spielstände zurücksetzen, fehlerhafte Dateien, siehe Abschnitt 11 |
 | Log | Logins, Uploads, Downloads, Änderungen, mit Filtern, Suche und CSV-Export (siehe unten) |
-| Backup | Sicherung als ZIP herunterladen, siehe Abschnitt 13 |
+| Backup | Sicherung als ZIP herunterladen, automatische tägliche Sicherungen, siehe Abschnitt 13 |
 | Mein Zugang | Zweiten Faktor für dein eigenes Konto einrichten und abschalten, Notfallcodes (siehe unten) |
 
 ### Übersicht
 
-Ganz oben steht der Kasten **„Seit deinem letzten Besuch“**. Ein Besuch beginnt mit dem Login ins Backend, gezählt wird seit dem Beginn des vorigen Besuchs: neue User (davon wartend), neue öffentliche Nachrichten, neue Uploads (davon wartend), neue Meldungen, verpasste Rufe und Fehlversuche beim Login. Es erscheinen nur Zeilen mit einer Zahl über 0, jede führt auf die passende Seite oder die gefilterte Ansicht des Protokolls. Ist nichts passiert, steht dort genau das. Beim allerersten Besuch ist der Kasten noch leer.
+Ist die tägliche Sicherung fällig, steht ganz oben kurz der Hinweis „Tägliche Sicherung läuft ...“ und danach „Tägliche Sicherung erstellt.“ oder der Grund, warum sie nicht geklappt hat. Die Seite wartet nicht darauf. Ist die letzte Sicherung fehlgeschlagen, bleibt dort ein gelber Hinweis stehen, bis eine klappt (siehe „Tägliche Sicherung“ in Abschnitt 13). Moderatoren sehen davon nichts.
+
+Darunter steht der Kasten **„Seit deinem letzten Besuch“**. Ein Besuch beginnt mit dem Login ins Backend, gezählt wird seit dem Beginn des vorigen Besuchs: neue User (davon wartend), neue öffentliche Nachrichten, neue Uploads (davon wartend), neue Meldungen, verpasste Rufe und Fehlversuche beim Login. Es erscheinen nur Zeilen mit einer Zahl über 0, jede führt auf die passende Seite oder die gefilterte Ansicht des Protokolls. Ist nichts passiert, steht dort genau das. Beim allerersten Besuch ist der Kasten noch leer.
 
 Darunter stehen die **Meldungen**, sortiert nach Wichtigkeit. Vor jedem Titel steht die Art:
 
@@ -174,7 +187,7 @@ Hinweise und Neuigkeiten kannst du mit „Ausblenden“ wegklicken. Der Hinweis 
 
 Unter den Nodes steht der Kasten **„Nachricht des Sysops“**. Was du dort einträgst, sieht jeder Anrufer nach dem Login unter der Zeile mit Restzeit und Post, mit „Nachricht von“ und deinem Namen darüber. Erlaubt sind bis zu 3 Zeilen mit je 76 Zeichen, Pipe-Codes für Farben wie `|14` zählen dabei nicht mit. `|CL`, `|CR` und andere Steuercodes werden entfernt. Ist eine Zeile zu lang oder sind es mehr als 3 Zeilen, wird nichts gespeichert und du bekommst einen Hinweis, dein Text bleibt im Feld stehen. Mit „Anzeigen bis“ legst du optional einen Tag fest, bis einschließlich dem die Nachricht erscheint. Danach sehen Anrufer sie nicht mehr, im Backend bleibt sie mit dem Hinweis „abgelaufen“ stehen, bis du sie änderst oder mit „Nachricht entfernen“ löschst. Jede Änderung steht im Log. Ohne Nachricht sieht die Begrüßung aus wie immer.
 
-Darunter folgen die belegten Nodes. Neben jeder Node mit einem Anrufer stehen die Knöpfe „Chat“ und „Trennen“, deine eigene Sitzung im Terminal ist davon ausgenommen. Unter der Liste schickst du mit „Rundruf an alle Nodes“ eine Zeile an alle, die gerade online sind. Getrennte Anrufer sehen „Der Sysop hat die Verbindung getrennt.“, ein Rundruf erscheint beim Anrufer gelb mit einem Klingelton. Dann folgen die Kennzahlen (User, Anrufe heute, gerade online, öffentliche Nachrichten, Dateien, wartende Uploads), die letzten Ereignisse aus dem Log und der Kasten „System“ mit Version, PHP-Version, Datenbank, letztem Backup und dem Stand der Update-Prüfung. Unter den Kennzahlen führt ein Link zur Statistik. Auf dem Handy steht alles untereinander, auf breiten Bildschirmen stehen Kennzahlen und System in einer schmalen Spalte rechts.
+Darunter folgen die belegten Nodes. Neben jeder Node mit einem Anrufer stehen die Knöpfe „Chat“ und „Trennen“, deine eigene Sitzung im Terminal ist davon ausgenommen. Unter der Liste schickst du mit „Rundruf an alle Nodes“ eine Zeile an alle, die gerade online sind. Getrennte Anrufer sehen „Der Sysop hat die Verbindung getrennt.“, ein Rundruf erscheint beim Anrufer gelb mit einem Klingelton. Dann folgen die Kennzahlen (User, Anrufe heute, gerade online, öffentliche Nachrichten, Dateien, wartende Uploads), die letzten Ereignisse aus dem Log und der Kasten „System“ mit Version, PHP-Version, Datenbank, letztem Backup, letzter automatischer Sicherung und dem Stand der Update-Prüfung. Bei jedem Aufruf der Übersicht berechnet die Box außerdem für bis zu 50 ältere Dateien die Prüfsumme (siehe „Doppelte Dateien“ in Abschnitt 10). Unter den Kennzahlen führt ein Link zur Statistik. Auf dem Handy steht alles untereinander, auf breiten Bildschirmen stehen Kennzahlen und System in einer schmalen Spalte rechts.
 
 ### Statistik
 
@@ -500,6 +513,7 @@ Die DOS-Farben: 0 Schwarz, 1 Blau, 2 Grün, 3 Cyan, 4 Rot, 5 Magenta, 6 Braun, 7
 | `@BBSNAME@` | Name der Mailbox |
 | `@SYSOP@` | Sysop-Name |
 | `@BBSLOC@` | Standort der Mailbox |
+| `@BBSURL@` | Adresse der Box, wie der Anrufer sie aufgerufen hat, etwa `https://bbs.example.org/` |
 | `@USER@` | Handle des Anrufers |
 | `@USERLOC@` | Ort des Anrufers |
 | `@CALLS@` | Anzahl seiner Anrufe |
@@ -540,7 +554,7 @@ Die mitgelieferten Vorlagen liegen in `core/defaults/de/` und `core/defaults/en/
 
 Dateien liegen in `data/files/<Bereichsnummer>/`. Die Datenbank kennt Name, Größe, Beschreibung, Uploader und Downloadzähler.
 
-**Uploads von Anrufern** sind nur in Bereichen möglich, bei denen Uploads eingeschaltet sind, und nur ab dem Upload-Level. Erlaubte Dateitypen und Maximalgröße stellst du in den Einstellungen ein. Dateien, die der Webserver ausführen oder als Seite ausliefern könnte (php in allen Varianten, phtml, phar, cgi, pl, asp, jsp, shtml, html, js, svg, .htaccess), werden immer abgelehnt, auch wenn du die Endung erlaubst. Dasselbe gilt für Doppelendungen wie `datei.php.zip`. Enthält ein ZIP eine FILE_ID.DIZ, bietet die Box sie als Beschreibung an.
+**Uploads von Anrufern** sind nur in Bereichen möglich, bei denen Uploads eingeschaltet sind, und nur ab dem Upload-Level. Erlaubte Dateitypen und Maximalgröße stellst du in den Einstellungen ein. Dateien, die der Webserver ausführen oder als Seite ausliefern könnte (php in allen Varianten, phtml, phar, cgi, pl, asp, jsp, shtml, html, js, svg, .htaccess), werden immer abgelehnt, auch wenn du die Endung erlaubst. Dasselbe gilt für Doppelendungen wie `datei.php.zip`. Enthält ein ZIP eine FILE_ID.DIZ, bietet die Box sie als Beschreibung an. Vorher prüft die Box jeden Upload, siehe „Upload-Prüfer“ weiter unten.
 
 Standardmäßig sind Uploads erst nach deiner Freigabe sichtbar. Wartende Uploads siehst du in der Übersicht und unter „Dateien“. Prüf sie, bevor du sie freigibst: Du bist als Betreiber für die Inhalte verantwortlich, die du anbietest.
 
@@ -569,6 +583,43 @@ Lässt sich eine Datei nicht von der Platte löschen (etwa wegen fehlender Recht
 4. „Import starten“. Die Dateien werden verschoben (oder kopiert, wenn du den Haken entfernst) und sind sofort freigegeben. Doppelte Namen im selben Bereich werden übersprungen.
 
 Dateien wie `index.html`, `FILES.BBS` und versteckte Dateien werden beim Import ignoriert. Bei sehr großen Sammlungen importiere lieber in mehreren Durchgängen, falls dein Hoster Skripte nach kurzer Zeit abbricht.
+
+### Upload-Prüfer
+
+Jede Datei, die ein Anrufer im Terminal hochlädt, prüft die Box sofort nach dem Empfang. Uploads und Importe im Backend werden nicht geprüft.
+
+- **Inhalt passt zur Endung:** Bei `.zip`, `.rar`, `.7z`, `.arj`, `.lha`/`.lzh`, `.gz`, `.tgz` und `.tar.gz` muss der Anfang der Datei zur Endung passen. Ein `.zip`, in dem ein RAR steckt, wird abgelehnt.
+- **ZIP auf Beschädigung:** ZIP-Archive öffnet die Box mit einer Konsistenzprüfung, liest danach jeden Eintrag und vergleicht seine Prüfsumme (CRC). Abgeschnittene Archive und Archive mit falscher Prüfsumme werden abgelehnt. Verschlüsselte Einträge lassen sich ohne Passwort nicht lesen, ihre Prüfsumme wird übersprungen. Fehlt auf dem Webspace ZipArchive, entfällt dieser Teil.
+- **Grenzen für ZIPs:** Damit große oder präparierte Archive den Server nicht lahmlegen, gelten zwei Grenzen, beide unter Einstellungen im Abschnitt „Uploads“ änderbar: höchstens **2000 Einträge** und höchstens **256 MB** entpackt. Gezählt werden sowohl die Größen aus dem Archiv als auch die Bytes, die beim Prüfen wirklich entpackt werden. Wird eine Grenze überschritten, wird der Upload abgelehnt.
+- Andere Archivformate kann PHP nicht prüfen. Sie kommen nach der Prüfung der Kennung durch wie bisher. Dateien ohne Archiv-Endung (etwa `.txt`) werden nicht geprüft.
+
+Abgelehnt wird sofort: Die Datei wird gelöscht, nichts landet im Dateibereich oder in der Warteliste, Upload-Zahlen und Ratio zählen den Versuch nicht. Der Anrufer sieht den Grund und kann gleich eine andere Datei schicken. Im Log steht „Rejected upload NAME: Grund“.
+
+| Grund | Meldung im Terminal |
+|---|---|
+| Kennung passt nicht | Die Datei passt nicht zu ihrer Endung. |
+| ZIP beschädigt | Das Archiv ist beschädigt. |
+| ZIP über einer Grenze | Das Archiv hat zu viele Einträge oder wird entpackt zu groß. |
+| Doppelt, freigegeben | Diese Datei gibt es schon: NAME in BEREICH. |
+| Doppelt, in einem Bereich, den der Anrufer nicht sehen darf | Diese Datei gibt es in der Box schon. |
+| Doppelt, wartet noch auf Freigabe | Diese Datei wartet schon auf Freigabe. |
+
+### Doppelte Dateien
+
+Für jede Datei speichert die Box zwei SHA-256-Prüfsummen: die der Datei, wie sie gespeichert ist, und die von vor dem Einfügen der BBS-Ad (ohne Ad sind beide gleich). Ein Upload gilt als doppelt, wenn seine Prüfsumme mit einer der beiden Werte irgendeiner vorhandenen Datei übereinstimmt, egal in welchem Bereich und ob freigegeben oder wartend. So erkennt die Box auch eine Datei, die jemand mit deiner Ad heruntergeladen hat und wieder hochlädt. Der Name spielt dabei keine Rolle.
+
+Dateien aus der Zeit vor Version 1.11.0 haben noch keine Prüfsumme. Die Box berechnet sie nach und nach: bei jedem Aufruf der Übersicht für bis zu 50 Dateien. Auf der Seite „Dateien“ zeigt der Kasten „Prüfsummen“, wie viele noch fehlen, und mit „Prüfsummen jetzt berechnen“ läuft der Rest in Schritten mit Fortschrittsanzeige durch. Jeder Schritt steht im Log. Fehlt eine Datei auf der Platte, bekommt sie statt einer Prüfsumme die Markierung `-` und wird nicht weiter versucht. Dateien, die du im Backend hochlädst oder importierst, bekommen ihre Prüfsumme sofort.
+
+### BBS-Ad
+
+Früher legten Mailboxen eine kleine Werbedatei in jedes hochgeladene Archiv. Unter „BBS-Ad“ (nur für Konten mit vollem Zugriff) stellst du das ein:
+
+- **Schalter** „Ad in hochgeladene ZIP-Archive legen“, ab Werk aus.
+- **Dateiname** im 8.3-Format wie unter DOS, vorbelegt aus dem Namen der Box: nur A bis Z und 0 bis 9, höchstens 8 Zeichen, Umlaute werden zu AE, OE, UE und SS, dazu `.TXT`. Aus „Die Ölkanne! BBS“ wird `DIEOELKA.TXT`. Bleibt nichts übrig, heißt sie `BBS-AD.TXT`. Erlaubt sind Buchstaben, Ziffern und `_ - ! # $ % & ' ( ) @ ^ { } ~`, also nur Zeichen, die in Archiven unter DOS, Windows und Linux gültig sind, ohne Pfad. Gerätenamen wie `CON` und `FILE_ID.DIZ` sind nicht erlaubt.
+- **Text**, vorbelegt mit einem schlichten Kasten im Stil der 90er in der Sprache der Box. Höchstens 79 Zeichen pro Zeile und 40 Zeilen, reiner Text ohne Pipe-Codes. Makros: `@BBSNAME@`, `@BBSLOC@`, `@SYSOP@`, `@BBSURL@` (Adresse der Box), `@DATE@` und `@TIME@` des Uploads und `@USER@` (wer hochgeladen hat). Mit einer Breite wie `@BBSNAME:56L@` bleibt ein Rahmen gerade. Unter dem Feld zeigt eine Vorschau den fertigen Text, beim Tippen aktualisiert sie sich mit.
+- „Auf Standard zurücksetzen“ stellt Dateiname und Text wieder her. Solange du die Vorgabe nicht änderst, folgt sie der Sprache und dem Namen der Box.
+
+Ist der Schalter an, legt die Box die Ad nach bestandener Prüfung in jedes hochgeladene ZIP, ins oberste Verzeichnis. Die Datei wird in CP437 mit CRLF geschrieben, damit Umlaute und Rahmen in DOS-Programmen und alten Viewern richtig aussehen. Zeichen, die es in CP437 nicht gibt, werden zum Fragezeichen, die Vorschau warnt dann. Liegt im Archiv schon eine Datei mit diesem Namen (Groß- und Kleinschreibung egal), wird sie ersetzt. FILE_ID.DIZ und alle anderen Einträge bleiben unverändert, die FILE_ID.DIZ wird wie bisher vor dem Einfügen gelesen. Größe, Prüfsummen und Beschreibung werden nach dem Einfügen gespeichert. Andere Archivformate bekommen keine Ad. Klappt das Einfügen nicht, bleibt die Datei ohne Ad erhalten und das Log nennt den Grund, der Upload scheitert daran nicht.
 
 ## 11. Doors
 
@@ -675,6 +726,19 @@ Fehlt auf deinem Webspace die PHP-Erweiterung ZipArchive, kann das Backend kein 
 
 **Sichern per FTP:** Du brauchst drei Dinge: `core/config.php`, den kompletten Ordner `data/` (bei SQLite liegt dort auch die Datenbank) und bei MySQL einen Export der Datenbank. Bei SQLite die Sicherung am besten machen, während niemand online ist.
 
+### Tägliche Sicherung
+
+Zusätzlich zum Backup per Knopf sichert die Box ihre Datenbank einmal am Tag selbst. Die Einstellung „Tägliche Sicherung“ steht auf der Seite „Backup“ im Abschnitt „Automatische Sicherungen“ und ist ab Werk eingeschaltet.
+
+- **Wann:** Öffnet ein Konto mit vollem Zugriff die Übersicht des Backends und ist die letzte automatische Sicherung älter als 24 Stunden, stößt die Seite im Hintergrund eine Sicherung an. Die Übersicht wartet nicht darauf, ein Hinweis oben zeigt erst „Tägliche Sicherung läuft ...“, dann das Ergebnis. Öffnen zwei Tabs oder zwei Sysops die Übersicht gleichzeitig, entsteht trotzdem nur eine Sicherung. Moderatoren lösen keine Sicherung aus und sehen nichts davon.
+- **Inhalt:** Nur die Datenbank, mit derselben Technik wie das Backup per Knopf: bei SQLite eine konsistente Kopie der Datenbankdatei, bei MySQL ein SQL-Dump. Keine Dateibereiche, keine Screens, keine `core/config.php`.
+- **Ablage:** in `data/backups/`, wie die Sicherungen vor Updates, mit dem Namen `auto-<datum>-<uhrzeit>-<zufall>.zip`. Die 7 neuesten bleiben liegen, ältere automatische Sicherungen löscht die Box nach jeder neuen. Sicherungen vor Updates und andere Dateien in dem Ordner fasst sie nie an.
+- **Liste:** Die Seite „Backup“ zeigt alle automatischen Sicherungen mit Datum und Größe, zum Herunterladen und Löschen, dazu den Zeitpunkt der letzten. Die Übersicht nennt ihn im Kasten „System“.
+- **Fehler:** Klappt die Sicherung nicht, etwa weil kein Platz mehr frei ist, bleibt oben in der Übersicht ein gelber Hinweis mit dem Grund stehen, bis eine Sicherung klappt. Ein neuer Versuch folgt beim nächsten Aufruf der Übersicht nach frühestens einer Stunde. Das Backend bleibt dabei voll bedienbar.
+- Jede automatische Sicherung, jeder Fehler, das Herunterladen, das Löschen und das Ein- und Ausschalten stehen im Log.
+
+Die tägliche Sicherung liegt auf demselben Webspace wie die Box. Gegen den Verlust des ganzen Webspace hilft sie nicht, lade deshalb weiter regelmäßig ein Backup per Knopf herunter. Der Hinweis „Das letzte Backup ist älter als 30 Tage“ zählt deshalb nur Backups per Knopf und vor Updates.
+
 ### Update-Prüfung
 
 Die Box kann selbst nachsehen, ob es eine neue Version gibt. Die Prüfung ist ab Werk **ausgeschaltet**, auch nach einem Update von einer älteren Version. Einschalten kannst du sie unter „Einstellungen“ im Abschnitt „Updates“ oder direkt über die Meldung in der Übersicht.
@@ -731,6 +795,10 @@ Bringt eine neue Version Änderungen an der Datenbank mit, werden sie beim erste
 - Antworten aus dem Fragebogen der Anmeldung sind personenbezogene Angaben. Sie sind nur für die Sysop-Ebene sichtbar, bleiben bis du sie löschst und verschwinden mit dem User. Nenne den Fragebogen in deiner Datenschutzerklärung, wenn du ihn einschaltest.
 - „In WAnsiDraw öffnen“ überträgt nichts an den Server von wansidraw.de: Die Zeichnung steht im Teil der Adresse nach dem `#`, den Browser nicht mitsenden. Der Anrufer ruft dabei aber die Seite des Editors auf, dessen Betreiber sieht wie bei jedem Link den Abruf selbst. Mit einer leeren Adresse in den Einstellungen ist die Funktion aus.
 - Der Hinweis im Browser-Tab und der Röhren-Effekt laufen nur im Browser des Anrufers, dafür wird nichts gespeichert außer der Einstellung, ob ein Anrufer den Effekt abgeschaltet hat.
+- Damit ein Neuladen nicht auflegt, merkt sich die Box pro Node die Ausgabe seit dem letzten Löschen des Bildschirms, höchstens 64 KB. Was der Anrufer selbst getippt hat, steht darin so, wie es auf seinem Bildschirm stand, Passwörter nur als Sternchen. Der Puffer liegt nur bis zum Ende des Anrufs vor, mit der Node verschwindet auch er. Vor dem Login wird nichts gespeichert.
+- Das Token zur Wiederaufnahme hält der Browser nur im Speicher des Tabs (sessionStorage), es ist kein Cookie. Die Box speichert davon nur einen Hash in der Sitzung. Fertige Zeilen im Editor hält der Browser ebenfalls im Speicher des Tabs, bis die Nachricht gespeichert oder verworfen ist.
+- Für die Erkennung doppelter Uploads speichert die Box zu jeder Datei ihre SHA-256-Prüfsummen. Die BBS-Ad enthält nur, was du im Text vorgibst, mit `@USER@` auch das Handle des Uploaders.
+- Die tägliche Sicherung enthält die ganze Datenbank, also auch alle personenbezogenen Daten. Sie liegt in `data/backups/`, das nicht über das Web erreichbar sein darf, und wird nach sieben neueren Sicherungen gelöscht. Das gehört in die Datenschutzerklärung.
 
 ## 15. Fehlersuche
 
@@ -738,12 +806,15 @@ Bringt eine neue Version Änderungen an der Datenbank mit, werden sie beim erste
 |---|---|
 | Installer meldet „core/ writable“ oder „data/ writable“ rot | Rechte der Ordner per FTP auf 775 setzen |
 | Terminal zeigt „NO CARRIER“ direkt nach CONNECT | PHP-Fehlerlog des Hosters prüfen. Meist fehlende Rechte auf `data/` oder falsche Datenbankdaten |
-| Immer „Alle Leitungen sind besetzt“ | Mehr Nodes einstellen. Verwaiste Nodes werden nach der Idle-Zeit plus zwei Minuten automatisch frei |
+| Immer „Alle Leitungen sind besetzt“ | Mehr Nodes einstellen. Nach dem Schließen eines Tabs wird die Node nach zwei Minuten frei, ohne Nachricht des Browsers nach der Idle-Zeit plus zwei Minuten |
+| F5 startet einen neuen Anruf statt weiterzumachen | Der Tab wurde geschlossen oder es war ein anderer Tab, die zwei Minuten sind abgelaufen, die Idle-Zeit oder Tageszeit war um, der Sysop hat getrennt oder der Browser blockiert sessionStorage (privates Fenster mit strengen Einstellungen) |
 | Verbindung reißt beim Anmelden nach wenigen Minuten ab | Vor dem Login wird eine Leitung nach drei Minuten ohne Eingabe frei. Einfach neu anwählen |
 | Login meldet „Zu viele Fehlversuche“ | 15 Minuten warten. Als Sysop kannst du die Sperre sofort aufheben, indem du im Backend das Log leerst. Dabei gehen auch die Upload- und Download-Zahlen der Statistik verloren |
 | Handy mit der Authenticator-App verloren | Mit einem Notfallcode einloggen. Ohne Notfallcodes per FTP `data/2fa_reset.txt` mit deinem Handle anlegen und im Backend mit dem Passwort einloggen (Abschnitt 7, „Zweiter Faktor“) |
 | Code aus der App wird nicht angenommen | Uhrzeit des Handys prüfen, sie muss stimmen. Jeder Code gilt nur einmal, warte auf den nächsten |
 | Upload schlägt fehl | Dateityp erlaubt? PHP-Limit in den Einstellungen ansehen und ggf. beim Hoster erhöhen |
+| Upload wird mit einem Grund abgelehnt | Der Upload-Prüfer hat zugeschlagen (Abschnitt 10). Bei „zu viele Einträge oder zu groß“ die Grenzen der ZIP-Prüfung in den Einstellungen anheben |
+| Hinweis „Die tägliche Sicherung ist fehlgeschlagen“ | Grund im Hinweis lesen, meist fehlt Platz auf dem Webspace oder `data/backups/` ist nicht beschreibbar. Alte Sicherungen löschen, der nächste Versuch kommt nach einer Stunde |
 | Umlaute in ANSI-Screens kaputt | Screen muss in CP437 gespeichert sein, nicht in UTF-8. Für UTF-8-Text einen .txt-Screen nehmen |
 | Kein Ton beim Wählen | Einstellung „Modem- und Klingeltöne“ prüfen. Browser spielen Töne erst nach dem ersten Tastendruck ab |
 | ANSI-Screens nach dem Hochladen verschoben, Zeilen beginnen nicht links | Die Datei hat ihre CRLF-Zeilenenden verloren (z. B. durch Git oder FTP im ASCII-Modus). `.ans`-Dateien immer binär übertragen |

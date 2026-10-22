@@ -10,7 +10,7 @@
  */
 declare(strict_types=1);
 
-define('CB_DB_VERSION', 9);
+define('CB_DB_VERSION', 10);
 
 /** Run all pending steps. Costs only the (cached) settings lookup when up to date. */
 function cb_migrate(): void
@@ -289,6 +289,53 @@ function cb_migrate_9(): void
     cb_add_column('menus', 'head_bar', 'INT NOT NULL DEFAULT 1');
     foreach (['sysop_pages', 'msg_reports'] as $t) {
         cb_create_table($t);
+    }
+}
+
+/**
+ * 10: resuming a line after a reload (nodes.away, nodes.screen), checksums of the files for the upload
+ * check (computed later in steps, see cb_hash_pending()), best values of Hi-Lo into the high score list.
+ */
+function cb_migrate_10(): void
+{
+    cb_add_column('nodes', 'away', 'BIGINT NOT NULL DEFAULT 0');
+    cb_add_column('nodes', 'screen', DB::$driver === 'mysql' ? 'MEDIUMTEXT' : 'TEXT');
+    cb_add_column('files', 'sha256', "VARCHAR(64) NOT NULL DEFAULT ''");
+    cb_add_column('files', 'sha256_orig', "VARCHAR(64) NOT NULL DEFAULT ''");
+    foreach (['sha256', 'sha256_orig'] as $c) {
+        if (!cb_index_exists('files', 'files_' . $c)) {
+            DB::q('CREATE INDEX {files}_' . $c . ' ON {files} (' . $c . ')');
+        }
+    }
+    foreach (['auto_backup' => '1', 'bbs_ad_on' => '0', 'upload_zip_entries' => (string)CB_ZIP_MAX_ENTRIES, 'upload_zip_mb' => (string)CB_ZIP_MAX_MB] as $k => $v) {
+        if (DB::val('SELECT COUNT(*) FROM {settings} WHERE name=?', [$k]) == 0) {
+            Settings::set($k, $v);
+        }
+    }
+    cb_migrate_hilo_scores();
+}
+
+/**
+ * Hi-Lo up to door version 1.3.0 kept the best result per user in door_data (key best). It goes into
+ * door_scores where there is no entry yet or a worse one (more tries), from then on the door only
+ * writes the list.
+ */
+function cb_migrate_hilo_scores(): void
+{
+    $de = Settings::get('language', 'en') === 'de';
+    foreach (DB::all("SELECT user_id, v FROM {door_data} WHERE door='hilo' AND k='best'") as $r) {
+        $n = (int)$r['v'];
+        $uid = (int)$r['user_id'];
+        if ($n < 1 || $uid <= 0) {
+            continue;
+        }
+        $old = DB::row("SELECT value FROM {door_scores} WHERE door='hilo' AND user_id=?", [$uid]);
+        if ($old && (int)$old['value'] <= $n) {
+            continue;
+        }
+        $label = $de ? ($n === 1 ? '1 Versuch' : $n . ' Versuche') : ($n === 1 ? '1 try' : $n . ' tries');
+        DB::q("DELETE FROM {door_scores} WHERE door='hilo' AND user_id=?", [$uid]);
+        DB::insert('door_scores', ['door' => 'hilo', 'user_id' => $uid, 'value' => $n, 'label' => $label, 'time' => time()]);
     }
 }
 

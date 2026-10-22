@@ -1,6 +1,6 @@
 <?php
 /**
- * Sysop backend: file areas, files, approval of uploads and the bulk import.
+ * Sysop backend: file areas, files, approval of uploads, the bulk import, checksums and the BBS ad.
  *
  * Copyright (C) 2026 Christoph Scheel <https://chrisscheel.de>
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -64,9 +64,52 @@ function a_store_file(int $area, string $src, string $name, string $desc, int $u
     if (!$ok) {
         return t('Could not store {1}.', $name);
     }
+    $sha = (string)@hash_file('sha256', $dst);
     DB::insert('files', ['area_id' => $area, 'filename' => $name, 'size' => (int)filesize($dst), 'description' => mb_substr($desc, 0, 2000),
-        'uploader_id' => $uid, 'uploader' => $handle, 'added' => time(), 'downloads' => 0, 'approved' => 1, 'storage' => $area . '/' . $name]);
+        'uploader_id' => $uid, 'uploader' => $handle, 'added' => time(), 'downloads' => 0, 'approved' => 1, 'storage' => $area . '/' . $name,
+        'sha256' => $sha, 'sha256_orig' => $sha]);
     return null;
+}
+
+/** One step of the checksums for older files, with a log entry if something was done: [done, left]. */
+function a_hash_step(array $admin): array
+{
+    $done = cb_hash_pending(50, 5.0);
+    $left = cb_hash_left();
+    if ($done > 0) {
+        cb_log((int)$admin['id'], $admin['handle'], 'Checksums computed for ' . $done . ' file(s), ' . $left . ' left');
+    }
+    return [$done, $left];
+}
+
+/** JSON for the button on the files page: one step of the checksums. Only for full accounts, see the router. */
+function page_hashstep(array $admin): never
+{
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !cb_csrf_ok($_POST['csrf'] ?? null)) {
+        echo json_encode(['err' => 'csrf', 'text' => t('The form has expired. Please try again.')]);
+        exit;
+    }
+    session_write_close();
+    [$done, $left] = a_hash_step($admin);
+    echo json_encode(['done' => $done, 'left' => $left,
+        'text' => $left > 0 ? t('{1} file(s) without checksum left.', $left) : t('All files have a checksum.')], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+/** Section with the checksums on the files page. */
+function a_hash_section(): string
+{
+    $left = cb_hash_left();
+    $h = '<section class="panel"><h2>' . h(t('Checksums')) . '</h2><p class="note">' .
+        h(t('Uploads from the terminal are compared with the checksums of all files, so a file that is already there is refused. Files from before version 1.11.0 get their checksum bit by bit, up to 50 with every visit of the overview.')) . '</p>';
+    if ($left === 0) {
+        return $h . '<p>' . h(t('All files have a checksum.')) . '</p></section>';
+    }
+    return $h . '<form method="post" class="row-actions">' . a_csrf() . '<button class="btn small" name="hashes" value="1" id="hash-run" data-url="' .
+        h(a_url('hashstep')) . '" data-busy="' . h(t('Computing ...')) . '">' . h(t('Compute checksums now')) . '</button>' .
+        '<span id="hash-progress" class="note" role="status">' . h(t('{1} file(s) without checksum left.', $left)) . '</span></form></section>';
 }
 
 /** Move or rename a stored file (disk and database). Returns an error text or null. */
@@ -250,6 +293,9 @@ function page_files(array $admin): void
                     a_flash($msg);
                 }
             }
+        } elseif (isset($_POST['hashes'])) {
+            [$done, $left] = a_hash_step($admin);
+            a_flash(t('{1} checksum(s) computed, {2} file(s) left.', $done, $left));
         } elseif (isset($_POST['upload'])) {
             $target = a_int('target');
             if (!isset($names[$target])) {
@@ -309,6 +355,7 @@ function page_files(array $admin): void
             '<label>' . h(t('Description (empty = FILE_ID.DIZ from the ZIP)')) . '<input name="updesc" maxlength="2000"></label>' .
             '<p class="note">' . h(t('For many files use the file import instead. The PHP limit of your webspace is {1} per upload.', cb_kb(Engine::uploadMaxBytes()))) . '</p>' .
             '<button class="btn" name="upload" value="1">' . h(t('Upload')) . '</button></form></section>';
+        echo a_hash_section();
     }
 
     // search and filters, all of them in the address
@@ -518,4 +565,81 @@ function page_import(array $admin): void
     }
     echo '</table></div><label class="inline"><input type="checkbox" name="move" checked> ' . h(t('Move files (saves space). Without this they are copied.')) . '</label>' .
         '<p><button class="btn" type="submit">' . h(t('Start import')) . '</button></p></form>';
+}
+
+/* ------------------------------------------------------------------ BBS ad */
+
+/** Lines of the filled in ad longer than 79 characters: [line, length]. */
+function a_ad_long_lines(string $text): array
+{
+    $out = [];
+    foreach (explode("\n", $text) as $i => $l) {
+        if (mb_strlen(rtrim($l)) > 79) {
+            $out[] = [$i + 1, mb_strlen(rtrim($l))];
+        }
+    }
+    return $out;
+}
+
+/** BBS ad: a text file the board puts into every ZIP uploaded in the terminal. */
+function page_bbsad(array $admin): void
+{
+    if (a_post()) {
+        $reset = isset($_POST['reset']);
+        $on = isset($_POST['bbs_ad_on']) ? '1' : '0';
+        $name = $reset ? '' : a_in('bbs_ad_name', 12);
+        $text = $reset ? '' : str_replace(["\r\n", "\r"], "\n", (string)($_POST['bbs_ad_text'] ?? ''));
+        $text = rtrim(mb_substr(preg_replace('/[\x00-\x09\x0B-\x1F\x7F]/u', '', $text) ?? '', 0, 4000));
+        $errs = [];
+        if ($name !== '' && !cb_ad_name_ok($name)) {
+            $errs[] = t('The file name must have the form NAME.EXT (up to 8 and 3 characters) of letters, digits and _ - ! # $ % & \' ( ) @ ^ { } ~, without a path. FILE_ID.DIZ and names of devices like CON are not allowed.');
+        }
+        $tpl = trim($text) !== '' ? $text : cb_ad_default_text();
+        if (count(explode("\n", $tpl)) > 40) {
+            $errs[] = t('The ad has more than 40 lines.');
+        }
+        foreach (array_slice(a_ad_long_lines(cb_ad_text($tpl, (string)$admin['handle'], time())), 0, 3) as [$line, $len]) {
+            $errs[] = t('Line {1} has {2} characters, at most 79 are allowed.', $line, $len);
+        }
+        if ($errs) {
+            $_SESSION['cb_ad_draft'] = [$on, $name, $text];
+            a_flash(implode(' ', $errs) . ' ' . t('The ad was not saved.'), 'bad');
+            a_go('bbsad');
+        }
+        unset($_SESSION['cb_ad_draft']);
+        // the default text is not stored, so it follows the language of the board
+        Settings::set('bbs_ad_on', $on);
+        Settings::set('bbs_ad_name', $name === cb_ad_default_name() ? '' : $name);
+        Settings::set('bbs_ad_text', $text === cb_ad_default_text() ? '' : $text);
+        cb_log((int)$admin['id'], $admin['handle'], ($reset ? 'Reset the BBS ad' : 'Saved the BBS ad') . ' (' . ($on === '1' ? 'on' : 'off') . ')');
+        a_flash($reset ? t('The ad was reset to the default.') : t('The ad was saved.'));
+        a_go('bbsad');
+    }
+    $draft = $_SESSION['cb_ad_draft'] ?? null;
+    unset($_SESSION['cb_ad_draft']);
+    $on = is_array($draft) ? $draft[0] === '1' : Settings::get('bbs_ad_on', '0') === '1';
+    $name = is_array($draft) ? (string)$draft[1] : cb_ad_name();
+    $text = is_array($draft) ? (string)$draft[2] : cb_ad_template();
+    $now = time();
+    $macros = [];
+    foreach (['BBSNAME', 'BBSLOC', 'SYSOP', 'BBSURL', 'DATE', 'TIME', 'USER'] as $m) {
+        $macros[$m] = (string)cb_ad_macro($m, (string)$admin['handle'], $now);
+    }
+    $filled = cb_ad_text(trim($text) !== '' ? $text : cb_ad_default_text(), (string)$admin['handle'], $now);
+    // as the file will look: characters CP437 does not have become a question mark
+    $shown = CP437::toUtf8(cb_ad_bytes($filled));
+    $lossy = rtrim(str_replace("\r\n", "\n", $shown)) !== rtrim(implode("\n", array_map('rtrim', explode("\n", $filled))));
+
+    echo '<h1>' . h(t('BBS ad')) . '</h1>';
+    echo '<p class="note">' . h(t('The board puts this text file into every ZIP archive a caller uploads in the terminal, into the top folder, after the upload passed the check. It is written in CP437 with CRLF, so it looks right in DOS programs and old viewers. A file with the same name in the archive is replaced, FILE_ID.DIZ and all other entries stay as they are. Other archive formats get no ad, uploads in the backend neither.')) . '</p>';
+    echo '<form method="post" class="form panel">' . a_csrf() .
+        '<label class="inline"><input type="checkbox" name="bbs_ad_on"' . ($on ? ' checked' : '') . '> ' . h(t('Put the ad into uploaded ZIP archives')) . '</label>' .
+        '<label>' . h(t('File name')) . '<input name="bbs_ad_name" class="mono" maxlength="12" value="' . h($name) . '">' .
+        '<span class="hint">' . h(t('8.3 format like in the old days. From the name of the board: {1}', cb_ad_default_name())) . '</span></label>' .
+        '<label>' . h(t('Text')) . '<textarea name="bbs_ad_text" id="ad-text" class="mono nowrap" rows="16" spellcheck="false">' . "\n" . h($text) . '</textarea>' .
+        '<span class="hint">' . h(t('Plain text, at most 79 characters per line. Macros: @BBSNAME@, @BBSLOC@, @SYSOP@, @BBSURL@ (address of the board), @DATE@ and @TIME@ of the upload, @USER@ (the uploader). A width keeps a frame straight: @BBSNAME:40L@ fills or cuts to 40 characters, R and C align right and centered.')) . '</span></label>' .
+        '<h2>' . h(t('Preview')) . '</h2><pre class="msgbody adpreview" id="ad-preview" data-macros="' . h((string)json_encode($macros, JSON_UNESCAPED_UNICODE)) . '">' . h($shown) . '</pre>' .
+        ($lossy ? '<p class="note">' . h(t('Some characters do not exist in CP437, they become a question mark in the file.')) . '</p>' : '') .
+        '<div class="row-actions"><button class="btn" type="submit" name="save" value="1">' . h(t('Save')) . '</button>' .
+        '<button class="btn ghost" name="reset" value="1"' . a_confirm(t('Reset file name and text to the default?')) . '>' . h(t('Reset to default')) . '</button></div></form>';
 }

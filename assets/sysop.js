@@ -1,7 +1,8 @@
 /*
  * WebCarrier BBS: live parts of the sysop backend. Every page asks for calls, reports and waiting
  * users (every 15 seconds, every 30 seconds while the tab is in the background), shows the bar with
- * calls, gives a hint in the tab title and runs the chat page. Also switches dependent form fields.
+ * calls, gives a hint in the tab title and runs the chat page. Also switches dependent form fields,
+ * starts the daily backup from the overview, computes checksums in steps and previews the BBS ad.
  *
  * Copyright (C) 2026 Christoph Scheel <https://chrisscheel.de>
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -17,6 +18,28 @@
     src.addEventListener('change', sync);
     sync();
   });
+
+  /* ---------------------------------------------------------------- preview of the BBS ad */
+
+  var adText = document.getElementById('ad-text');
+  var adPrev = document.getElementById('ad-preview');
+  if (adText && adPrev) {
+    var macros = JSON.parse(adPrev.getAttribute('data-macros') || '{}');
+    var fill = function (v, w, al) {
+      v = String(v);
+      if (!w) { return v; }
+      if (v.length >= w) { return v.substr(0, w); }
+      var gap = w - v.length;
+      if (al === 'R') { return ' '.repeat(gap) + v; }
+      if (al === 'C') { return ' '.repeat(Math.floor(gap / 2)) + v + ' '.repeat(gap - Math.floor(gap / 2)); }
+      return v + ' '.repeat(gap);
+    };
+    adText.addEventListener('input', function () {
+      adPrev.textContent = adText.value.replace(/@([A-Z]{2,12})(?::(\d{1,2})([LRC]?))?@/g, function (m, n, w, al) {
+        return Object.prototype.hasOwnProperty.call(macros, n) ? fill(macros[n], parseInt(w, 10) || 0, al || 'L') : m;
+      });
+    });
+  }
 
   var live = document.getElementById('live');
   if (!live || !window.fetch || !window.FormData) { return; }
@@ -123,6 +146,46 @@
     schedule();
   });
   if (cfg.notify) { setIcon(false); }
+
+  /* ---------------------------------------------------------------- daily backup, checksums */
+
+  var ab = document.getElementById('autobackup');
+  if (ab) {
+    var abText = function (cls, text) {
+      ab.className = cls;
+      ab.firstChild.textContent = text;
+    };
+    post(ab.getAttribute('data-url'), {}).then(function (r) {
+      if (r.state === 'error') {
+        abText('flash warn', r.text || ab.getAttribute('data-fail'));
+        return;
+      }
+      abText('flash', r.text || '');
+      var last = document.getElementById('auto-last');
+      if (last && r.when) { last.textContent = r.when; }
+      var old = document.getElementById('autobackup-err');
+      if (old) { old.parentNode.removeChild(old); }
+    }).catch(function () { abText('flash warn', ab.getAttribute('data-fail')); });
+  }
+
+  var hashBtn = document.getElementById('hash-run');
+  var hashOut = document.getElementById('hash-progress');
+  if (hashBtn && hashOut) {
+    hashBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      hashBtn.disabled = true;
+      hashBtn.textContent = hashBtn.getAttribute('data-busy');
+      var step = function () {
+        post(hashBtn.getAttribute('data-url'), {}).then(function (r) {
+          hashOut.textContent = r.text || '';
+          if (!r.err && r.left > 0 && r.done > 0) { step(); return; }
+          hashBtn.hidden = true;
+        }).catch(function () { hashBtn.disabled = false; });
+      };
+      step();
+    });
+  }
+
   // calls already on the page count as known
   if (bar) {
     Array.prototype.forEach.call(bar.querySelectorAll('button[name=take]'), function (b) { knownCalls[b.value] = true; });

@@ -213,21 +213,49 @@ Eigene Tabellen in der Datenbank sind für Doors nicht vorgesehen. Für die alle
 - Beide Methoden wirken nur in einer laufenden Door. Ein Fehler beim Speichern landet im Log, die Door läuft weiter.
 - Soll die Door auch auf Versionen vor 1.6.0 laufen, prüfe vorher mit `method_exists($e, 'doorScore')`, wie bei `wait()` in Abschnitt 5 beschrieben.
 
-So macht es Hi-Lo, wo weniger Versuche besser sind (`'score' => 'low'` in der Registrierung):
+Lesen kann eine Door die Liste mit zwei Hilfsfunktionen der Box (ab 1.6.0), so zeigt sie dieselbe Reihenfolge wie der Kasten über der Doors-Auswahl und DOORTOP:
+
+| Funktion | Zweck |
+|---|---|
+| `cb_door_top($door, $richtung, $anzahl)` | Die ersten Einträge der Liste, je mit `user_id`, `value`, `label`, `time` und `handle`. `$richtung` ist `'high'` oder `'low'` wie `'score'` in der Registrierung |
+| `cb_door_rank($door, $richtung, $userId)` | Platz und Eintrag eines Users als `[platz, eintrag]`, `null` ohne Eintrag |
+
+`$door` ist die `id` der Door, in einer laufenden Door steht sie in `$e->S['door']`. Gesperrte und wartende User fehlen in beiden Ergebnissen.
+
+So macht es Hi-Lo ab Version 1.3.1, wo weniger Versuche besser sind (`'score' => 'low'` in der Registrierung). Der Bestwert steht nur noch in der Bestenliste, die Ruhmeshalle im Spiel liest sie mit `cb_door_top()`:
 
 ```php
-/** Best result of the caller to the high score list of the board (fewer tries are better). */
-private function reportBest(Engine $e): void
+/** True on boards with the high score list (1.6.0 and newer). Older ones keep the best value in door_data. */
+private function hasList(Engine $e): bool
 {
-    $best = $e->doorGet('best');
-    if ($best !== null) {
-        $n = (int)$best;
+    return method_exists($e, 'doorScore') && function_exists('cb_door_top') && function_exists('cb_door_rank');
+}
+
+/** Best result of the caller: from the high score list, on old boards from door_data. Null if none. */
+private function best(Engine $e): ?int
+{
+    if ($this->hasList($e) && $e->user) {
+        $rank = cb_door_rank($this->doorId($e), 'low', (int)$e->user['id']);
+        if ($rank !== null) {
+            return (int)$rank[1]['value'];
+        }
+    }
+    $old = $e->doorGet('best');
+    return $old === null ? null : (int)$old;
+}
+
+/** New best result: into the high score list, only boards without it still use door_data. */
+private function saveBest(Engine $e, int $n): void
+{
+    if ($this->hasList($e)) {
         $e->doorScore($n, $this->t($e, $n === 1 ? 'try1' : 'tries', $n));
+    } else {
+        $e->doorSet('best', (string)$n);
     }
 }
 ```
 
-`reportBest()` wird am Anfang von `start()` und nach jedem gewonnenen Spiel aufgerufen. `try1` und `tries` sind eigene Texte der Door („{1} Versuch“ und „{1} Versuche“, auf Englisch „{1} try“ und „{1} tries“).
+`try1` und `tries` sind eigene Texte der Door („{1} Versuch“ und „{1} Versuche“, auf Englisch „{1} try“ und „{1} tries“). Ältere Fassungen von Hi-Lo hatten ihren Bestwert in `door_data`, das Update auf 1.11.0 hat diese Werte einmalig in die Bestenliste übernommen. Für Boxen ohne diese Übernahme meldet Hi-Lo einen besseren alten Wert aus `door_data` beim Start selbst.
 
 **Der Anrufer:** `$e->user` enthält den Datensatz des eingeloggten Anrufers als Array, unter anderem `id`, `handle`, `location`, `level` und `calls`. Behandle ihn als nur lesbar. Weitere Angaben bekommst du mit `$e->lvl()` (Level), `$e->isSysop()` und `$e->minutesLeft()` (Restzeit heute in Minuten).
 
@@ -264,6 +292,8 @@ Die Methode oben ersetzt die Makros, bevor die Argumente eingesetzt werden. So b
 **Unterbrechungen:** Der Sysop kann einen Anrufer trennen oder sich zu ihm in den Chat schalten. Ein Chat ersetzt die laufende Door, danach landet der Anrufer im Hauptmenü, die Door wird nicht fortgesetzt. Rundrufe und Benachrichtigungen erscheinen dagegen einfach als Zeile im Terminal, die Door läuft danach normal weiter.
 
 Daraus folgt: **Speichere wichtige Fortschritte sofort** mit `doorSet()`, nicht erst beim Verlassen der Door. Bei einem Spiel also den Spielstand nach jedem Zug, nicht erst am Ende.
+
+**Neu laden (F5):** Lädt der Anrufer die Seite neu, merkt die Door davon nichts (ab Version 1.11.0). Die Box zeigt ihm den Bildschirm von vorher wieder und fragt erneut nach der Eingabe, die gerade offen war, mit denselben Einstellungen: dieselbe `hot()`-Taste, dieselbe `line()` samt Maske und Escape-Erlaubnis, `yn()`, `pause()` oder den Editor. Eine laufende `wait()`-Pause geht an derselben Stelle weiter. `input()` wird nicht zusätzlich aufgerufen und `start()` nicht erneut, der Zustand aus `doorState()` und alle gespeicherten Daten bleiben, wie sie sind. Halb getippter Text einer Zeile geht verloren, so als hätte der Anrufer ihn gelöscht. Eine Door muss dafür nichts tun.
 
 **Fehler:** Wirft die Door eine Exception oder einen PHP-Fehler, beendet die Engine die Door. Der Anrufer sieht „Die Door … hat einen Fehler gemeldet und wurde beendet.“ und landet nach Enter im Menü, die Fehlermeldung steht im Log der Box. Gespeichertes bleibt erhalten, der Zustand aus `doorState()` ist weg. Prüf Eingaben deshalb vorher, statt dich auf Exceptions zu verlassen. Gib nie selbst etwas mit `echo` aus und beende das Skript nie mit `exit`, beides zerstört die Antwort an das Terminal.
 
@@ -442,6 +472,8 @@ Hilfsfunktionen außerhalb der Engine:
 | `cb_wrap($text, $breite)` | Zeilenumbruch, gibt ein Array zurück |
 | `cb_date($zeitstempel)` | Datum im Format der Box |
 | `cb_strip_sauce($bytes)` | SAUCE-Block am Ende einer ANSI-Datei entfernen |
+| `cb_door_top($door, $richtung, $anzahl)` | Erste Einträge der Bestenliste einer Door, ab 1.6.0 |
+| `cb_door_rank($door, $richtung, $userId)` | Platz und Eintrag eines Users in der Bestenliste, ab 1.6.0 |
 | `CP437::clean($text, $max)` | Eingabe säubern und kürzen |
 | `Lang::$code` | Sprache der Box (`de` oder `en`) |
 

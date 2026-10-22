@@ -38,12 +38,13 @@ $v = is_array($in) ? (string)($in['v'] ?? '') : '';
 // max. message is 20000 chars, up to 4 bytes each
 $v = substr($v, 0, 100000);
 
-if (!in_array($a, ['start', 'in', 'wait', 'idle', 'bye', 'ping', 'poll'], true)) {
+if (!in_array($a, ['start', 'resume', 'in', 'wait', 'idle', 'bye', 'away', 'ping', 'poll'], true)) {
     http_response_code(400);
     echo json_encode(['err' => 'bad request']);
     exit;
 }
-if ($a !== 'start' && !cb_csrf_ok(is_array($in) ? (string)($in['csrf'] ?? '') : '')) {
+// start and resume come from a freshly loaded page, resume is bound to the token of the tab instead
+if ($a !== 'start' && $a !== 'resume' && !cb_csrf_ok(is_array($in) ? (string)($in['csrf'] ?? '') : '')) {
     echo json_encode(['o' => '', 'ask' => null, 'hang' => true, 'csrf' => cb_csrf()]);
     exit;
 }
@@ -53,6 +54,8 @@ try {
     $res = match ($a) {
         'ping' => $engine->ping(),
         'poll' => $engine->poll(),
+        'away' => $engine->away(),
+        'resume' => $engine->resume(is_array($in) ? (string)($in['rt'] ?? '') : ''),
         default => $engine->run($a, $v),
     };
     echo json_encode($res, JSON_UNESCAPED_UNICODE);

@@ -346,7 +346,7 @@ function page_screen(array $admin): void
     if ($isTxt) {
         echo '<form method="post" class="form panel">' . a_csrf() . '<label>' . h(t('Text with pipe codes')) . '<textarea name="text" class="mono" style="min-height:360px">' .
             h($raw) . '</textarea></label><p class="note">' .
-            h(t('|00 to |15 set the text colour, |16 to |23 the background, |CL clears the screen. Macros: @BBSNAME@ @SYSOP@ @BBSLOC@ @USER@ @USERLOC@ @CALLS@ @LASTCALL@ @TIMELEFT@ @LEVEL@ @LEVELNAME@ @NODE@ @NODES@ @DATE@ @TIME@ @USERS@ @MSGS@ @FILES@ @TOTALCALLS@ @VERSION@. Width and alignment: @BBSNAME:40C@ (L, R or C).')) .
+            h(t('|00 to |15 set the text colour, |16 to |23 the background, |CL clears the screen. Macros: @BBSNAME@ @SYSOP@ @BBSLOC@ @BBSURL@ @USER@ @USERLOC@ @CALLS@ @LASTCALL@ @TIMELEFT@ @LEVEL@ @LEVELNAME@ @NODE@ @NODES@ @DATE@ @TIME@ @USERS@ @MSGS@ @FILES@ @TOTALCALLS@ @VERSION@. Width and alignment: @BBSNAME:40C@ (L, R or C).')) .
             '</p><button class="btn" type="submit">' . h(t('Save screen')) . '</button></form>';
     } else {
         echo '<p class="note">' . h(t('ANSI screens are edited with an ANSI editor and uploaded again under the same name.')) . '</p>';

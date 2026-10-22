@@ -9,6 +9,7 @@ Anleitung für Anrufer.
 - Wenn du etwas eintippen sollst (Name, Betreff, Text), schließt du die Eingabe mit **Enter** ab.
 - **?** zeigt im Menü die Auswahl erneut an.
 - Läuft gerade Text über den Bildschirm, holst du ihn mit **Esc** sofort komplett herein.
+- **F5** legt nicht auf. Nach dem Neuladen bist du noch eingeloggt und siehst denselben Bildschirm wie vorher.
 
 ## 1. Anrufen
 
@@ -49,6 +50,8 @@ Ab dem zweiten Anruf zeigt ein Kasten, was **neu seit deinem letzten Anruf** ist
 **Zeitlimit:** Die Zeit pro Tag ist begrenzt. Deine Restzeit steht in jeder Menüzeile. Ist sie aufgebraucht, wird aufgelegt, am nächsten Tag geht es weiter.
 
 **Untätigkeit:** Gibst du einige Minuten nichts ein, legt die Box auf, damit die Leitung für andere frei wird. Vor dem Login und während der Anmeldung geschieht das schon nach knapp drei Minuten. Eine Minute vorher warnt sie dich. Solange du im Editor tippst oder eine Datei hochlädst, passiert das nicht.
+
+**Seite neu laden (F5):** Lädst du die Seite neu, bleibt die Verbindung bestehen. Du siehst wieder den Bildschirm, auf dem du warst, und kannst einfach weitertippen, egal ob im Menü, beim Lesen, im Editor, im Treffpunkt, im Chat mit dem Sysop oder mitten in einem Spiel. Im Editor bleiben alle fertigen Zeilen erhalten, nur die Zeile, an der du gerade tippst, ist weg, ebenso halb getippter Text in einer Eingabezeile. Ein Neuladen zählt nicht als neuer Anruf. Restzeit und die Frist für Untätigkeit laufen dabei weiter. Das klappt nur im selben Tab und innerhalb von zwei Minuten. Ein neuer Tab, ein anderes Fenster oder ein Neuladen vor dem Login beginnt einen neuen Anruf. Auch nach der Meldung „Leitungsfehler“ hilft F5, solange du keine Taste zum neuen Wählen drückst.
 
 ## 4. Das Hauptmenü
 
@@ -162,6 +165,19 @@ Manche Boxen begrenzen die Downloads pro Tag oder verlangen eine **Ratio**: Bei 
 
 **Upload:** Taste U, dann öffnet sich das Dateifenster deines Betriebssystems (Q bricht ab). Datei wählen, die Box zeigt den Fortschritt. Enthält ein ZIP eine `FILE_ID.DIZ`, wird sie als Beschreibung angeboten, sonst gibst du eine kurze Beschreibung ein. Je nach Box ist dein Upload sofort sichtbar oder erst, nachdem der Sysop ihn geprüft hat. Lade nur Dateien hoch, die du weitergeben darfst.
 
+Die Box prüft jeden Upload sofort. Stimmt etwas nicht, löscht sie die Datei, nennt den Grund und du kannst gleich eine andere schicken. Ein abgelehnter Upload zählt nicht für deine Upload-Statistik.
+
+| Meldung | Bedeutung |
+|---|---|
+| Die Datei passt nicht zu ihrer Endung. | Der Inhalt ist kein Archiv dieser Art, etwa ein RAR, das `.zip` heißt |
+| Das Archiv ist beschädigt. | Das ZIP ist unvollständig oder fehlerhaft, lade es neu herunter oder pack es neu |
+| Das Archiv hat zu viele Einträge oder wird entpackt zu groß. | Das ZIP liegt über den Grenzen der Box |
+| Diese Datei gibt es schon: NAME in BEREICH. | Genau diese Datei liegt schon in der Box, auch unter anderem Namen |
+| Diese Datei gibt es in der Box schon. | Wie oben, nur in einem Bereich, den du nicht sehen kannst |
+| Diese Datei wartet schon auf Freigabe. | Jemand hat sie schon hochgeladen, der Sysop prüft sie noch |
+
+Manche Boxen legen in jedes hochgeladene ZIP eine kleine Textdatei mit ihrem Namen und ihrer Adresse, die „BBS-Ad“, wie früher üblich. Der Rest des Archivs bleibt unverändert.
+
 ## 8. Weitere Funktionen
 
 **Oneliner:** Eine Pinnwand für kurze Sprüche. Jeder darf eine Zeile hinterlassen.
@@ -204,7 +220,7 @@ Bei Über mich und Signatur gibst du Zeile für Zeile ein, eine leere Zeile been
 
 Im Hauptmenü **G** drücken und bestätigen. Nach dem Abschiedsbildschirm erscheint `NO CARRIER`. Eine beliebige Taste wählt die Box erneut an.
 
-Den Browser-Tab einfach zu schließen geht auch, die Leitung wird dann automatisch freigegeben.
+Den Browser-Tab einfach zu schließen geht auch, die Leitung wird dann nach zwei Minuten automatisch freigegeben. Öffnest du die Box vorher im selben Browser neu, gibt sie die alte Leitung sofort frei.
 
 ## Kurzübersicht
 
@@ -212,6 +228,7 @@ Den Browser-Tab einfach zu schließen geht auch, die Leitung wird dann automatis
 |---|---|---|
 | Menü | ? | Menü erneut zeigen |
 | Bei laufender Ausgabe | Esc | Ausgabe sofort komplett anzeigen |
+| Überall nach dem Login | F5 | Seite neu laden, ohne aufzulegen |
 | Eingabezeile | Enter | Eingabe abschließen |
 | Eingabezeile | Backspace | Zeichen löschen |
 | Editor | `/S` | Speichern |

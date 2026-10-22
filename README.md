@@ -4,7 +4,7 @@ A real mailbox from the nineties, running on ordinary PHP webspace.
 
 Callers open your domain and land in an 80×25 DOS screen with the IBM VGA font, ANSI colours and a dial tone. From there on everything works like a BBS in 1994: log in or register, read and write messages, send private mail, browse file areas, download and upload, play doors, leave a oneliner. No mouse, keyboard only.
 
-For the sysop there is a modern web backend: reading and answering messages and the own mail, chat with callers who page the sysop, reported messages, roles for moderators, a log with filters, settings, users, levels, message and file areas with bulk actions, menu editor, ANSI screen editor with live preview, approval of uploads, a ban list, a questionnaire for new users, automatic promotion by rules, a second factor for the login, own versions of every terminal text, statistics, polls, a message of the sysop shown after the login, a bulk import for whole shareware CDs and backups as ZIP download.
+For the sysop there is a modern web backend: reading and answering messages and the own mail, chat with callers who page the sysop, reported messages, roles for moderators, a log with filters, settings, users, levels, message and file areas with bulk actions, menu editor, ANSI screen editor with live preview, approval of uploads, a ban list, a questionnaire for new users, automatic promotion by rules, a second factor for the login, own versions of every terminal text, statistics, polls, a message of the sysop shown after the login, a bulk import for whole shareware CDs, backups as ZIP download and a daily backup of the database.
 
 Installing it works like WordPress: upload the folder, open `/install/`, fill in a form, done.
 
@@ -12,10 +12,11 @@ Installing it works like WordPress: upload the folder, open `/install/`, fill in
 
 - Browser terminal: 80×25 text mode on a canvas, original IBM VGA 9×16 font, CP437, ANSI.SYS escape codes, blinking text, emulated modem speed (300 to 57600 bps), dial tones and handshake
 - Optional tube effect with scanlines, glow and afterglow; a hint in the tab title when something happens while the tab is in the background
-- Nodes with "All lines are busy", who's online, last callers, idle timeout, daily time limits
+- Nodes with "All lines are busy", who's online, last callers, idle timeout, daily time limits; reloading the page (F5) does not hang up, the caller gets the same screen and prompt back
 - After the login a box with what is new since the last call: messages, files, members, oneliners, polls and door high scores
 - Message areas with read and write levels, new scan, search, reply threads, replies with quoting, line editor (`/S`, `/A`, `/L`), private mail
 - File areas with listing, new files, search, viewing text and ANSI files, opening them in the ANSI editor WAnsiDraw, marked files, download, upload with FILE_ID.DIZ, daily download limits and upload/download ratio
+- Upload check: the content must match the extension, damaged ZIP archives and doubles (by checksum, in any area) are refused; an optional BBS ad goes into every uploaded ZIP like in the old days
 - Oneliners, user list, profiles with about me, signatures, personal statistics and settings, expert mode, page sysop
 - Meeting point: a chat room for all callers online, messages to other nodes, polls
 - Sysop menu in the terminal: chat with callers, broadcast, disconnect a node, review new users and uploads; optional validation of new users with a questionnaire
@@ -29,7 +30,7 @@ Installing it works like WordPress: upload the folder, open `/install/`, fill in
 
 ## Requirements
 
-PHP 8.1 or newer with PDO (SQLite or MySQL) and mbstring. ZipArchive is optional and reads FILE_ID.DIZ. Apache with `.htaccess` works out of the box, for nginx see the sysop guide.
+PHP 8.1 or newer with PDO (SQLite or MySQL) and mbstring. ZipArchive is optional and reads FILE_ID.DIZ, checks uploaded ZIP archives, adds the BBS ad and makes the backups. Apache with `.htaccess` works out of the box, for nginx see the sysop guide.
 
 ## Documentation
 

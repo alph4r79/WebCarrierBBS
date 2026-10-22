@@ -308,10 +308,36 @@ function a_update_status(): string
     return $when ? t('last checked {1}', date('d.m.Y H:i', $when)) : t('not checked yet');
 }
 
+/** Top of the overview for full accounts: the daily backup that starts now and a failed one. */
+function a_backup_box(): string
+{
+    if (Settings::get('auto_backup', '1') !== '1') {
+        return '';
+    }
+    $h = '';
+    $err = cb_auto_backup_error();
+    if ($err !== null) {
+        $h .= '<div class="flash warn" id="autobackup-err"><p>' . h(t('The daily backup failed on {1}: {2}', date('d.m.Y H:i', (int)$err['time']), (string)$err['msg'])) . ' ' .
+            h(t('It is tried again at the next visit of the overview after one hour.')) . ' <a href="' . h(a_url('backup')) . '">' . h(t('Backup')) . '</a></p></div>';
+    }
+    if (cb_auto_backup_due()) {
+        // the page does not wait, assets/sysop.js starts the backup and shows the result here
+        $h .= '<div class="flash" id="autobackup" role="status" data-url="' . h(a_url('autobackup')) . '" data-fail="' . h(t('The daily backup failed.')) . '"><p>' .
+            h(t('Daily backup running ...')) . '</p></div>';
+    }
+    return $h;
+}
+
 function page_dash(array $admin): void
 {
     if (a_post()) {
         a_dash_post($admin);
+    }
+    // checksums of older files, a few with every visit
+    try {
+        cb_hash_pending(50, 1.5);
+    } catch (Throwable $e) {
+        error_log('WebCarrier BBS checksums: ' . $e->getMessage());
     }
     cb_update_check();
     $notices = a_dash_notices($admin);
@@ -322,7 +348,7 @@ function page_dash(array $admin): void
         }
     }
 
-    echo '<h1>' . h(t('Overview')) . '</h1>' . a_since_box($admin) . '<div class="dash"><div class="dash-main">';
+    echo '<h1>' . h(t('Overview')) . '</h1>' . (a_full($admin) ? a_backup_box() : '') . a_since_box($admin) . '<div class="dash"><div class="dash-main">';
 
     echo '<section class="panel dash-notices"><h2>' . h(t('Notices')) . '</h2>';
     if (!$notices) {
@@ -434,11 +460,13 @@ function page_dash(array $admin): void
     echo '</dl><p><a class="btn small ghost" href="' . h(a_url('stats')) . '">' . h(t('Statistics')) . '</a></p></section>';
 
     $last = Settings::int('last_backup', 0);
+    $auto = Settings::int('auto_backup_last', 0);
     echo '<section class="panel dash-system"><h2>' . h(t('System')) . '</h2><dl class="kv">' .
         '<dt>' . h(t('Version')) . '</dt><dd>' . h(CB_VERSION) . '</dd>' .
         '<dt>PHP</dt><dd>' . h(PHP_VERSION) . '</dd>' .
         '<dt>' . h(t('Database')) . '</dt><dd>' . (DB::$driver === 'mysql' ? 'MySQL' : 'SQLite') . '</dd>' .
         '<dt>' . h(t('Last backup')) . '</dt><dd>' . h($last ? date('d.m.Y H:i', $last) : t('never')) . '</dd>' .
+        '<dt>' . h(t('Last automatic backup')) . '</dt><dd id="auto-last">' . h(Settings::get('auto_backup', '1') !== '1' ? t('off') : ($auto ? date('d.m.Y H:i', $auto) : t('never'))) . '</dd>' .
         '<dt>' . h(t('Update check')) . '</dt><dd>' . h(a_update_status()) . '</dd></dl>';
     if (Settings::get('update_check', '0') === '1') {
         echo '<form method="post" action="' . h(a_url('dash')) . '">' . a_csrf() . '<button class="btn small ghost" name="check_now" value="1">' .
@@ -553,6 +581,8 @@ function page_settings(array $admin): void
             ['upload_max_kb', t('Maximum upload size in KB'), 'number', t('The PHP limit of your webspace is {1}.', cb_kb(Engine::uploadMaxBytes()))],
             ['upload_ext', t('Allowed file types'), 'text', t('Comma separated, for example zip,arj,lzh,txt')],
             ['upload_auto_approve', t('Uploads are online without your check'), 'bool', ''],
+            ['upload_zip_entries', t('ZIP check: maximum entries'), 'number', t('A ZIP with more entries is refused. Default {1}.', CB_ZIP_MAX_ENTRIES)],
+            ['upload_zip_mb', t('ZIP check: maximum unpacked size in MB'), 'number', t('Every entry is unpacked to check it, a ZIP that unpacks to more is refused. Default {1}.', CB_ZIP_MAX_MB)],
         ],
         t('Updates') => [
             ['update_check', t('Look for updates'), 'bool', t('Every 12 hours the board requests webcarrier-bbs.de/update.json to see if there is a new version. Nothing about your board is sent.')],
@@ -598,6 +628,8 @@ function page_settings(array $admin): void
             a_flash(t('The address of WAnsiDraw must start with http:// or https://. The function is switched off.'), 'warn');
         }
         Settings::set('max_nodes', (string)max(1, min(99, Settings::int('max_nodes', 4))));
+        Settings::set('upload_zip_entries', (string)max(1, min(65535, Settings::int('upload_zip_entries', CB_ZIP_MAX_ENTRIES) ?: CB_ZIP_MAX_ENTRIES)));
+        Settings::set('upload_zip_mb', (string)max(1, min(10240, Settings::int('upload_zip_mb', CB_ZIP_MAX_MB) ?: CB_ZIP_MAX_MB)));
         Settings::set('idle_minutes', (string)max(1, min(120, Settings::int('idle_minutes', 5))));
         a_flash(t('Settings saved.'));
         a_go('settings');
