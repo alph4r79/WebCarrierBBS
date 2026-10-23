@@ -2,6 +2,8 @@
 
 A real mailbox from the nineties, running on ordinary PHP webspace.
 
+![WebCarrier BBS main menu in the browser terminal: ANSI logo and two framed columns with hotkeys for messages, files, doors, people and system](docs/img/screen-hauptmenue.png)
+
 Callers open your domain and land in an 80×25 DOS screen with the IBM VGA font, ANSI colours and a dial tone. From there on everything works like a BBS in 1994: log in or register, read and write messages, send private mail, browse file areas, download and upload, play doors, leave a oneliner. No mouse, keyboard only.
 
 For the sysop there is a modern web backend: reading and answering messages and the own mail, chat with callers who page the sysop, reported messages, roles for moderators, a log with filters, settings, users, levels, message and file areas with bulk actions, menu editor, ANSI screen editor with live preview, approval of uploads, a ban list, a questionnaire for new users, automatic promotion by rules, a second factor for the login, own versions of every terminal text, statistics, polls, a message of the sysop shown after the login, a bulk import for whole shareware CDs, backups as ZIP download and a daily backup of the database.
@@ -27,6 +29,22 @@ Installing it works like WordPress: upload the folder, open `/install/`, fill in
 - Ban list for handles and words, own terminal texts per language that survive updates, statistics with calls, users, uploads and downloads
 - Optional update check and one-click updates from the backend, with signed packages, a backup before every update and automatic rollback on errors
 - German and English, SQLite (zero configuration) or MySQL/MariaDB
+
+## Screenshots
+
+The screens are taken from the demo board, which runs in German; the board is available in English as well. Try it yourself at [webcarrier-bbs.de/demo](https://webcarrier-bbs.de/demo/).
+
+Welcome screen with logo and board info before the login:
+
+![Welcome screen with the WebCarrier logo, a box with board name, sysop, location, node and date, and the login prompt](docs/img/screen-logon.png)
+
+List of the message areas with message counts and new messages:
+
+![Message area list with four areas, their descriptions, total and new message counts and a prompt to choose an area](docs/img/screen-bereiche.png)
+
+Doors menu with the box of the high score leaders:
+
+![Doors menu with a high score box showing the leaders of Hi-Lo and DRAKVOR above a list of seven doors](docs/img/screen-doors.png)
 
 ## Requirements
 

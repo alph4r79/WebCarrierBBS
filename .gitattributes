@@ -18,3 +18,4 @@
 
 # Not needed in release archives (git archive / GitHub downloads)
 .gitattributes export-ignore
+docs/img export-ignore
