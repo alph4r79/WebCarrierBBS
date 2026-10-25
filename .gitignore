@@ -1,0 +1,6 @@
+# Throwaway test instances, databases and output of tests/run_all.sh
+tests/run/
+# Playwright installed locally for the browser tests
+tests/node_modules/
+tests/package.json
+tests/package-lock.json
