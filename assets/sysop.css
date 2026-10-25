@@ -191,6 +191,9 @@ td input, td select { width: 100%; min-width: 60px; padding: 4px 6px; font: 14px
 td input.key { width: 3em; text-align: center; font-family: var(--mono); }
 th.check, td.check { width: 1%; }
 th.check input, td.check input { width: auto; min-width: 0; margin: 2px 0 0; }
+.areas td.web { min-width: 15rem; }
+.areas td.web input { width: auto; min-width: 0; }
+.areas td.web .row-actions { margin-top: 6px; }
 tr.pending td { background: #fff8e6; }
 .tag { display: inline-block; font-size: 12px; padding: 0 6px; border: 1px solid var(--line); border-radius: 2px; color: var(--muted); white-space: nowrap; }
 .tag.ok { color: var(--ok); border-color: #9ccfae; }

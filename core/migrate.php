@@ -10,7 +10,7 @@
  */
 declare(strict_types=1);
 
-define('CB_DB_VERSION', 10);
+define('CB_DB_VERSION', 11);
 
 /** Run all pending steps. Costs only the (cached) settings lookup when up to date. */
 function cb_migrate(): void
@@ -313,6 +313,18 @@ function cb_migrate_10(): void
         }
     }
     cb_migrate_hilo_scores();
+}
+
+/** 11: public boards on the web (msg_areas.public), callers shown there without their handle (users.web_anon). */
+function cb_migrate_11(): void
+{
+    cb_add_column('msg_areas', 'public', 'INT NOT NULL DEFAULT 0');
+    cb_add_column('users', 'web_anon', 'INT NOT NULL DEFAULT 0');
+    foreach (['public_index' => '1', 'bbs_url' => ''] as $k => $v) {
+        if (DB::val('SELECT COUNT(*) FROM {settings} WHERE name=?', [$k]) == 0) {
+            Settings::set($k, $v);
+        }
+    }
 }
 
 /**

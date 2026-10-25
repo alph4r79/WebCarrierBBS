@@ -17,6 +17,7 @@ Installing it works like WordPress: upload the folder, open `/install/`, fill in
 - Nodes with "All lines are busy", who's online, last callers, idle timeout, daily time limits; reloading the page (F5) does not hang up, the caller gets the same screen and prompt back
 - After the login a box with what is new since the last call: messages, files, members, oneliners, polls and door high scores
 - Message areas with read and write levels, new scan, search, reply threads, replies with quoting, line editor (`/S`, `/A`, `/L`), private mail
+- Direct dial links like `#msg/123` that lead into a message or area after the call, and public boards: chosen areas readable as plain web pages without a call, with a sitemap for search engines
 - File areas with listing, new files, search, viewing text and ANSI files, opening them in the ANSI editor WAnsiDraw, marked files, download, upload with FILE_ID.DIZ, daily download limits and upload/download ratio
 - Upload check: the content must match the extension, damaged ZIP archives and doubles (by checksum, in any area) are refused; an optional BBS ad goes into every uploaded ZIP like in the old days
 - Oneliners, user list, profiles with about me, signatures, personal statistics and settings, expert mode, page sysop

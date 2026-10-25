@@ -2,6 +2,25 @@
 
 All notable changes to WebCarrier BBS. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version numbers follow [Semantic Versioning](https://semver.org/).
 
+## [1.12.0] - 2026-10-25
+
+### Added
+
+- Direct dial links: an address like `https://box.example/#msg/123` or `#area/5` makes the terminal go to that public message or area after the normal call with login or registration, logon screens and the box of what is new. A line "Direct dial: ..." stands above the target, Q leads to the main menu. The target is checked on the server with the usual read rights, only digits count; without the right, for a missing or private message or a caller still waiting for validation there is a short note instead. The terminal removes the hash from the address bar at once, so a reload does not jump again.
+- Key L in the reader (public messages) and in the list of an area shows the direct dial address and copies it to the clipboard when the browser allows it. "Copy link" buttons in the backend when reading a public message and for every area.
+- List of the messages of an area in the terminal, newest first with 15 per page, reached with L at the "read messages" prompt and by a direct dial link to an area.
+- Public boards: message areas new users may read can also be made readable as plain web pages (board.php) with an overview, the messages of a board with 30 per page and single messages with replies and original, without login, cookie or JavaScript, with the same security headers as the legal pages. Every page leads into the box with a direct dial link and has title, description and canonical address. Private mail, closed or deleted areas and deleted messages are never shown. A higher read level of an area or a lower level of new users ends its public state, with a log entry.
+- Setting "Public boards for search engines": on by default, off means noindex on all public pages and no sitemap. The sitemap lists the boards and the newest 5,000 messages.
+- Setting "Address of the board" for the links, https only (http for localhost), suggested from the current address.
+- Setting "Hide my handle on the web" for callers: the public pages show "Caller" instead of the handle. Callers see a note at the registration and in the editor of a public area.
+- Simple limit of 120 requests per minute and address for the public pages.
+
+### Changed
+
+- The prompt for reading an area shows the counts on a line of its own and offers the list.
+- The macro @BBSURL@ uses the address of the board from the settings when it is set.
+- The export of the data of a user contains the new setting.
+
 ## [1.11.0] - 2026-10-22
 
 ### Added

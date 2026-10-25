@@ -36,7 +36,7 @@ if (cb_maintenance()) {
 $js = [];
 foreach (['js_title', 'js_press', 'js_dialing', 'js_nocarrier', 'js_redial', 'js_uploading', 'js_netfail',
              'js_ed_saved', 'js_ed_aborted', 'js_ed_help', 'js_ed_full', 'js_n_chat', 'js_n_msg', 'js_n_turn', 'js_n_bye',
-             'js_idle_warn', 'js_open_wad', 'js_open_esc'] as $k) {
+             'js_idle_warn', 'js_open_wad', 'js_open_esc', 'js_link_copied'] as $k) {
     $js[substr($k, 3)] = Lang::get($k);
 }
 $host = preg_replace('/[^A-Za-z0-9.\-:]/', '', (string)($_SERVER['HTTP_HOST'] ?? 'localhost'));

@@ -42,6 +42,8 @@ final class Engine
     private ?array $ask = null;
     private ?string $dl = null;
     private ?string $open = null;
+    /** Address the terminal copies to the clipboard if the browser allows it (key L). */
+    private ?string $copy = null;
     private ?string $notify = null;
     private bool $hang = false;
     private ?array $levelRow = null;
@@ -90,12 +92,12 @@ final class Engine
 
     /* ============================================================ request cycle */
 
-    public function run(string $a, string $v): array
+    public function run(string $a, string $v, string $dw = ''): array
     {
         $this->live();
         $this->cleanupNodes();
         if ($a === 'start') {
-            $this->newCall();
+            $this->newCall(cb_direct_target($dw));
         } elseif (empty($this->S['st']) || !$this->ownsNode()) {
             $this->S = [];
             $this->hang = true;
@@ -157,8 +159,11 @@ final class Engine
         return $this->resp();
     }
 
-    /** New call. One from the same session ends the old call and frees its node, also a node kept for a reload. */
-    private function newCall(): void
+    /**
+     * New call. One from the same session ends the old call and frees its node, also a node kept for a reload.
+     * $target: direct dial link the call came with, used once after the greeting, see e_direct().
+     */
+    private function newCall(?array $target = null): void
     {
         if (!empty($this->S['uid']) && $this->ownsNode()) {
             $this->user = DB::row('SELECT * FROM {users} WHERE id=?', [(int)$this->S['uid']]);
@@ -168,15 +173,18 @@ final class Engine
         }
         $this->dropNode();
         $this->S = [];
+        if ($target !== null) {
+            $this->S['dw'] = $target;
+        }
         $this->go('connect');
     }
 
     /**
      * Reload of the terminal page with the resume token of the tab. The line goes on with the screen
      * and the prompt it had if the token belongs to this session, the node is still ours and neither
-     * disconnected nor expired. Otherwise a normal new call starts.
+     * disconnected nor expired. Otherwise a normal new call starts, with the direct dial link $dw if any.
      */
-    public function resume(string $rt): array
+    public function resume(string $rt, string $dw = ''): array
     {
         $this->live();
         $this->cleanupNodes();
@@ -185,7 +193,7 @@ final class Engine
             $this->user = null;
             $this->levelRow = null;
             $this->resumed = false;
-            $this->newCall();
+            $this->newCall(cb_direct_target($dw));
             if (!$this->hang) {
                 $this->touch();
             }
@@ -417,6 +425,9 @@ final class Engine
         if ($this->open !== null) {
             $r['open'] = $this->open;
         }
+        if ($this->copy !== null && !$this->hang) {
+            $r['copy'] = $this->copy;
+        }
         if ($this->notify !== null && Settings::get('tab_notify', '1') === '1') {
             $r['notify'] = $this->notify;
         }
@@ -614,6 +625,15 @@ final class Engine
     public function download(string $url): void
     {
         $this->dl = $url;
+    }
+
+    /** Direct dial address on a line of its own; the terminal copies it and says so if the browser allows it. */
+    public function showLink(string $url): void
+    {
+        $this->nl();
+        $this->write($this->L('link_show') . cb_esc($url) . '|07');
+        $this->nl();
+        $this->copy = $url;
     }
 
     /* ============================================================ screens and macros */
@@ -965,8 +985,12 @@ final class Engine
             DB::q('UPDATE {users} SET time_today=0, dl_kb_today=0, today=? WHERE id=?', [$today, $id]);
             $u['time_today'] = 0;
         }
+        $dw = $this->S['dw'] ?? null;
         $this->S = ['st' => 'menu', 'node' => $node, 'uid' => $id, 'prevcall' => (int)$u['last_call'],
             'tbase' => (int)$u['time_today'], 'tstart' => time(), 'menu' => 'main'];
+        if (is_array($dw)) {
+            $this->S['dw'] = $dw;
+        }
         // resume token for a reload of this tab, the session keeps only its hash
         $this->rt = bin2hex(random_bytes(16));
         $this->S['rt'] = hash('sha256', $this->rt);
@@ -1189,6 +1213,12 @@ final class Engine
         $this->cls();
         if (!$this->screen('pending')) {
             $this->say('pending_text');
+        }
+        // a direct dial link is used up here, the account cannot read anything yet
+        if (!empty($this->S['dw'])) {
+            $this->nl(2);
+            $this->say($this->S['dw'][0] === 'area' ? 'dw_area_denied' : 'dw_msg_denied');
+            unset($this->S['dw']);
         }
         $this->S['st'] = 'pend_end';
         $this->hot('', $this->L('pause'), true);

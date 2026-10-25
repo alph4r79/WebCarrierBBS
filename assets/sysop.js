@@ -2,7 +2,8 @@
  * WebCarrier BBS: live parts of the sysop backend. Every page asks for calls, reports and waiting
  * users (every 15 seconds, every 30 seconds while the tab is in the background), shows the bar with
  * calls, gives a hint in the tab title and runs the chat page. Also switches dependent form fields,
- * starts the daily backup from the overview, computes checksums in steps and previews the BBS ad.
+ * starts the daily backup from the overview, computes checksums in steps, previews the BBS ad and
+ * copies direct dial links.
  *
  * Copyright (C) 2026 Christoph Scheel <https://chrisscheel.de>
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -17,6 +18,20 @@
     var sync = function () { el.disabled = src.value === ''; };
     src.addEventListener('change', sync);
     sync();
+  });
+
+  // buttons with data-copy put a link on the clipboard, without permission it is shown to copy by hand
+  Array.prototype.forEach.call(document.querySelectorAll('button[data-copy]'), function (b) {
+    b.addEventListener('click', function () {
+      var url = b.getAttribute('data-copy');
+      var done = function () { b.textContent = b.getAttribute('data-done') || url; };
+      var manual = function () { window.prompt(b.getAttribute('data-manual') || '', url); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(done, manual);
+      } else {
+        manual();
+      }
+    });
   });
 
   /* ---------------------------------------------------------------- preview of the BBS ad */

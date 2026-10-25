@@ -553,6 +553,7 @@ function page_settings(array $admin): void
             ['bbs_location', t('Location'), 'text', ''],
             ['language', t('Language'), 'select', a_languages()],
             ['timezone', t('Time zone'), 'text', t('For example Europe/Berlin')],
+            ['bbs_url', t('Address of the board'), 'text', t('For links into the board (direct dial) and the public boards. Only https, http only for localhost.')],
         ],
         t('Access') => [
             ['max_nodes', t('Nodes (callers at the same time)'), 'number', t('When all nodes are busy, callers get "All lines are busy".')],
@@ -573,6 +574,7 @@ function page_settings(array $admin): void
             ['sound', t('Modem and bell sounds'), 'bool', ''],
             ['show_footer', t('Show imprint and privacy links below the terminal'), 'bool', t('Recommended in Germany: the imprint must be reachable directly.')],
             ['noindex', t('Ask search engines not to index the BBS'), 'bool', ''],
+            ['public_index', t('Public boards for search engines'), 'bool', t('Off: search engines are asked not to index the public boards and there is no sitemap.')],
             ['tab_notify', t('Hint in the browser tab'), 'bool', t('While the tab with the terminal is in the background, its title and icon show that something happened: a chat, a message, the turn in a door or a disconnect coming up. In the backend a call from a caller.')],
             ['crt', t('Tube effect'), 'select', ['off' => t('Off'), 'light' => t('Light (scanlines)'), 'strong' => t('Strong (scanlines, afterglow and glow)')]],
             ['wansidraw_url', t('Address of WAnsiDraw'), 'text', t('Callers and you can open ANSI files and screens in this editor. Empty switches the function off. The default is {1}.', CB_WANSIDRAW_URL)],
@@ -594,6 +596,8 @@ function page_settings(array $admin): void
         a_go('settings');
     }
     if (a_post()) {
+        $oldUrl = Settings::get('bbs_url');
+        $oldLevel = Settings::int('new_level', 10);
         foreach ($fields as $group) {
             foreach ($group as [$k, , $type]) {
                 if ($type === 'bool') {
@@ -631,6 +635,23 @@ function page_settings(array $admin): void
         Settings::set('upload_zip_entries', (string)max(1, min(65535, Settings::int('upload_zip_entries', CB_ZIP_MAX_ENTRIES) ?: CB_ZIP_MAX_ENTRIES)));
         Settings::set('upload_zip_mb', (string)max(1, min(10240, Settings::int('upload_zip_mb', CB_ZIP_MAX_MB) ?: CB_ZIP_MAX_MB)));
         Settings::set('idle_minutes', (string)max(1, min(120, Settings::int('idle_minutes', 5))));
+        $url = Settings::get('bbs_url');
+        if ($url !== '' && cb_clean_box_url($url) === '') {
+            Settings::set('bbs_url', $oldUrl);
+            a_flash(t('The address of the board must start with https:// (http:// only for localhost) and must not contain ? or #. The old address is kept.'), 'warn');
+        } else {
+            Settings::set('bbs_url', cb_clean_box_url($url));
+        }
+        if (Settings::get('bbs_url') !== $oldUrl) {
+            cb_log((int)$admin['id'], $admin['handle'], 'Address of the board set to ' . (Settings::get('bbs_url') ?: '(automatic)'));
+        }
+        // a lower level for new users can end public areas
+        if (Settings::int('new_level', 10) !== $oldLevel) {
+            $off = cb_public_areas_check((int)$admin['id'], $admin['handle']);
+            if ($off) {
+                a_flash(t('New users can no longer read these areas, they are no longer public on the web: {1}', implode(', ', $off)), 'warn');
+            }
+        }
         a_flash(t('Settings saved.'));
         a_go('settings');
     }
@@ -639,6 +660,10 @@ function page_settings(array $admin): void
         echo '<section class="panel"><h2>' . h($title) . '</h2><div class="grid2">';
         foreach ($group as [$k, $label, $type, $extra]) {
             $v = Settings::get($k);
+            if ($k === 'bbs_url' && $v === '') {
+                // suggestion: the address this page was opened with
+                $v = cb_clean_box_url(cb_request_url());
+            }
             if ($type === 'bool') {
                 echo '<label class="inline"><input type="checkbox" name="' . h($k) . '"' . ($v === '1' ? ' checked' : '') . '> ' . h($label) . '</label>' .
                     ($extra !== '' ? '<p class="hint">' . h($extra) . '</p>' : '');
@@ -667,6 +692,9 @@ function page_settings(array $admin): void
         if ($title === t('General')) {
             echo '<p class="note">' . h(t('ID of this board:')) . ' <code>' . h(cb_box_id()) . '</code><br>' .
                 h(t('It marks the messages written here, made for a later network between boards. It never changes and moves with a backup.')) . '</p>';
+        }
+        if ($title === t('Terminal') && Settings::get('public_index', '1') === '1' && cb_has_public_areas()) {
+            echo '<p class="note">' . h(t('Sitemap of the public boards for search engines:')) . ' <code>' . h(cb_bbs_url() . 'board.php?sitemap=1') . '</code></p>';
         }
         if ($title === t('Updates') && Settings::get('update_check', '0') === '1') {
             echo '<p class="note">' . h(t('Update check: {1}', a_update_status())) . '</p>' .

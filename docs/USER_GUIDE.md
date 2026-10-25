@@ -10,6 +10,7 @@ Anleitung für Anrufer.
 - **?** zeigt im Menü die Auswahl erneut an.
 - Läuft gerade Text über den Bildschirm, holst du ihn mit **Esc** sofort komplett herein.
 - **F5** legt nicht auf. Nach dem Neuladen bist du noch eingeloggt und siehst denselben Bildschirm wie vorher.
+- Ein **Direktwahl-Link** führt nach dem Anruf direkt zu einer Nachricht oder einem Bereich (Abschnitt 5).
 
 ## 1. Anrufen
 
@@ -83,7 +84,7 @@ Nachrichten sind nach Themen in **Bereiche** sortiert. Im Nachrichtenmenü:
 | Taste | Funktion |
 |---|---|
 | A | Bereich wählen. Die Liste zeigt, wie viele Nachrichten es gibt und wie viele neu für dich sind |
-| R | Nachrichten im aktuellen Bereich lesen: `N` nur neue, `A` alle, oder eine Nummer, ab der du lesen willst |
+| R | Nachrichten im aktuellen Bereich lesen: `N` nur neue, `A` alle, `L` als Liste, oder eine Nummer, ab der du lesen willst |
 | N | Alle neuen Nachrichten aus allen Bereichen nacheinander |
 | E | Neue Nachricht im aktuellen Bereich schreiben |
 | M | Deine private Post lesen |
@@ -103,14 +104,21 @@ Nachrichten sind nach Themen in **Bereiche** sortiert. Im Nachrichtenmenü:
 | I | Profil des Absenders |
 | D | Löschen (nur private Post, die an dich ging) |
 | ! | Melden: Du hältst die Nachricht für nicht in Ordnung, der Sysop schaut sie sich an. Geht für Nachrichten anderer und private Post, die du bekommen hast, einmal pro Nachricht |
+| L | Link: zeigt die Direktwahl-Adresse dieser Nachricht und kopiert sie in die Zwischenablage, wenn der Browser das erlaubt („Link kopiert.“). Nur bei öffentlichen Nachrichten, nicht bei privater Post |
 | ? | Hilfe mit allen Tasten |
 | Q | Lesen beenden |
 
-Unter der Nachricht steht, falls zutreffend, „Antwort auf #123“ und wie viele Antworten es gibt. O, T, I und A stehen nicht in der Befehlszeile, `?` zeigt sie.
+Unter der Nachricht steht, falls zutreffend, „Antwort auf #123“ und wie viele Antworten es gibt. O, T, I, A und L stehen nicht in der Befehlszeile, `?` zeigt sie.
 
 Ist eine Nachricht länger als der Bildschirm, hält die Anzeige an. Enter zeigt die nächste Seite, Q springt direkt zu den Befehlen.
 
 Die Box merkt sich, was du gelesen hast. Beim nächsten Anruf siehst du nur noch, was dazugekommen ist.
+
+**Liste eines Bereichs (L beim Lesen):** Die Nachrichten des Bereichs als Liste, die neuesten zuerst, 15 pro Seite, mit Nummer, Datum, Absender und Betreff. Ein Stern markiert, was neu für dich ist. `N` und `P` blättern, eine Nummer liest ab dieser Nachricht, `L` zeigt und kopiert den Direktwahl-Link des Bereichs, Enter oder `Q` beendet die Liste.
+
+**Direktwahl-Links:** Ein Link wie `https://box.example/#msg/123` (Nachricht) oder `https://box.example/#area/5` (Bereich) öffnet ganz normal das Terminal. Du wählst, loggst dich ein oder meldest dich neu an, siehst die Begrüßung und was seit deinem letzten Anruf neu ist. Danach geht es statt ins Hauptmenü direkt zur Nachricht oder zur Liste des Bereichs, darüber steht „Direktwahl: Nachricht 123 in BEREICH“ bzw. „Direktwahl: BEREICH“. `Q` führt von dort ins Hauptmenü. Darfst du den Bereich nicht lesen oder gibt es die Nachricht nicht mehr, erscheint eine kurze Meldung und danach das Hauptmenü. Der Link wirkt nur einmal: Das Terminal nimmt ihn sofort aus der Adresszeile, F5 springt also nicht noch einmal. Private Post ist nie über einen Link erreichbar.
+
+**Öffentliche Bretter:** Der Sysop kann einzelne Bereiche zusätzlich als Webseite freigeben. Dann kann jeder deren Nachrichten mit Handle, Datum und Text im Web lesen, ohne anzurufen. Schreibst du in so einem Bereich oder antwortest dort, steht oben im Editor „Dieses Brett ist auch im Web öffentlich lesbar.“ Willst du dort nicht mit deinem Handle erscheinen, schalte unter „Deine Einstellungen“ „Im Web ohne Handle zeigen“ ein (Abschnitt 9).
 
 **Suchen (F):** Suchbegriff mit mindestens 3 Zeichen, dann wählst du, ob nur im aktuellen Bereich oder in allen Bereichen gesucht wird. Gesucht wird in Betreff, Text und Absender, Groß- und Kleinschreibung ist egal, auch bei Umlauten. Private Post wird nicht durchsucht. Die Treffer stehen als Liste, die neuesten zuerst (höchstens 50), mit `N` und `P` blätterst du, eine Nummer öffnet die Nachricht. Im Leser geht es dann mit `N` und `P` durch die Treffer. Was du über die Suche liest, gilt nicht als gelesen.
 
@@ -212,6 +220,7 @@ Manche Boxen legen in jedes hochgeladene ZIP eine kleine Textdatei mit ihrem Nam
 | A | Über mich: bis zu 3 Zeilen mit je 60 Zeichen für dein Profil |
 | T | Signatur: bis zu 2 Zeilen mit je 70 Zeichen, sie steht unter jeder Nachricht, die du danach schreibst |
 | R | Röhren-Effekt an oder aus: Scanlines und Nachleuchten wie auf einem alten Monitor. Die Taste gibt es nur, wenn der Sysop den Effekt eingeschaltet hat, und sie wirkt sofort |
+| W | Im Web ohne Handle zeigen: Auf den öffentlichen Brettern im Web steht bei deinen Nachrichten „Anrufer“ statt deines Handles. In der Box ändert sich nichts, und Zitate in Nachrichten anderer bleiben, wie sie geschrieben wurden. Die Taste gibt es nur, wenn der Sysop öffentliche Bretter eingerichtet hat |
 | Q | Zurück zum Menü |
 
 Bei Über mich und Signatur gibst du Zeile für Zeile ein, eine leere Zeile beendet, eine leere erste Zeile löscht den Text. Pipe-Codes werden dabei nicht als Farben ausgegeben. Die Signatur wird beim Speichern unter die Nachricht gesetzt, mit einer Leerzeile und `-- ` davor, im Editor siehst du sie nicht. Beim Zitieren lässt die Box die Signatur weg.
@@ -238,6 +247,7 @@ Den Browser-Tab einfach zu schließen geht auch, die Leitung wird dann nach zwei
 | Dateiliste | D / V / M / K | Download, Ansehen, Markieren, Merkliste |
 | Beim Ansehen | W | In WAnsiDraw öffnen (txt und ans) |
 | Nach dem Login | N / F | Neue Nachrichten, neue Dateien |
+| Beim Lesen, Liste eines Bereichs | L | Direktwahl-Link zeigen und kopieren |
 | Nachrichtenleser | O / T / I | Original, Antworten, Profil des Absenders |
 | Treffpunkt | `/Q` / `/W` / `/ME` | Verlassen, wer ist da, Aktion |
 | Ja/Nein-Fragen | J / N (Y / N) | Die hell hervorgehobene Antwort gilt bei Enter |

@@ -208,13 +208,18 @@ trait EngineMisc
         if ($crt) {
             $rows[] = ['R', 'uset_crt', (int)$u['crt'] === 1 ? $this->L('on') : $this->L('off')];
         }
+        // only while some areas are readable on the web
+        $web = cb_has_public_areas();
+        if ($web) {
+            $rows[] = ['W', 'uset_web_anon', (int)$u['web_anon'] === 1 ? $this->L('on') : $this->L('off')];
+        }
         foreach ($rows as [$k, $label, $val]) {
             $this->write('  |08[|15' . $k . '|08] |07' . cb_pad($this->L($label), 31) . '|11' . $val);
             $this->nl();
         }
         $this->write('  |08[|15Q|08] |07' . $this->L('back'));
         $this->nl(2);
-        $this->hot('LPBENAT' . ($crt ? 'R' : '') . "Q\r", $this->L('choose'));
+        $this->hot('LPBENAT' . ($crt ? 'R' : '') . ($web ? 'W' : '') . "Q\r", $this->L('choose'));
     }
 
     private function i_uset(string $v): void
@@ -253,6 +258,13 @@ trait EngineMisc
                 return;
             case 'T':
                 $this->startLines('signature');
+                return;
+            case 'W':
+                if (cb_has_public_areas()) {
+                    DB::q('UPDATE {users} SET web_anon=? WHERE id=?', [(int)$this->user['web_anon'] === 1 ? 0 : 1, $uid]);
+                    $this->user = DB::row('SELECT * FROM {users} WHERE id=?', [$uid]);
+                }
+                $this->go('uset');
                 return;
             case 'R':
                 if (Settings::get('crt', 'off') !== 'off') {

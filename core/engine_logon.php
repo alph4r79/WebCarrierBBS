@@ -78,9 +78,16 @@ trait EngineLogon
         return $p !== null && str_contains((string)file_get_contents($p), '@NEWSINCE@');
     }
 
-    /** End of the greeting: with something to read the keys N and F, otherwise the usual pause. */
+    /**
+     * End of the greeting: with something to read the keys N and F, otherwise the usual pause.
+     * After a direct dial link the pause leads to its target instead of the main menu.
+     */
     private function newSincePrompt(?array $counts): void
     {
+        if (!empty($this->S['dw'])) {
+            $this->pause('direct');
+            return;
+        }
         $keys = '';
         $prompt = '';
         foreach (['msgs' => 'N', 'files' => 'F'] as $k => $key) {
@@ -201,6 +208,10 @@ trait EngineLogon
     {
         $this->nl();
         $this->say('nu_summary', cb_esc($this->S['nu']['handle']), cb_esc($this->S['nu']['location']));
+        if (cb_has_public_areas()) {
+            $this->say('nu_public_note');
+            $this->nl();
+        }
         $this->S['st'] = 'nu_confirm';
         $this->yn($this->L('nu_confirm'), true);
     }

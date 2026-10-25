@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 define('CB_ROOT', dirname(__DIR__));
 define('CB_DATA', CB_ROOT . '/data');
-define('CB_VERSION', '1.11.0');
+define('CB_VERSION', '1.12.0');
 define('CB_AUTHOR', 'Christoph Scheel');
 define('CB_AUTHOR_URL', 'https://chrisscheel.de');
 // AGPL section 13: users of a networked installation must be able to get the source.
@@ -24,14 +24,15 @@ require __DIR__ . '/totp.php';
 require __DIR__ . '/ansiart.php';
 require __DIR__ . '/backend.php';
 require __DIR__ . '/upcheck.php';
+require __DIR__ . '/board.php';
 
 function cb_installed(): bool
 {
     return is_file(CB_ROOT . '/core/config.php');
 }
 
-/** Connect to the database, apply pending migrations, finish or clean up updates and start the session. */
-function cb_boot(): void
+/** Connect to the database, apply pending migrations, finish or clean up updates and start the session (not for the public pages). */
+function cb_boot(bool $session = true): void
 {
     if (!cb_installed()) {
         throw new RuntimeException('not installed');
@@ -41,7 +42,9 @@ function cb_boot(): void
     cb_migrate();
     cb_update_housekeeping();
     date_default_timezone_set(Settings::get('timezone', 'Europe/Berlin'));
-    cb_session();
+    if ($session) {
+        cb_session();
+    }
 }
 
 function cb_session(): void
@@ -69,8 +72,15 @@ function cb_https(): bool
         || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
 }
 
-/** Address of the board as the caller reached it, e.g. "https://bbs.example.org/", '' without a host. */
+/** Address of the board: the setting "Address of the board", otherwise as the caller reached it. */
 function cb_bbs_url(): string
+{
+    $own = cb_clean_box_url(Settings::get('bbs_url'));
+    return $own !== '' ? $own : cb_request_url();
+}
+
+/** Address of the board as the caller reached it, e.g. "https://bbs.example.org/", '' without a host. */
+function cb_request_url(): string
 {
     $host = preg_replace('/[^A-Za-z0-9.\-:\[\]]/', '', (string)($_SERVER['HTTP_HOST'] ?? '')) ?? '';
     if ($host === '') {

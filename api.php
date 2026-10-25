@@ -49,13 +49,17 @@ if ($a !== 'start' && $a !== 'resume' && !cb_csrf_ok(is_array($in) ? (string)($i
     exit;
 }
 
+$dw = is_array($in) && is_string($in['dw'] ?? null) ? substr($in['dw'], 0, 20) : '';
+
 try {
     $engine = new Engine();
     $res = match ($a) {
         'ping' => $engine->ping(),
         'poll' => $engine->poll(),
         'away' => $engine->away(),
-        'resume' => $engine->resume(is_array($in) ? (string)($in['rt'] ?? '') : ''),
+        // start and resume may carry the target of a direct dial link, checked by the engine
+        'resume' => $engine->resume(is_array($in) ? (string)($in['rt'] ?? '') : '', $dw),
+        'start' => $engine->run($a, $v, $dw),
         default => $engine->run($a, $v),
     };
     echo json_encode($res, JSON_UNESCAPED_UNICODE);

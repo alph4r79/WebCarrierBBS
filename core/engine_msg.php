@@ -109,7 +109,9 @@ trait EngineMessages
         $new = (int)DB::val('SELECT COUNT(*) FROM {messages} WHERE area_id=? AND private=0 AND id>?',
             [(int)$a['id'], $this->lastRead((int)$a['id'])]);
         $this->nl();
-        $this->line(5, $this->L('read_from', cb_esc($a['name']), $new, $total));
+        $this->write($this->L('read_head', cb_esc($a['name']), $new, $total));
+        $this->nl();
+        $this->line(5, $this->L('read_prompt'));
     }
 
     private function i_mread(string $v): void
@@ -120,8 +122,11 @@ trait EngineMessages
             $this->menu();
             return;
         }
-        $all = array_map('intval', array_column(DB::all('SELECT id FROM {messages} WHERE area_id=? AND private=0 ORDER BY id',
-            [(int)$a['id']]), 'id'));
+        if ($v === 'L') {
+            $this->go('mlist', (int)$a['id']);
+            return;
+        }
+        $all = $this->areaMsgIds((int)$a['id']);
         if ($v === '' || $v === 'N') {
             $lr = $this->lastRead((int)$a['id']);
             $ids = array_values(array_filter($all, static fn($id) => $id > $lr));
@@ -140,6 +145,154 @@ trait EngineMessages
             return;
         }
         $this->startReader($ids, 'area');
+    }
+
+    /** Ids of the public messages of an area, oldest first (the numbers callers type are positions in it). */
+    private function areaMsgIds(int $area): array
+    {
+        return array_map('intval', array_column(DB::all('SELECT id FROM {messages} WHERE area_id=? AND private=0 ORDER BY id', [$area]), 'id'));
+    }
+
+    /* ------------------------------------------------------------ list of an area */
+
+    /**
+     * Messages of an area as a list, newest first, 15 per page. Entered with the id of the area, without
+     * arguments it shows the page in S['ml'] again. $head: line above the list once (direct dial).
+     */
+    private function e_mlist(?int $area = null, string $head = ''): void
+    {
+        if ($area !== null) {
+            $this->S['ml'] = ['area' => $area, 'page' => 0, 'head' => $head];
+        }
+        $ml = &$this->S['ml'];
+        $a = DB::row('SELECT * FROM {msg_areas} WHERE id=? AND read_level<=?', [(int)($ml['area'] ?? 0), $this->lvl()]);
+        if (!$a) {
+            unset($this->S['ml']);
+            $this->menu();
+            return;
+        }
+        $this->act(Lang::get('act_read'));
+        $ids = $this->areaMsgIds((int)$a['id']);
+        $total = count($ids);
+        $per = 15;
+        $pages = max(1, (int)ceil($total / $per));
+        $ml['page'] = max(0, min($pages - 1, (int)$ml['page']));
+        $this->cls();
+        $this->bar($a['name'], $pages > 1 ? $this->L('dtop_page', $ml['page'] + 1, $pages) : '');
+        if ((string)$ml['head'] !== '') {
+            $this->write($ml['head']);
+            $this->nl();
+            $ml['head'] = '';
+        }
+        if ($total === 0) {
+            unset($this->S['ml']);
+            $this->nl();
+            $this->say('area_empty', cb_esc($a['name']));
+            $this->nl();
+            $this->pause();
+            return;
+        }
+        $this->write('|03 ' . cb_pad('#', 5, 'R') . '  ' . cb_pad($this->L('col_date'), 10) . cb_pad($this->L('hdr_from'), 17) . $this->L('hdr_subj'));
+        $this->nl();
+        $this->rule();
+        $lr = $this->lastRead((int)$a['id']);
+        $hi = $total - $ml['page'] * $per;
+        $lo = max(1, $hi - $per + 1);
+        for ($pos = $hi; $pos >= $lo; $pos--) {
+            $m = DB::row('SELECT id, from_name, subject, posted FROM {messages} WHERE id=?', [$ids[$pos - 1]]);
+            if (!$m) {
+                continue;
+            }
+            $this->write(((int)$m['id'] > $lr ? '|10*' : ' ') . '|15' . cb_pad((string)$pos, 5, 'R') . '  |08' . cb_pad(cb_date((int)$m['posted']), 10) .
+                '|11' . cb_esc(cb_pad((string)$m['from_name'], 16)) . ' |07' . cb_esc(mb_substr((string)$m['subject'], 0, 43)));
+            $this->nl();
+        }
+        $this->nl();
+        $this->mlistPrompt($total, $pages);
+    }
+
+    private function mlistPrompt(int $total, int $pages): void
+    {
+        $this->S['st'] = 'mlist';
+        $this->line(5, $this->L($pages > 1 ? 'mlist_choose_pages' : 'mlist_choose', $total));
+    }
+
+    private function i_mlist(string $v): void
+    {
+        $ml = &$this->S['ml'];
+        $area = (int)($ml['area'] ?? 0);
+        $a = DB::row('SELECT * FROM {msg_areas} WHERE id=? AND read_level<=?', [$area, $this->lvl()]);
+        $v = strtoupper(trim($v));
+        if (!$a || $v === '' || $v === 'Q') {
+            unset($this->S['ml']);
+            $this->menu();
+            return;
+        }
+        $ids = $this->areaMsgIds($area);
+        if ($v === 'N' || $v === 'P') {
+            $ml['page'] += $v === 'N' ? 1 : -1;
+            $this->go('mlist');
+            return;
+        }
+        if ($v === 'L') {
+            $this->showLink(cb_direct_link('area', $area));
+            $this->mlistPrompt(count($ids), max(1, (int)ceil(count($ids) / 15)));
+            return;
+        }
+        if (ctype_digit($v) && (int)$v >= 1 && (int)$v <= count($ids)) {
+            unset($this->S['ml']);
+            $this->S['marea'] = $area;
+            $this->startReader(array_slice($ids, (int)$v - 1), 'area');
+            return;
+        }
+        $this->go('mlist');
+    }
+
+    /* ------------------------------------------------------------ direct dial */
+
+    /**
+     * Target of a direct dial link, reached once after the greeting: the reader with the message or the
+     * list of the area. Rights as always, otherwise a short note and the main menu.
+     */
+    private function e_direct(): void
+    {
+        $dw = $this->S['dw'] ?? null;
+        unset($this->S['dw']);
+        $this->S['menu'] = 'main';
+        if (!is_array($dw)) {
+            $this->menu();
+            return;
+        }
+        [$kind, $id] = $dw;
+        if ($kind === 'area') {
+            $a = DB::row('SELECT * FROM {msg_areas} WHERE id=?', [(int)$id]);
+            if (!$a || (int)$a['read_level'] > $this->lvl()) {
+                $this->directFail($a ? 'dw_area_denied' : 'dw_area_gone');
+                return;
+            }
+            $this->S['marea'] = (int)$a['id'];
+            $this->go('mlist', (int)$a['id'], $this->L('dw_area', cb_esc(mb_substr((string)$a['name'], 0, 40))));
+            return;
+        }
+        $m = DB::row('SELECT * FROM {messages} WHERE id=? AND private=0', [(int)$id]);
+        $a = $m ? DB::row('SELECT * FROM {msg_areas} WHERE id=?', [(int)$m['area_id']]) : null;
+        if (!$m || !$a || !$this->canSee($m)) {
+            $this->directFail($m && $a ? 'dw_msg_denied' : 'dw_msg_gone');
+            return;
+        }
+        $this->S['marea'] = (int)$a['id'];
+        $this->S['rd'] = ['ids' => [(int)$m['id']], 'i' => 0, 'mode' => 'direct', 'lines' => [], 'pos' => 0,
+            'head' => $this->L('dw_msg', (int)$m['id'], cb_esc(mb_substr((string)$a['name'], 0, 40)))];
+        $this->act(Lang::get('act_read'));
+        $this->go('rmsg');
+    }
+
+    private function directFail(string $key): void
+    {
+        $this->nl();
+        $this->say($key);
+        $this->nl();
+        $this->pause();
     }
 
     private function newScan(): void
@@ -343,14 +496,22 @@ trait EngineMessages
         $rd['mid'] = (int)$m['id'];
         $this->cls();
         $this->bar($where, $num);
+        // line of a direct dial link above the first message, the page is one line shorter then
+        $rows = 22;
+        if (!empty($rd['head'])) {
+            $this->write($rd['head']);
+            $this->nl();
+            unset($rd['head']);
+            $rows = 21;
+        }
         if ($private && (int)$m['to_id'] === (int)$this->user['id'] && (int)$m['is_read'] === 0) {
             DB::q('UPDATE {messages} SET is_read=1 WHERE id=?', [(int)$m['id']]);
         }
-        // reading from a search leaves the read pointer alone
-        if (!$private && ($rd['mode'] ?? '') !== 'search') {
+        // reading from a search or a direct dial link leaves the read pointer alone
+        if (!$private && !in_array($rd['mode'] ?? '', ['search', 'direct'], true)) {
             $this->setLastRead((int)$m['area_id'], (int)$m['id']);
         }
-        $this->showReaderPage(22);
+        $this->showReaderPage($rows);
     }
 
     private function showReaderPage(int $rows): void
@@ -419,6 +580,9 @@ trait EngineMessages
         if ($m && $this->canReport($m)) {
             $keys .= '!';
         }
+        if ($m && (int)$m['private'] === 0) {
+            $keys .= 'L';
+        }
         $prompt = $this->L('reader_prompt');
         if ($m && $this->isSysop() && (int)$m['private'] === 0) {
             $keys .= 'DM';
@@ -450,8 +614,14 @@ trait EngineMessages
                 return;
             case '?':
                 $this->nl();
-                $this->say($this->isSysop() ? 'reader_help_sys' : 'reader_help');
+                $this->say($this->isSysop() ? 'reader_help_sys' : 'reader_help', $m && (int)$m['private'] === 0 ? $this->L('reader_help_link') : '');
                 $this->nl();
+                $this->readerPrompt();
+                return;
+            case 'L':
+                if ($m && (int)$m['private'] === 0) {
+                    $this->showLink(cb_direct_link('msg', (int)$m['id']));
+                }
                 $this->readerPrompt();
                 return;
             case '!':
@@ -763,6 +933,10 @@ trait EngineMessages
     private function e_p_edit(bool $quote = false): void
     {
         $this->nl();
+        if ((int)$this->S['post']['private'] === 0 && cb_area_is_public((int)$this->S['post']['area_id'])) {
+            $this->say('post_public_web');
+            $this->nl();
+        }
         $this->say('editor_help');
         $this->nl();
         $this->rule();

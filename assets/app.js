@@ -2,7 +2,8 @@
  * WebCarrier BBS: terminal controller.
  * Dials the box, sends keys and lines to api.php, runs the line editor and file transfers,
  * shows a hint in the tab title while the tab is in the background. After a reload of the tab
- * the line is resumed with the token kept in sessionStorage.
+ * the line is resumed with the token kept in sessionStorage. A direct dial link (#msg/123,
+ * #area/5) goes to the box with the next call.
  *
  * Copyright (C) 2026 Christoph Scheel <https://chrisscheel.de>
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -224,6 +225,38 @@
   }
   term.onBell = function () { tone([800], 0, 0.12, 0.05); };
 
+  /* ---------------------------------------------------------------- direct dial link */
+
+  /* #msg/123 or #area/5 in the address: the box goes there after the greeting of the next call. The
+     hash leaves the address bar at once, so a reload later on does not jump again. */
+  var target = '';
+  function takeHash() {
+    var h = window.location.hash || '';
+    if (h.length < 2) { return; }
+    var m = /^#((?:msg|area)\/[0-9]{1,9})$/.exec(h);
+    if (m && phase !== 'online' && phase !== 'dialing') { target = m[1]; }
+    try {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    } catch (e) { /* the hash just stays */ }
+  }
+  takeHash();
+  window.addEventListener('hashchange', takeHash);
+
+  /* Key L: the box shows the address and the terminal copies it. Without permission of the browser
+     the address is only on the screen. */
+  function copyLink(url) {
+    var cb = navigator.clipboard;
+    if (!cb || !cb.writeText || window.isSecureContext === false) { return; }
+    var a = ask;
+    cb.writeText(url).then(function () {
+      if (phase !== 'online' || !a || ask !== a || pending || polling || term.busy()) { return; }
+      term.showCursor(false);
+      term.write('\r\x1b[K');
+      term.print(col(10) + (L.link_copied || 'Link copied.') + col(7) + '\r\n');
+      redraw();
+    }, function () { /* not allowed */ });
+  }
+
   /* ---------------------------------------------------------------- resume token */
 
   /* sessionStorage: survives a reload of this tab, a new tab or window does not get it */
@@ -286,7 +319,7 @@
       term.print(col(15) + 'CONNECT ' + b + '/ARQ/V42BIS' + col(7) + '\r\n\r\n');
       csrf = '';
       rtSet('');
-      send('start', '');
+      send('start', '', '', takeTarget());
     }, wait);
   }
 
@@ -296,16 +329,24 @@
     resuming = true;
     term.showCursor(false);
     term.setBaud(0);
-    send('resume', '', rt);
+    send('resume', '', rt, takeTarget());
   }
 
-  function send(a, v, rt) {
+  /* The target goes with one call only. */
+  function takeTarget() {
+    var t = target;
+    target = '';
+    return t;
+  }
+
+  function send(a, v, rt, dw) {
     pending = true;
     autoSent = a === 'wait';
     ask = null;
     term.showCursor(false);
     var body = { a: a, v: v, csrf: csrf };
     if (rt) { body.rt = rt; }
+    if (dw) { body.dw = dw; }
     fetch(CFG.base + 'api.php', {
       method: 'POST',
       credentials: 'same-origin',
@@ -344,7 +385,12 @@
     var after = function () {
       if (resumed) { term.setBaud(baud); }
       // the answer to an automatic input after wait() does not reset the idle timer, nor does a resumed line
-      if (r.hang) { hangup(); } else { setAsk(r.ask, autoSent || resumed, resumed); }
+      if (r.hang) {
+        hangup();
+      } else {
+        setAsk(r.ask, autoSent || resumed, resumed);
+        if (r.copy) { copyLink(r.copy); }
+      }
     };
     if (term.busy()) {
       term.onDrain = function () { term.onDrain = null; after(); };

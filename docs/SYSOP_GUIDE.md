@@ -1,6 +1,6 @@
 # WebCarrier BBS: Sysop-Handbuch
 
-Version 1.11.0
+Version 1.12.0
 
 Für Betreiber der Mailbox: Installation, Einrichtung, Backend, Menüs, Screens, Dateiimport, Doors und Betrieb.
 
@@ -404,6 +404,43 @@ Unter Einstellungen steht im Abschnitt „Allgemein“ die „Kennung dieser Box
 
 Die Kennung steckt in der Datenbank und zieht mit der Sicherung um. Stellst du eine Sicherung auf einem anderen Webspace wieder her, bleibt die Box dieselbe. Kopierst du eine Box, um daraus eine zweite zu machen, haben beide dieselbe Kennung. Für ein späteres Netz bräuchte die Kopie dann eine neue.
 
+### Adresse der Box
+
+Unter Einstellungen, Abschnitt „Allgemein“, steht die „Adresse der Box“, etwa `https://bbs.example.org/`. Daraus baut die Box die Direktwahl-Links, die Adressen der öffentlichen Bretter für Suchmaschinen und das Makro `@BBSURL@`. Solange das Feld leer ist, schlägt die Seite die Adresse vor, unter der du das Backend gerade geöffnet hast, gespeichert wird sie erst mit „Einstellungen speichern“. Erlaubt ist nur `https://`, `http://` nur für localhost, ohne `?` und `#`. Eine ungültige Adresse wird nicht übernommen, die alte bleibt. Ohne Eintrag nimmt die Box die Adresse, unter der sie aufgerufen wurde.
+
+### Direktwahl per Link
+
+Ein Link führt Leute von außen nach dem Anruf direkt zu einer öffentlichen Nachricht oder einem Bereich: `https://bbs.example.org/#msg/123` oder `https://bbs.example.org/#area/5`. Das Ziel steht hinter dem `#`, der Server muss also nichts umleiten. Der Anruf läuft wie immer mit Wählen, Login oder Neuanmeldung, Logon-Screens, Sysop-Nachricht und „Neues seit deinem letzten Anruf“. Statt der Tasten N und F am Ende der Begrüßung kommt dann ein schlichtes „weiter“, danach zeigt das Terminal die Nachricht im Leser oder die Liste der Nachrichten des Bereichs, darüber eine Zeile „Direktwahl: ...“. Q führt ins Hauptmenü.
+
+Geprüft wird auf dem Server, mit den normalen Leserechten. Darf der Anrufer den Bereich nicht lesen, gibt es die Nachricht nicht mehr oder ist sie privat, erscheint eine kurze Meldung und danach das Hauptmenü. Wer noch auf seine Freischaltung wartet, sieht die Meldung auf dem Wartebildschirm, danach wird wie bisher aufgelegt. Erlaubt sind nur Ziffern als Kennung, alles andere wird ignoriert. Der Link wirkt einmal: Das Terminal nimmt ihn sofort aus der Adresszeile, ein späteres F5 springt nicht noch einmal. Was über einen Link gelesen wird, verschiebt die Markierung „gelesen“ nicht.
+
+Links bekommst du so:
+
+- im Terminal im Leser mit **L** (nur öffentliche Nachrichten) und in der Liste eines Bereichs mit **L**. Die Liste erreichen Anrufer über „Nachrichten lesen“ mit `L`. Das Terminal zeigt die Adresse und kopiert sie in die Zwischenablage, wenn der Browser das erlaubt.
+- im Backend mit „Link kopieren“ beim Lesen einer öffentlichen Nachricht und auf der Seite „Nachrichtenbereiche“ bei jedem Bereich. Ohne Erlaubnis des Browsers zeigt ein Fenster den Link zum Kopieren von Hand.
+
+### Öffentliche Bretter
+
+Einzelne Nachrichtenbereiche kannst du zusätzlich als normale Webseiten lesbar machen, damit Leute von außen sehen, was in der Box los ist. Wer sie liest, ist nicht angemeldet und kann nichts schreiben. Unter jeder Nachricht und auf jeder Brettseite steht „Mitreden? Box anrufen“ mit dem Direktwahl-Link.
+
+**Einschalten:** Auf der Seite „Nachrichtenbereiche“ hat jeder Bereich in der Spalte „Web“ den Haken „Im Web öffentlich lesbar“. Das geht nur bei Bereichen, die auch ein neu angemeldeter User lesen darf (Leselevel höchstens „Level für neue User“), bei allen anderen ist der Haken ausgegraut. Erhöhst du später das Leselevel eines öffentlichen Bereichs oder senkst das Level für neue User, ist der Bereich automatisch nicht mehr öffentlich, mit einem Eintrag im Log. Jedes Ein- und Ausschalten steht im Log.
+
+**Die Seiten** liegen unter `board.php`, ohne Anmeldung und ohne Cookie:
+
+- `board.php`: Übersicht aller öffentlichen Bretter mit Beschreibung, Zahl der Nachrichten und letzter Nachricht. Gibt es keine öffentlichen Bretter, antwortet die Seite mit „nicht gefunden“ (404).
+- `board.php?a=5`: die Nachrichten eines Bretts, die neuesten zuerst, 30 pro Seite mit Blättern, je Zeile Betreff, Handle, Datum und Zahl der Antworten.
+- `board.php?m=123`: eine Nachricht mit Betreff, Handle, Datum, Text und Signatur, darunter die Antworten als Liste, oben ein Link zur Ursprungsnachricht, wenn es eine Antwort ist. Der Text erscheint genau wie im Backend: Pipe-Codes als Zeichen, HTML als Text, Zitatzeilen farbig.
+
+Kopf und Fuß tragen den Namen der Box, einen Link aufs Terminal und die Links zu Impressum, Datenschutzerklärung und Quellcode. Die Seiten kommen ohne JavaScript aus und haben dieselben Sicherheits-Header wie Impressum und Datenschutz. Jede Seite hat Titel, Beschreibung und eine kanonische Adresse aus der „Adresse der Box“. Die Box nutzt keine Umschreibung von Adressen, die Seiten laufen auf Apache und nginx ohne weitere Einstellung.
+
+**Nie öffentlich** sind private Post, Bereiche ohne Haken, gelöschte Bereiche und gelöschte Nachrichten, auch nicht über eine geänderte Adresse. Eine gelöschte oder in einen geschlossenen Bereich verschobene Nachricht ist sofort weg (404), die Seiten werden nicht zwischengespeichert. Nachrichten gesperrter User bleiben stehen wie in der Box. Hat ein Anrufer „Im Web ohne Handle zeigen“ eingeschaltet, steht bei seinen Nachrichten auf den Webseiten „Anrufer“ statt seines Handles.
+
+**Suchmaschinen:** Die Einstellung „Öffentliche Bretter für Suchmaschinen“ (Abschnitt „Terminal“, ab Werk an) erlaubt Suchmaschinen, die Seiten aufzunehmen. Ausgeschaltet tragen alle öffentlichen Seiten `noindex, follow` und es gibt keine Sitemap. Eingeschaltet liefert `board.php?sitemap=1` eine Sitemap mit der Übersicht, den Brettern und den neuesten 5.000 Nachrichten. Die Einstellungsseite zeigt ihre Adresse. Eine eigene `robots.txt` liefert die Box nicht aus; hast du eine, trag dort `Sitemap: https://bbs.example.org/board.php?sitemap=1` ein, oder melde die Sitemap direkt bei der Suchmaschine an. Die Einstellung „Suchmaschinen bitten, die Mailbox nicht aufzunehmen“ gilt nur für die Terminal-Seite.
+
+**Last:** Pro Adresse sind 120 Abrufe der öffentlichen Seiten in der Minute erlaubt, darüber antwortet die Box für den Rest der Minute mit „zu viele Abrufe“ (429).
+
+Anrufer erfahren davon an drei Stellen: bei der Neuanmeldung steht vor der Bestätigung „Einige Bretter dieser Box sind auch im Web lesbar. Was du dort schreibst, kann jeder sehen.“, im Editor eines öffentlichen Bereichs steht oben „Dieses Brett ist auch im Web öffentlich lesbar.“, und unter „Deine Einstellungen“ gibt es „Im Web ohne Handle zeigen“, solange es öffentliche Bretter gibt.
+
 ## 8. Menüs und Befehle
 
 Jedes Menü ist eine Liste von Hotkeys. Anrufer starten nach dem Login im Menü `main`. Ein Menüpunkt besteht aus Taste, Text, Befehl, Daten, Mindestlevel und Sortierung. Als Taste geht jedes Zeichen, auch Umlaute.
@@ -513,7 +550,7 @@ Die DOS-Farben: 0 Schwarz, 1 Blau, 2 Grün, 3 Cyan, 4 Rot, 5 Magenta, 6 Braun, 7
 | `@BBSNAME@` | Name der Mailbox |
 | `@SYSOP@` | Sysop-Name |
 | `@BBSLOC@` | Standort der Mailbox |
-| `@BBSURL@` | Adresse der Box, wie der Anrufer sie aufgerufen hat, etwa `https://bbs.example.org/` |
+| `@BBSURL@` | Adresse der Box aus den Einstellungen („Adresse der Box“), ohne Eintrag so, wie der Anrufer sie aufgerufen hat, etwa `https://bbs.example.org/` |
 | `@USER@` | Handle des Anrufers |
 | `@USERLOC@` | Ort des Anrufers |
 | `@CALLS@` | Anzahl seiner Anrufe |
@@ -775,12 +812,12 @@ Bringt eine neue Version Änderungen an der Datenbank mit, werden sie beim erste
 - Nach 5 falschen Passwörtern innerhalb von 15 Minuten ist der Account für den Rest dieser 15 Minuten gesperrt, im Terminal und im Backend. Bei Konten mit zweitem Faktor zählen dafür nur falsche Codes, nicht falsche Passwörter, damit niemand ein solches Konto von außen aussperren kann. Die Fehlversuche stehen im Log. Gab es in 24 Stunden 10 oder mehr falsche Passwörter auf dein eigenes Konto, zeigt die Übersicht im Backend eine Sicherheitsmeldung.
 - Nimm für das Sysop-Konto ein langes Passwort, das du nirgends sonst benutzt, auch mit zweitem Faktor.
 - Leitungen, auf denen noch niemand eingeloggt ist, werden nach drei Minuten ohne Eingabe frei. Das Nachfragen des Terminals im Hintergrund zählt dabei nicht als Eingabe. So lassen sich die Nodes nicht dadurch blockieren, dass jemand viele Verbindungen am Login-Prompt offen hält. Eingeloggte Anrufer betrifft das nicht.
-- Die Terminal-Seite und die Seiten für Impressum und Datenschutz senden eine Content-Security-Policy, die nur Skripte und Stile der Box selbst erlaubt.
+- Die Terminal-Seite, die Seiten für Impressum und Datenschutz und die öffentlichen Bretter senden eine Content-Security-Policy, die nur Skripte und Stile der Box selbst erlaubt, die öffentlichen Bretter und die Rechtstexte gar keine Skripte.
 - Das automatische Update lädt ein Paket nur von dem Server, von dem auch die Update-Information stammt. Die Sicherung vor einem Update trägt einen zufälligen Namensteil.
 - Sysops können ihr Konto mit einem zweiten Faktor schützen (Abschnitt 7). Das Geheimnis dafür steht lesbar in der Datenbank, weil die Box es zum Prüfen der Codes braucht, und damit auch in jeder Sicherung. Bewahre Sicherungen entsprechend auf. Die Notfallcodes sind nur als Hash gespeichert.
 - Alle Formulare und Terminal-Anfragen sind gegen Cross-Site-Request-Forgery geschützt, alle Datenbankabfragen laufen über Prepared Statements.
 - Downloads laufen über Einmal-Links, die nur für den angemeldeten Anrufer und zehn Minuten gelten. Dateien im Ordner `data/` sind direkt nicht erreichbar.
-- Die Box speichert keine IP-Adressen und keine E-Mail-Adressen. Gespeichert werden Handle, Ort, Passwort-Hash, Nutzungsstatistik, Nachrichten, Uploads und das Ereignislog. Es wird nur ein technisch notwendiges Session-Cookie gesetzt. Externe Schriften oder Dienste werden nicht geladen. Die Zugriffslogs des Webservers bei deinem Hoster sind davon unabhängig und gehören mit in die Datenschutzerklärung.
+- Die Box speichert keine IP-Adressen und keine E-Mail-Adressen. Einzige Ausnahme ist die Begrenzung der Abrufe der öffentlichen Bretter: Dafür liegt pro Adresse ein Zähler in `data/tmp/rate`, benannt nach einem Hash der Adresse mit der Kennung der Box als Salz, ohne die Adresse selbst, und nach wenigen Minuten gelöscht. Gespeichert werden Handle, Ort, Passwort-Hash, Nutzungsstatistik, Nachrichten, Uploads und das Ereignislog. Es wird nur ein technisch notwendiges Session-Cookie gesetzt. Externe Schriften oder Dienste werden nicht geladen. Die Zugriffslogs des Webservers bei deinem Hoster sind davon unabhängig und gehören mit in die Datenschutzerklärung.
 - Private Post anderer ist im Backend nicht einsehbar, nur deine eigene unter „Meine Post“ und eine private Nachricht, die ihr Empfänger gemeldet hat. Mit Sysop-Level kannst du private Post im Terminal aber lesen und löschen. Schreib in die Datenschutzerklärung, wie du damit umgehst.
 - Das Log lässt sich im Backend jederzeit leeren. Damit sind auch die Upload- und Download-Zahlen der Statistik weg.
 - Der Treffpunkt speichert die letzten 50 Zeilen mit Handle und Zeit, ältere werden laufend überschrieben. Unter „Oneliner“ löschst du sie jederzeit.
@@ -798,6 +835,7 @@ Bringt eine neue Version Änderungen an der Datenbank mit, werden sie beim erste
 - Damit ein Neuladen nicht auflegt, merkt sich die Box pro Node die Ausgabe seit dem letzten Löschen des Bildschirms, höchstens 64 KB. Was der Anrufer selbst getippt hat, steht darin so, wie es auf seinem Bildschirm stand, Passwörter nur als Sternchen. Der Puffer liegt nur bis zum Ende des Anrufs vor, mit der Node verschwindet auch er. Vor dem Login wird nichts gespeichert.
 - Das Token zur Wiederaufnahme hält der Browser nur im Speicher des Tabs (sessionStorage), es ist kein Cookie. Die Box speichert davon nur einen Hash in der Sitzung. Fertige Zeilen im Editor hält der Browser ebenfalls im Speicher des Tabs, bis die Nachricht gespeichert oder verworfen ist.
 - Für die Erkennung doppelter Uploads speichert die Box zu jeder Datei ihre SHA-256-Prüfsummen. Die BBS-Ad enthält nur, was du im Text vorgibst, mit `@USER@` auch das Handle des Uploaders.
+- **Öffentliche Bretter:** Schaltest du Bereiche im Web frei, sind deren Nachrichten mit Handle, Datum, Text und Signatur für jeden ohne Anmeldung lesbar und können von Suchmaschinen aufgenommen werden, solange „Öffentliche Bretter für Suchmaschinen“ an ist. Was einmal in einer Suchmaschine oder einem Archiv steht, kann auch nach dem Löschen in der Box noch eine Weile dort auftauchen. Anrufer können statt ihres Handles „Anrufer“ zeigen lassen, Zitate in Nachrichten anderer und Signaturen bleiben aber, wie sie geschrieben wurden. Wer die Seiten liest, bekommt kein Cookie. **Ergänze deine Datenschutzerklärung entsprechend:** welche Bereiche öffentlich sind, was dort erscheint (Handle, Datum, Text, Signatur), dass Suchmaschinen es aufnehmen können und wie Anrufer ihr Handle ausblenden. Den Text der Datenschutzerklärung pflegst du wie bisher unter „Impressum und Datenschutz“, die Box ändert ihn nicht selbst.
 - Die tägliche Sicherung enthält die ganze Datenbank, also auch alle personenbezogenen Daten. Sie liegt in `data/backups/`, das nicht über das Web erreichbar sein darf, und wird nach sieben neueren Sicherungen gelöscht. Das gehört in die Datenschutzerklärung.
 
 ## 15. Fehlersuche

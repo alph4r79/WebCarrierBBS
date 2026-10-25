@@ -258,17 +258,6 @@ function a_reports_cleanup(): void
     DB::q("DELETE FROM {msg_reports} WHERE status<>'open' AND handled_time<?", [time() - 90 * 86400]);
 }
 
-/** Text of a message as the terminal shows it: pipe codes stay text, quoted lines in their own colour. */
-function a_msg_body_html(string $body): string
-{
-    $h = '';
-    foreach (cb_wrap($body, 79) as $l) {
-        $q = preg_match('/^\s*[\p{L}]{0,3}>/u', $l) === 1;
-        $h .= ($q ? '<span class="q">' . h($l) . '</span>' : h($l)) . "\n";
-    }
-    return '<pre class="msgbody">' . $h . '</pre>';
-}
-
 function page_reports(array $admin): void
 {
     a_reports_cleanup();
@@ -323,7 +312,7 @@ function page_reports(array $admin): void
             $where = (int)$m['private'] === 1 ? t('private') : ($areas[(int)$m['area_id']] ?? '?');
             echo '<dl class="msghead"><dt>' . h(t('Area')) . '</dt><dd>' . h($where) . '</dd><dt>' . h(t('From')) . '</dt><dd>' . h($m['from_name']) . '</dd><dt>' .
                 h(t('To')) . '</dt><dd>' . h($m['to_name']) . '</dd><dt>' . h(t('Subject')) . '</dt><dd>' . h($m['subject']) . '</dd><dt>' . h(t('Date')) . '</dt><dd>' .
-                date('d.m.Y H:i', (int)$m['posted']) . '</dd></dl>' . a_msg_body_html((string)$m['body']);
+                date('d.m.Y H:i', (int)$m['posted']) . '</dd></dl>' . cb_msg_body_html((string)$m['body']);
         }
         echo '<form method="post" class="row-actions report-actions">' . a_csrf();
         if ($m) {

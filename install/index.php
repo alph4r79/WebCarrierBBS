@@ -171,6 +171,7 @@ function cb_install_defaults(array $f): void
         'newsince' => '1', 'nu_questions_on' => '0', 'auto_level' => '0', 'tab_notify' => '1', 'crt' => 'off',
         'wansidraw_url' => CB_WANSIDRAW_URL, 'box_id' => bin2hex(random_bytes(16)),
         'auto_backup' => '1', 'bbs_ad_on' => '0', 'upload_zip_entries' => (string)CB_ZIP_MAX_ENTRIES, 'upload_zip_mb' => (string)CB_ZIP_MAX_MB,
+        'public_index' => '1', 'bbs_url' => '',
     ];
     foreach ([[10, $de ? 'Neuer User' : 'New user', 30, 2048, 0], [20, $de ? 'Mitglied' : 'Member', 60, 10240, 0],
                  [50, $de ? 'Stammgast' : 'Regular', 120, 0, 0], [100, 'Co-Sysop', 240, 0, 0], [255, 'Sysop', 0, 0, 0]] as $l) {

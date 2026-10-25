@@ -179,7 +179,7 @@ function a_message_view(array $admin, array $names, int $view, array $filter): v
     echo '<nav class="row-actions msgnav"><a class="btn small ghost" href="' . h(a_url('messages', $filter)) . '">' . h(t('Back to the list')) . '</a>' .
         ($prev ? '<a class="btn small ghost" href="' . h(a_url('messages', $filter + ['view' => (int)$prev])) . '">' . h(t('Previous')) . '</a>' : '') .
         ($next ? '<a class="btn small ghost" href="' . h(a_url('messages', $filter + ['view' => (int)$next])) . '">' . h(t('Next')) . '</a>' : '') . '</nav>';
-    echo '<article class="panel">' . a_msg_head($m, $names) . a_msg_body_html((string)$m['body']);
+    echo '<article class="panel">' . a_msg_head($m, $names) . cb_msg_body_html((string)$m['body']);
     if ((int)$m['reply_to'] > 0) {
         echo '<p class="note">' . ($orig ? '<a href="' . h(a_url('messages', $filter + ['view' => (int)$orig['id']])) . '">' . h(t('To the original message')) . '</a>'
                 : h(t('The original message no longer exists.'))) . '</p>';
@@ -193,6 +193,9 @@ function a_message_view(array $admin, array $names, int $view, array $filter): v
         echo '</ul>';
     }
     echo '<div class="row-actions msgactions"><a class="btn" href="' . h(a_url('messages', ['reply' => $view])) . '">' . h(t('Answer')) . '</a>' .
+        '<button type="button" class="btn small ghost" data-copy="' . h(cb_direct_link('msg', $view)) . '" data-done="' . h(t('Link copied')) . '" data-manual="' .
+        h(t('Copy the link:')) . '">' . h(t('Copy link')) . '</button>' .
+        (cb_area_is_public((int)$m['area_id']) ? '<a class="btn small ghost" href="../board.php?m=' . $view . '" target="_blank" rel="noopener">' . h(t('Web page')) . '</a>' : '') .
         '<form method="post" action="' . h(a_url('messages', $filter + ['view' => $view])) . '" class="bulk">' . a_csrf() .
         '<input type="hidden" name="ids[]" value="' . $view . '"><span class="move">' . a_marea_move_select($names, (int)$m['area_id']) .
         '<button class="btn small ghost" name="bulk" value="move">' . h(t('Move')) . '</button></span>' .
@@ -418,7 +421,7 @@ function page_mail(array $admin): void
         if ((int)$m['to_id'] === $me && (int)$m['is_read'] === 0) {
             DB::q('UPDATE {messages} SET is_read=1 WHERE id=?', [(int)$m['id']]);
         }
-        echo '<article class="panel">' . a_msg_head($m, []) . a_msg_body_html((string)$m['body']) . '<div class="row-actions msgactions">';
+        echo '<article class="panel">' . a_msg_head($m, []) . cb_msg_body_html((string)$m['body']) . '<div class="row-actions msgactions">';
         if ((int)$m['to_id'] === $me) {
             echo '<a class="btn" href="' . h(a_url('mail', ['reply' => (int)$m['id']])) . '">' . h(t('Answer')) . '</a><form method="post" action="' . h(a_url('mail')) . '"' .
                 a_confirm(t('Delete this mail?')) . '>' . a_csrf() . '<button class="btn small danger ghost" name="del" value="' . (int)$m['id'] . '">' . h(t('Delete')) . '</button></form>';
